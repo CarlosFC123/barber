@@ -463,24 +463,24 @@
             });
 
             // Verificar si ya está autenticado
-            async function checkAuth() {
-                try {
-                    const { data: { session } } = await supabase.auth.getSession();
+            // async function checkAuth() {
+            //     try {
+            //         const { data: { session } } = await supabase.auth.getSession();
                     
-                    if (session) {
-                        const userRole = session.user?.user_metadata?.rol || 'cliente';
+            //         if (session) {
+            //             const userRole = session.user?.user_metadata?.rol || 'cliente';
                         
-                        // Si ya está logueado, redirigir según su rol
-                        if (userRole === 'admin') {
-                            window.location.href = 'admin.html';
-                        } else {
-                            window.location.href = 'index.html';
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error verificando autenticación:', error);
-                }
-            }
+            //             // Si ya está logueado, redirigir según su rol
+            //             if (userRole === 'admin') {
+            //                 window.location.href = 'admin.html';
+            //             } else {
+            //                 window.location.href = 'index.html';
+            //             }
+            //         }
+            //     } catch (error) {
+            //         console.error('Error verificando autenticación:', error);
+            //     }
+            // }
 
             // Verificar autenticación al cargar la página
             checkAuth();
