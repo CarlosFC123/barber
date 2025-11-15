@@ -6,7 +6,6 @@
     <title>Panel del Cliente - Barbería Elite</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
-        /* TUS ESTILOS SE MANTIENEN IGUAL */
         * {
             margin: 0;
             padding: 0;
@@ -164,6 +163,101 @@
         input:focus, select:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        /* Estilos para el calendario de selección de fechas */
+        .calendar-picker {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-header h3 {
+            color: #2d3748;
+            font-size: 18px;
+        }
+
+        .calendar-nav {
+            display: flex;
+            gap: 10px;
+        }
+
+        .calendar-nav button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .calendar-nav button:hover {
+            background: #5a6fd8;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+
+        .day-label {
+            text-align: center;
+            font-weight: bold;
+            color: #667eea;
+            padding: 10px;
+            font-size: 12px;
+        }
+
+        .day-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            background: white;
+        }
+
+        .day-cell.disabled {
+            background: #e2e8f0;
+            color: #cbd5e0;
+            cursor: not-allowed;
+        }
+
+        .day-cell.available:hover {
+            background: #667eea;
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .day-cell.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .selected-date-display {
+            margin-top: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            text-align: center;
+            color: #667eea;
+            font-weight: bold;
         }
 
         .citas-grid {
@@ -324,6 +418,10 @@
                 flex-direction: column;
                 gap: 10px;
             }
+
+            .calendar-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
         }
     </style>
 </head>
@@ -367,12 +465,45 @@
                     </select>
                 </div>
 
+                <!-- Nuevo selector de fechas interactivo con calendario -->
                 <div class="form-group">
-                    <label for="fechaCita">Fecha y Hora</label>
-                    <input type="datetime-local" id="fechaCita" required>
-                    <small id="fechaHelp" style="color: #718096; font-size: 14px; margin-top: 5px; display: block;">
-                        Solo se permiten citas de lunes a viernes en días futuros
-                    </small>
+                    <label>Selecciona Fecha y Hora</label>
+                    <div class="calendar-picker">
+                        <div class="calendar-header">
+                            <h3 id="monthDisplay">Noviembre 2025</h3>
+                            <div class="calendar-nav">
+                                <button type="button" id="prevMonth">← Anterior</button>
+                                <button type="button" id="nextMonth">Siguiente →</button>
+                            </div>
+                        </div>
+                        <div class="calendar-grid" id="calendarGrid">
+                            <!-- Se genera dinámicamente -->
+                        </div>
+                        <div class="selected-date-display" id="selectedDateDisplay">
+                            Selecciona una fecha
+                        </div>
+                    </div>
+
+                    <label for="hora" style="margin-top: 20px;">Selecciona Hora</label>
+                    <select id="hora" required>
+                        <option value="">Selecciona una hora</option>
+                        <option value="09:00">09:00 AM</option>
+                        <option value="09:30">09:30 AM</option>
+                        <option value="10:00">10:00 AM</option>
+                        <option value="10:30">10:30 AM</option>
+                        <option value="11:00">11:00 AM</option>
+                        <option value="11:30">11:30 AM</option>
+                        <option value="12:00">12:00 PM</option>
+                        <option value="12:30">12:30 PM</option>
+                        <option value="14:00">2:00 PM</option>
+                        <option value="14:30">2:30 PM</option>
+                        <option value="15:00">3:00 PM</option>
+                        <option value="15:30">3:30 PM</option>
+                        <option value="16:00">4:00 PM</option>
+                        <option value="16:30">4:30 PM</option>
+                        <option value="17:00">5:00 PM</option>
+                        <option value="17:30">5:30 PM</option>
+                    </select>
                 </div>
 
                 <div class="form-group">
@@ -442,6 +573,8 @@
 
         function startApplication(supabase) {
             let usuarioActual = null;
+            let selectedDate = null;
+            let currentMonth = new Date();
 
             // Función para mostrar alertas
             function showAlert(message, type = 'error') {
@@ -455,31 +588,95 @@
                 }, 5000);
             }
 
-            // Función para configurar el selector de fechas
-            function configurarSelectorFechas() {
-                const fechaInput = document.getElementById('fechaCita');
-                
-                // Establecer la fecha mínima como hoy
-                const hoy = new Date();
-                const fechaMinima = new Date(hoy);
-                fechaMinima.setDate(hoy.getDate() + 1); // Mañana como fecha mínima
-                
-                // Formatear la fecha para el input datetime-local
-                const fechaMinimaFormateada = fechaMinima.toISOString().slice(0, 16);
-                fechaInput.min = fechaMinimaFormateada;
-                
-                // Validar que no se seleccionen fines de semana
-                fechaInput.addEventListener('change', function() {
-                    const fechaSeleccionada = new Date(this.value);
-                    const diaSemana = fechaSeleccionada.getDay(); // 0 = Domingo, 6 = Sábado
-                    
-                    // Si es sábado (6) o domingo (0), mostrar error
-                    if (diaSemana === 0 || diaSemana === 6) {
-                        showAlert('Solo se permiten citas de lunes a viernes', 'error');
-                        this.value = ''; // Limpiar el campo
-                    }
+            function generateCalendar(month = new Date()) {
+                const grid = document.getElementById('calendarGrid');
+                grid.innerHTML = '';
+
+                // Encabezados de días (Lunes a Viernes)
+                const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+                days.forEach(day => {
+                    const dayLabel = document.createElement('div');
+                    dayLabel.className = 'day-label';
+                    dayLabel.textContent = day;
+                    grid.appendChild(dayLabel);
                 });
+
+                // Obtener el primer día del mes
+                const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+                const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+                
+                // Obtener el día de la semana (0 = domingo, 1 = lunes, etc.)
+                let dayOfWeek = firstDay.getDay();
+                // Ajustar para que lunes sea 0
+                dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+                // Agregar espacios vacíos antes del primer día
+                for (let i = 0; i < dayOfWeek; i++) {
+                    const emptyCell = document.createElement('div');
+                    emptyCell.className = 'day-cell disabled';
+                    grid.appendChild(emptyCell);
+                }
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                // Agregar días del mes (solo lunes a viernes)
+                for (let date = 1; date <= lastDay.getDate(); date++) {
+                    const currentDate = new Date(month.getFullYear(), month.getMonth(), date);
+                    const dayOfWeekNum = currentDate.getDay();
+                    
+                    // Solo mostrar lunes (1) a viernes (5)
+                    if (dayOfWeekNum >= 1 && dayOfWeekNum <= 5) {
+                        const cell = document.createElement('div');
+                        
+                        // Verificar si la fecha es futura
+                        if (currentDate >= today) {
+                            cell.className = 'day-cell available';
+                            cell.textContent = date;
+                            cell.onclick = () => selectDate(currentDate);
+                            
+                            // Marcar el día seleccionado
+                            if (selectedDate && 
+                                selectedDate.getDate() === date && 
+                                selectedDate.getMonth() === month.getMonth() && 
+                                selectedDate.getFullYear() === month.getFullYear()) {
+                                cell.classList.add('selected');
+                            }
+                        } else {
+                            cell.className = 'day-cell disabled';
+                            cell.textContent = date;
+                        }
+                        
+                        grid.appendChild(cell);
+                    }
+                }
+
+                // Actualizar encabezado del mes
+                const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                document.getElementById('monthDisplay').textContent = 
+                    `${monthNames[month.getMonth()]} ${month.getFullYear()}`;
             }
+
+            function selectDate(date) {
+                selectedDate = new Date(date);
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                document.getElementById('selectedDateDisplay').textContent = 
+                    `Fecha seleccionada: ${date.toLocaleDateString('es-MX', options)}`;
+                generateCalendar(currentMonth);
+            }
+
+            document.getElementById('prevMonth').addEventListener('click', (e) => {
+                e.preventDefault();
+                currentMonth.setMonth(currentMonth.getMonth() - 1);
+                generateCalendar(currentMonth);
+            });
+
+            document.getElementById('nextMonth').addEventListener('click', (e) => {
+                e.preventDefault();
+                currentMonth.setMonth(currentMonth.getMonth() + 1);
+                generateCalendar(currentMonth);
+            });
 
             // Configurar event listeners
             document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
@@ -515,8 +712,8 @@
                     await cargarBarberos();
                     await cargarMisCitas();
                     
-                    // Configurar el selector de fechas después de cargar todo
-                    configurarSelectorFechas();
+                    currentMonth = new Date();
+                    generateCalendar(currentMonth);
 
                 } catch (error) {
                     console.error('Error de autenticación:', error);
@@ -697,30 +894,17 @@
                 
                 const servicioId = document.getElementById('servicio').value;
                 const barberoId = document.getElementById('barbero').value;
-                const fecha = document.getElementById('fechaCita').value;
+                const hora = document.getElementById('hora').value;
                 const notas = document.getElementById('notas').value;
 
-                if (!servicioId || !barberoId || !fecha) {
+                if (!servicioId || !barberoId || !selectedDate || !hora) {
                     showAlert('Por favor, completa todos los campos obligatorios');
                     return;
                 }
 
-                // Validación adicional de fecha (por si el usuario modifica el HTML)
-                const fechaSeleccionada = new Date(fecha);
-                const hoy = new Date();
-                const diaSemana = fechaSeleccionada.getDay();
-                
-                // Verificar que la fecha sea futura
-                if (fechaSeleccionada <= hoy) {
-                    showAlert('La fecha seleccionada debe ser en el futuro');
-                    return;
-                }
-                
-                // Verificar que no sea fin de semana
-                if (diaSemana === 0 || diaSemana === 6) {
-                    showAlert('Solo se permiten citas de lunes a viernes');
-                    return;
-                }
+                const [hours, minutes] = hora.split(':');
+                const fechaCita = new Date(selectedDate);
+                fechaCita.setHours(parseInt(hours), parseInt(minutes), 0);
 
                 try {
                     const { data, error } = await supabase
@@ -729,7 +913,7 @@
                             cliente_id: usuarioActual.id,
                             servicio_id: servicioId,
                             barbero_id: barberoId,
-                            fecha: fecha,
+                            fecha: fechaCita.toISOString(),
                             notas: notas,
                             estado: 'pendiente',
                             creado_en: new Date().toISOString()
@@ -744,6 +928,10 @@
 
                     showAlert('✅ ¡Cita agendada exitosamente!', 'success');
                     document.getElementById('formAgendarCita').reset();
+                    selectedDate = null;
+                    document.getElementById('selectedDateDisplay').textContent = 'Selecciona una fecha';
+                    currentMonth = new Date();
+                    generateCalendar(currentMonth);
                     
                     // Recargar la lista de citas
                     await cargarMisCitas();
