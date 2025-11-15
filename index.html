@@ -6,7 +6,6 @@
     <title>Barbería - Iniciar Sesión</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
-        /* TUS ESTILOS SE MANTIENEN IGUAL */
         * {
             margin: 0;
             padding: 0;
@@ -243,6 +242,10 @@
     <script>
         // ESPERAR A QUE EL DOM ESTÉ LISTO
         document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        function initializeApp() {
             // Configuración Supabase
             const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
@@ -255,10 +258,10 @@
             }
             
             const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-            initializeApp(supabaseClient);
-        });
+            startApplication(supabaseClient);
+        }
 
-        function initializeApp(supabase) {
+        function startApplication(supabase) {
             // Elementos del DOM
             const loginForm = document.getElementById('loginForm');
             const registerForm = document.getElementById('registerForm');
@@ -298,6 +301,25 @@
                 
                 // Limpiar alertas
                 alertDiv.style.display = 'none';
+            }
+
+            // Verificar si ya está autenticado
+            async function checkAuth() {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    
+                    if (session) {
+                        const userRole = session.user?.user_metadata?.rol || 'cliente';
+                        
+                        if (userRole === 'admin') {
+                            window.location.href = 'admin.html';
+                        } else {
+                            window.location.href = 'cliente.html';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error en checkAuth:', error);
+                }
             }
 
             // Manejar registro de usuario
@@ -406,25 +428,6 @@
 
             // Event listener para cambiar formulario
             switchLink.addEventListener('click', switchForm);
-
-            // Verificar si ya está autenticado
-            // async function checkAuth() {
-            //     try {
-            //         const { data: { session } } = await supabase.auth.getSession();
-                    
-            //         if (session) {
-            //             const userRole = session.user?.user_metadata?.rol || 'cliente';
-                        
-            //             if (userRole === 'admin') {
-            //                 window.location.href = 'admin.html';
-            //             } else {
-            //                 window.location.href = 'cliente.html';
-            //             }
-            //         }
-            //     } catch (error) {
-            //         console.error('Error en checkAuth:', error);
-            //     }
-            // }
 
             // ✅ CORREGIDO: Verificar autenticación DESPUÉS de inicializar Supabase
             checkAuth();
