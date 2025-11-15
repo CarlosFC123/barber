@@ -408,26 +408,26 @@
             switchLink.addEventListener('click', switchForm);
 
             // Verificar si ya está autenticado
-            async function checkAuth() {
-                try {
-                    const { data: { session } } = await supabase.auth.getSession();
+            // async function checkAuth() {
+            //     try {
+            //         const { data: { session } } = await supabase.auth.getSession();
                     
-                    if (session) {
-                        const userRole = session.user?.user_metadata?.rol || 'cliente';
+            //         if (session) {
+            //             const userRole = session.user?.user_metadata?.rol || 'cliente';
                         
-                        if (userRole === 'admin') {
-                            window.location.href = 'admin.html';
-                        } else {
-                            window.location.href = 'cliente.html';
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error en checkAuth:', error);
-                }
-            }
+            //             if (userRole === 'admin') {
+            //                 window.location.href = 'admin.html';
+            //             } else {
+            //                 window.location.href = 'cliente.html';
+            //             }
+            //         }
+            //     } catch (error) {
+            //         console.error('Error en checkAuth:', error);
+            //     }
+            // }
 
             // ✅ CORREGIDO: Verificar autenticación DESPUÉS de inicializar Supabase
-            checkAuth();
+            // checkAuth();
         }
     </script>
 </body>
