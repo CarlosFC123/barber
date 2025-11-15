@@ -6,6 +6,7 @@
     <title>Panel del Cliente - Barbería Elite</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
+        /* TUS ESTILOS SE MANTIENEN IGUAL */
         * {
             margin: 0;
             padding: 0;
@@ -332,7 +333,7 @@
         <p>Panel del Cliente</p>
         <div class="user-info">
             <span id="userWelcome">Bienvenido, </span>
-            <button class="logout-btn" onclick="cerrarSesion()">Cerrar Sesión</button>
+            <button class="logout-btn" id="logoutBtn">Cerrar Sesión</button>
         </div>
     </div>
 
@@ -342,10 +343,10 @@
 
         <!-- Pestañas de Navegación -->
         <div class="nav-tabs">
-            <button class="nav-tab active" onclick="cambiarPestana('agendar')">Agendar Cita</button>
-            <button class="nav-tab" onclick="cambiarPestana('mis-citas')">Mis Citas</button>
-            <button class="nav-tab" onclick="cambiarPestana('servicios')">Servicios</button>
-            <button class="nav-tab" onclick="cambiarPestana('perfil')">Mi Perfil</button>
+            <button class="nav-tab active" data-tab="agendar">Agendar Cita</button>
+            <button class="nav-tab" data-tab="mis-citas">Mis Citas</button>
+            <button class="nav-tab" data-tab="servicios">Servicios</button>
+            <button class="nav-tab" data-tab="perfil">Mi Perfil</button>
         </div>
 
         <!-- Contenido de Agendar Cita -->
@@ -415,333 +416,371 @@
     </div>
 
     <script>
-        // Configuración Supabase
-        const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
-        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
-
-        let usuarioActual = null;
-
-        // Inicializar la aplicación
+        // ESPERAR A QUE EL DOM Y SUPABASE ESTÉN LISTOS
         document.addEventListener('DOMContentLoaded', function() {
-            verificarAutenticacion();
+            initializeApp();
         });
 
-        // Función para mostrar alertas
-        function showAlert(message, type = 'error') {
-            const alertDiv = document.getElementById('alert');
-            alertDiv.textContent = message;
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.style.display = 'block';
+        function initializeApp() {
+            // Configuración Supabase
+            const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
             
-            setTimeout(() => {
-                alertDiv.style.display = 'none';
-            }, 5000);
+            // Verificar que Supabase esté disponible
+            if (typeof supabase === 'undefined') {
+                console.error('Supabase no está cargado');
+                showAlert('Error: No se pudo cargar la configuración', 'error');
+                return;
+            }
+            
+            const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+            startApplication(supabaseClient);
         }
 
-        // Verificar autenticación
-        async function verificarAutenticacion() {
-            try {
-                const { data: { session }, error } = await supabase.auth.getSession();
+        function startApplication(supabase) {
+            let usuarioActual = null;
+
+            // Función para mostrar alertas
+            function showAlert(message, type = 'error') {
+                const alertDiv = document.getElementById('alert');
+                alertDiv.textContent = message;
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.style.display = 'block';
                 
-                if (error) throw error;
-                
-                if (!session) {
+                setTimeout(() => {
+                    alertDiv.style.display = 'none';
+                }, 5000);
+            }
+
+            // Configurar event listeners
+            document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
+            
+            // Configurar pestañas
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    cambiarPestana(this.dataset.tab);
+                });
+            });
+
+            // Configurar formulario
+            document.getElementById('formAgendarCita').addEventListener('submit', function(e) {
+                e.preventDefault();
+                agendarCita(e);
+            });
+
+            // Verificar autenticación
+            async function verificarAutenticacion() {
+                try {
+                    const { data: { session }, error } = await supabase.auth.getSession();
+                    
+                    if (error) throw error;
+                    
+                    if (!session) {
+                        window.location.href = 'index.html';
+                        return;
+                    }
+
+                    usuarioActual = session.user;
+                    await cargarInformacionUsuario();
+                    await cargarServicios();
+                    await cargarBarberos();
+                    await cargarMisCitas();
+
+                } catch (error) {
+                    console.error('Error de autenticación:', error);
                     window.location.href = 'index.html';
+                }
+            }
+
+            // Cargar información del usuario
+            async function cargarInformacionUsuario() {
+                try {
+                    const { data: cliente, error } = await supabase
+                        .from('clientes')
+                        .select('*')
+                        .eq('id', usuarioActual.id)
+                        .single();
+
+                    if (error) throw error;
+
+                    document.getElementById('userWelcome').textContent = 
+                        `Bienvenido, ${cliente.nombre} ${cliente.apellido}`;
+
+                    // Mostrar información en el perfil
+                    const perfilHTML = `
+                        <div class="form-group">
+                            <label>Nombre completo</label>
+                            <input type="text" value="${cliente.nombre} ${cliente.apellido}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Correo electrónico</label>
+                            <input type="email" value="${cliente.email}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Teléfono</label>
+                            <input type="tel" value="${cliente.telefono}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha de registro</label>
+                            <input type="text" value="${new Date(cliente.creado_en).toLocaleDateString('es-MX')}" readonly>
+                        </div>
+                    `;
+
+                    document.getElementById('infoPerfil').innerHTML = perfilHTML;
+
+                } catch (error) {
+                    console.error('Error cargando información del usuario:', error);
+                }
+            }
+
+            // Cargar servicios disponibles
+            async function cargarServicios() {
+                try {
+                    const { data: servicios, error } = await supabase
+                        .from('servicios')
+                        .select('*')
+                        .order('precio');
+
+                    if (error) throw error;
+
+                    // Llenar select de servicios
+                    const selectServicio = document.getElementById('servicio');
+                    selectServicio.innerHTML = '<option value="">Selecciona un servicio</option>';
+                    
+                    servicios.forEach(servicio => {
+                        const option = document.createElement('option');
+                        option.value = servicio.id;
+                        option.textContent = `${servicio.nombre} - $${servicio.precio}`;
+                        selectServicio.appendChild(option);
+                    });
+
+                    // Mostrar servicios en la pestaña
+                    const serviciosGrid = document.getElementById('listaServicios');
+                    if (servicios.length === 0) {
+                        serviciosGrid.innerHTML = `
+                            <div class="empty-state">
+                                <div>📋</div>
+                                <p>No hay servicios disponibles en este momento</p>
+                            </div>
+                        `;
+                    } else {
+                        serviciosGrid.innerHTML = servicios.map(servicio => `
+                            <div class="servicio-card">
+                                <h3>${servicio.nombre}</h3>
+                                <div class="servicio-precio">$${servicio.precio}</div>
+                                <div class="servicio-duracion">⏱️ ${servicio.duracion || '30 min'}</div>
+                                <p>${servicio.descripcion || 'Servicio profesional de barbería'}</p>
+                            </div>
+                        `).join('');
+                    }
+
+                } catch (error) {
+                    console.error('Error cargando servicios:', error);
+                    showAlert('Error al cargar los servicios', 'error');
+                }
+            }
+
+            // Cargar barberos disponibles
+            async function cargarBarberos() {
+                try {
+                    const { data: barberos, error } = await supabase
+                        .from('barberos')
+                        .select('*');
+
+                    if (error) throw error;
+
+                    const selectBarbero = document.getElementById('barbero');
+                    selectBarbero.innerHTML = '<option value="">Selecciona tu barbero</option>';
+                    
+                    barberos.forEach(barbero => {
+                        const option = document.createElement('option');
+                        option.value = barbero.id;
+                        option.textContent = `${barbero.nombre} - ${barbero.especialidad}`;
+                        selectBarbero.appendChild(option);
+                    });
+
+                } catch (error) {
+                    console.error('Error cargando barberos:', error);
+                }
+            }
+
+            // Cargar citas del usuario
+            async function cargarMisCitas() {
+                try {
+                    const { data: citas, error } = await supabase
+                        .from('citas')
+                        .select(`
+                            *,
+                            servicios(nombre, precio),
+                            barberos(nombre)
+                        `)
+                        .eq('cliente_id', usuarioActual.id)
+                        .order('fecha', { ascending: false });
+
+                    if (error) throw error;
+
+                    const listaCitas = document.getElementById('listaCitas');
+                    
+                    if (!citas || citas.length === 0) {
+                        listaCitas.innerHTML = `
+                            <div class="empty-state">
+                                <div>📅</div>
+                                <h3>No tienes citas agendadas</h3>
+                                <p>¡Agenda tu primera cita ahora!</p>
+                                <button class="btn btn-primary" onclick="cambiarPestana('agendar')">Agendar Cita</button>
+                            </div>
+                        `;
+                    } else {
+                        listaCitas.innerHTML = citas.map(cita => `
+                            <div class="cita-card ${cita.estado}">
+                                <div class="cita-header">
+                                    <h3>${cita.servicios.nombre}</h3>
+                                    <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
+                                </div>
+                                <div class="cita-detalles">
+                                    <p><strong>📅 Fecha:</strong> ${new Date(cita.fecha).toLocaleString('es-MX')}</p>
+                                    <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
+                                    <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
+                                    ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                                </div>
+                                <div class="cita-acciones">
+                                    ${cita.estado === 'pendiente' ? `
+                                        <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
+                                    ` : ''}
+                                    <button class="btn btn-secondary" onclick="app.verDetallesCita('${cita.id}')">Ver Detalles</button>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+
+                } catch (error) {
+                    console.error('Error cargando citas:', error);
+                    showAlert('Error al cargar tus citas', 'error');
+                }
+            }
+
+            // Agendar nueva cita
+            async function agendarCita(e) {
+                e.preventDefault();
+                
+                const servicioId = document.getElementById('servicio').value;
+                const barberoId = document.getElementById('barbero').value;
+                const fecha = document.getElementById('fechaCita').value;
+                const notas = document.getElementById('notas').value;
+
+                if (!servicioId || !barberoId || !fecha) {
+                    showAlert('Por favor, completa todos los campos obligatorios');
                     return;
                 }
 
-                usuarioActual = session.user;
-                await cargarInformacionUsuario();
-                await cargarServicios();
-                await cargarBarberos();
-                await cargarMisCitas();
+                try {
+                    const { data, error } = await supabase
+                        .from('citas')
+                        .insert([{
+                            cliente_id: usuarioActual.id,
+                            servicio_id: servicioId,
+                            barbero_id: barberoId,
+                            fecha: fecha,
+                            notas: notas,
+                            estado: 'pendiente',
+                            creado_en: new Date().toISOString()
+                        }])
+                        .select(`
+                            *,
+                            servicios(nombre, precio),
+                            barberos(nombre)
+                        `);
 
-            } catch (error) {
-                console.error('Error de autenticación:', error);
-                window.location.href = 'index.html';
+                    if (error) throw error;
+
+                    showAlert('✅ ¡Cita agendada exitosamente!', 'success');
+                    document.getElementById('formAgendarCita').reset();
+                    
+                    // Recargar la lista de citas
+                    await cargarMisCitas();
+                    
+                    // Cambiar a la pestaña de mis citas
+                    cambiarPestana('mis-citas');
+
+                } catch (error) {
+                    console.error('Error agendando cita:', error);
+                    showAlert('❌ Error al agendar la cita: ' + error.message);
+                }
             }
-        }
 
-        // Cargar información del usuario
-        async function cargarInformacionUsuario() {
-            try {
-                const { data: cliente, error } = await supabase
-                    .from('clientes')
-                    .select('*')
-                    .eq('id', usuarioActual.id)
-                    .single();
-
-                if (error) throw error;
-
-                document.getElementById('userWelcome').textContent = 
-                    `Bienvenido, ${cliente.nombre} ${cliente.apellido}`;
-
-                // Mostrar información en el perfil
-                const perfilHTML = `
-                    <div class="form-group">
-                        <label>Nombre completo</label>
-                        <input type="text" value="${cliente.nombre} ${cliente.apellido}" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label>Correo electrónico</label>
-                        <input type="email" value="${cliente.email}" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label>Teléfono</label>
-                        <input type="tel" value="${cliente.telefono}" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label>Fecha de registro</label>
-                        <input type="text" value="${new Date(cliente.creado_en).toLocaleDateString('es-MX')}" readonly>
-                    </div>
-                `;
-
-                document.getElementById('infoPerfil').innerHTML = perfilHTML;
-
-            } catch (error) {
-                console.error('Error cargando información del usuario:', error);
-            }
-        }
-
-        // Cargar servicios disponibles
-        async function cargarServicios() {
-            try {
-                const { data: servicios, error } = await supabase
-                    .from('servicios')
-                    .select('*')
-                    .order('precio');
-
-                if (error) throw error;
-
-                // Llenar select de servicios
-                const selectServicio = document.getElementById('servicio');
-                selectServicio.innerHTML = '<option value="">Selecciona un servicio</option>';
-                
-                servicios.forEach(servicio => {
-                    const option = document.createElement('option');
-                    option.value = servicio.id;
-                    option.textContent = `${servicio.nombre} - $${servicio.precio} (${servicio.duracion})`;
-                    selectServicio.appendChild(option);
-                });
-
-                // Mostrar servicios en la pestaña
-                const serviciosGrid = document.getElementById('listaServicios');
-                if (servicios.length === 0) {
-                    serviciosGrid.innerHTML = `
-                        <div class="empty-state">
-                            <div>📋</div>
-                            <p>No hay servicios disponibles en este momento</p>
-                        </div>
-                    `;
-                } else {
-                    serviciosGrid.innerHTML = servicios.map(servicio => `
-                        <div class="servicio-card">
-                            <h3>${servicio.nombre}</h3>
-                            <div class="servicio-precio">$${servicio.precio}</div>
-                            <div class="servicio-duracion">⏱️ ${servicio.duracion}</div>
-                            <p>${servicio.descripcion || 'Servicio profesional de barbería'}</p>
-                        </div>
-                    `).join('');
+            // Cancelar cita
+            async function cancelarCita(citaId) {
+                if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
+                    return;
                 }
 
-            } catch (error) {
-                console.error('Error cargando servicios:', error);
-                showAlert('Error al cargar los servicios', 'error');
-            }
-        }
+                try {
+                    const { error } = await supabase
+                        .from('citas')
+                        .update({ estado: 'cancelada' })
+                        .eq('id', citaId);
 
-        // Cargar barberos disponibles
-        async function cargarBarberos() {
-            try {
-                const { data: barberos, error } = await supabase
-                    .from('barberos')
-                    .select('*');
+                    if (error) throw error;
 
-                if (error) throw error;
+                    showAlert('✅ Cita cancelada exitosamente', 'success');
+                    await cargarMisCitas();
 
-                const selectBarbero = document.getElementById('barbero');
-                selectBarbero.innerHTML = '<option value="">Selecciona tu barbero</option>';
-                
-                barberos.forEach(barbero => {
-                    const option = document.createElement('option');
-                    option.value = barbero.id;
-                    option.textContent = `${barbero.nombre} - ${barbero.especialidad}`;
-                    selectBarbero.appendChild(option);
-                });
-
-            } catch (error) {
-                console.error('Error cargando barberos:', error);
-            }
-        }
-
-        // Cargar citas del usuario
-        async function cargarMisCitas() {
-            try {
-                const { data: citas, error } = await supabase
-                    .from('citas')
-                    .select(`
-                        *,
-                        servicios(nombre, precio),
-                        barberos(nombre)
-                    `)
-                    .eq('cliente_id', usuarioActual.id)
-                    .order('fecha', { ascending: false });
-
-                if (error) throw error;
-
-                const listaCitas = document.getElementById('listaCitas');
-                
-                if (citas.length === 0) {
-                    listaCitas.innerHTML = `
-                        <div class="empty-state">
-                            <div>📅</div>
-                            <h3>No tienes citas agendadas</h3>
-                            <p>¡Agenda tu primera cita ahora!</p>
-                            <button class="btn btn-primary" onclick="cambiarPestana('agendar')">Agendar Cita</button>
-                        </div>
-                    `;
-                } else {
-                    listaCitas.innerHTML = citas.map(cita => `
-                        <div class="cita-card ${cita.estado}">
-                            <div class="cita-header">
-                                <h3>${cita.servicios.nombre}</h3>
-                                <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
-                            </div>
-                            <div class="cita-detalles">
-                                <p><strong>📅 Fecha:</strong> ${new Date(cita.fecha).toLocaleString('es-MX')}</p>
-                                <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
-                                <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
-                                ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                            </div>
-                            <div class="cita-acciones">
-                                ${cita.estado === 'pendiente' ? `
-                                    <button class="btn btn-danger" onclick="cancelarCita('${cita.id}')">Cancelar</button>
-                                ` : ''}
-                                <button class="btn btn-secondary" onclick="verDetallesCita('${cita.id}')">Ver Detalles</button>
-                            </div>
-                        </div>
-                    `).join('');
+                } catch (error) {
+                    console.error('Error cancelando cita:', error);
+                    showAlert('❌ Error al cancelar la cita', 'error');
                 }
-
-            } catch (error) {
-                console.error('Error cargando citas:', error);
-                showAlert('Error al cargar tus citas', 'error');
-            }
-        }
-
-        // Agendar nueva cita
-        document.getElementById('formAgendarCita').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const servicioId = document.getElementById('servicio').value;
-            const barberoId = document.getElementById('barbero').value;
-            const fecha = document.getElementById('fechaCita').value;
-            const notas = document.getElementById('notas').value;
-
-            if (!servicioId || !barberoId || !fecha) {
-                showAlert('Por favor, completa todos los campos obligatorios');
-                return;
             }
 
-            try {
-                const { data, error } = await supabase
-                    .from('citas')
-                    .insert([{
-                        cliente_id: usuarioActual.id,
-                        servicio_id: servicioId,
-                        barbero_id: barberoId,
-                        fecha: fecha,
-                        notas: notas,
-                        estado: 'pendiente',
-                        creado_en: new Date().toISOString()
-                    }])
-                    .select(`
-                        *,
-                        servicios(nombre, precio),
-                        barberos(nombre)
-                    `);
+            // Ver detalles de cita
+            function verDetallesCita(citaId) {
+                alert('Función de detalles de cita - Próximamente');
+            }
 
-                if (error) throw error;
-
-                showAlert('✅ ¡Cita agendada exitosamente!', 'success');
-                document.getElementById('formAgendarCita').reset();
+            // Cambiar entre pestañas
+            function cambiarPestana(pestanaId) {
+                // Ocultar todas las pestañas
+                document.querySelectorAll('.tab-content').forEach(tab => {
+                    tab.classList.remove('active');
+                });
                 
-                // Recargar la lista de citas
-                await cargarMisCitas();
+                // Remover activo de todos los botones
+                document.querySelectorAll('.nav-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
                 
-                // Cambiar a la pestaña de mis citas
-                cambiarPestana('mis-citas');
-
-            } catch (error) {
-                console.error('Error agendando cita:', error);
-                showAlert('❌ Error al agendar la cita: ' + error.message);
-            }
-        });
-
-        // Cancelar cita
-        async function cancelarCita(citaId) {
-            if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
-                return;
-            }
-
-            try {
-                const { error } = await supabase
-                    .from('citas')
-                    .update({ estado: 'cancelada' })
-                    .eq('id', citaId);
-
-                if (error) throw error;
-
-                showAlert('✅ Cita cancelada exitosamente', 'success');
-                await cargarMisCitas();
-
-            } catch (error) {
-                console.error('Error cancelando cita:', error);
-                showAlert('❌ Error al cancelar la cita', 'error');
-            }
-        }
-
-        // Ver detalles de cita
-        function verDetallesCita(citaId) {
-            // Aquí puedes implementar un modal con más detalles
-            alert('Función de detalles de cita - Próximamente');
-        }
-
-        // Cambiar entre pestañas
-        function cambiarPestana(pestanaId) {
-            // Ocultar todas las pestañas
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Remover activo de todos los botones
-            document.querySelectorAll('.nav-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Mostrar pestaña seleccionada
-            document.getElementById(pestanaId).classList.add('active');
-            
-            // Activar botón correspondiente
-            event.target.classList.add('active');
-        }
-
-        // Cerrar sesión
-        async function cerrarSesion() {
-            try {
-                const { error } = await supabase.auth.signOut();
-                if (error) throw error;
+                // Mostrar pestaña seleccionada
+                document.getElementById(pestanaId).classList.add('active');
                 
-                window.location.href = 'index.html';
-            } catch (error) {
-                console.error('Error cerrando sesión:', error);
-                showAlert('Error al cerrar sesión', 'error');
+                // Activar botón correspondiente
+                document.querySelector(`[data-tab="${pestanaId}"]`).classList.add('active');
             }
-        }
 
-        // Verificar si el usuario está autenticado cada cierto tiempo
-        setInterval(verificarAutenticacion, 300000); // 5 minutos
+            // Cerrar sesión
+            async function cerrarSesion() {
+                try {
+                    const { error } = await supabase.auth.signOut();
+                    if (error) throw error;
+                    
+                    window.location.href = 'index.html';
+                } catch (error) {
+                    console.error('Error cerrando sesión:', error);
+                    showAlert('Error al cerrar sesión', 'error');
+                }
+            }
+
+            // Hacer funciones disponibles globalmente
+            window.app = {
+                cancelarCita,
+                verDetallesCita,
+                cambiarPestana
+            };
+
+            // Iniciar la aplicación
+            verificarAutenticacion();
+
+            // Verificar si el usuario está autenticado cada cierto tiempo
+            setInterval(verificarAutenticacion, 300000); // 5 minutos
+        }
     </script>
 </body>
 </html>
