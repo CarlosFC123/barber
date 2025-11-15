@@ -6,6 +6,7 @@
     <title>Barbería - Iniciar Sesión</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
+        /* TUS ESTILOS SE MANTIENEN IGUAL */
         * {
             margin: 0;
             padding: 0;
@@ -240,176 +241,194 @@
     </div>
 
     <script>
-        // Configuración Supabase
-        const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
-        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
-
-        // Elementos del DOM
-        const loginForm = document.getElementById('loginForm');
-        const registerForm = document.getElementById('registerForm');
-        const switchLink = document.getElementById('switchLink');
-        const switchText = document.getElementById('switchText');
-        const alertDiv = document.getElementById('alert');
-
-        // Variables de estado
-        let isLogin = true;
-
-        // Función para mostrar alertas
-        function showAlert(message, type = 'error') {
-            alertDiv.textContent = message;
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.style.display = 'block';
+        // ESPERAR A QUE EL DOM ESTÉ LISTO
+        document.addEventListener('DOMContentLoaded', function() {
+            // Configuración Supabase
+            const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
             
-            setTimeout(() => {
-                alertDiv.style.display = 'none';
-            }, 5000);
-        }
-
-        // Función para cambiar entre login y registro
-        function switchForm() {
-            isLogin = !isLogin;
-            
-            if (isLogin) {
-                loginForm.classList.remove('hidden');
-                registerForm.classList.add('hidden');
-                switchText.innerHTML = '¿No tienes cuenta? ';
-                switchLink.textContent = 'Regístrate aquí';
-            } else {
-                loginForm.classList.add('hidden');
-                registerForm.classList.remove('hidden');
-                switchText.innerHTML = '¿Ya tienes cuenta? ';
-                switchLink.textContent = 'Inicia sesión aquí';
-            }
-            
-            // Limpiar alertas
-            alertDiv.style.display = 'none';
-        }
-
-        // Manejar registro de usuario
-        registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const nombre = document.getElementById('regNombre').value;
-            const apellido = document.getElementById('regApellido').value;
-            const telefono = document.getElementById('regTelefono').value;
-            const email = document.getElementById('regEmail').value;
-            const password = document.getElementById('regPassword').value;
-
-            // Validaciones básicas
-            if (password.length < 6) {
-                showAlert('La contraseña debe tener al menos 6 caracteres');
+            // Verificar que Supabase esté disponible
+            if (typeof supabase === 'undefined') {
+                console.error('Supabase no está cargado');
+                showAlert('Error: No se pudo cargar la configuración', 'error');
                 return;
             }
+            
+            const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+            initializeApp(supabaseClient);
+        });
 
-            try {
-                // 1. Registrar usuario en Auth de Supabase
-                const { data: authData, error: authError } = await supabase.auth.signUp({
-                    email: email,
-                    password: password,
-                    options: {
-                        data: {
-                            nombre: nombre,
-                            apellido: apellido,
-                            telefono: telefono,
-                            rol: 'cliente' // Todos los que se registran son clientes
+        function initializeApp(supabase) {
+            // Elementos del DOM
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const switchLink = document.getElementById('switchLink');
+            const switchText = document.getElementById('switchText');
+            const alertDiv = document.getElementById('alert');
+
+            // Variables de estado
+            let isLogin = true;
+
+            // Función para mostrar alertas
+            function showAlert(message, type = 'error') {
+                alertDiv.textContent = message;
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.style.display = 'block';
+                
+                setTimeout(() => {
+                    alertDiv.style.display = 'none';
+                }, 5000);
+            }
+
+            // Función para cambiar entre login y registro
+            function switchForm() {
+                isLogin = !isLogin;
+                
+                if (isLogin) {
+                    loginForm.classList.remove('hidden');
+                    registerForm.classList.add('hidden');
+                    switchText.innerHTML = '¿No tienes cuenta? ';
+                    switchLink.textContent = 'Regístrate aquí';
+                } else {
+                    loginForm.classList.add('hidden');
+                    registerForm.classList.remove('hidden');
+                    switchText.innerHTML = '¿Ya tienes cuenta? ';
+                    switchLink.textContent = 'Inicia sesión aquí';
+                }
+                
+                // Limpiar alertas
+                alertDiv.style.display = 'none';
+            }
+
+            // Manejar registro de usuario
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const nombre = document.getElementById('regNombre').value;
+                const apellido = document.getElementById('regApellido').value;
+                const telefono = document.getElementById('regTelefono').value;
+                const email = document.getElementById('regEmail').value;
+                const password = document.getElementById('regPassword').value;
+
+                // Validaciones básicas
+                if (password.length < 6) {
+                    showAlert('La contraseña debe tener al menos 6 caracteres');
+                    return;
+                }
+
+                try {
+                    // 1. Registrar usuario en Auth de Supabase
+                    const { data: authData, error: authError } = await supabase.auth.signUp({
+                        email: email,
+                        password: password,
+                        options: {
+                            data: {
+                                nombre: nombre,
+                                apellido: apellido,
+                                telefono: telefono,
+                                rol: 'cliente' // Todos los que se registran son clientes
+                            }
+                        }
+                    });
+
+                    if (authError) throw authError;
+
+                    // 2. Guardar información adicional en tabla 'clientes'
+                    if (authData.user) {
+                        const { error: dbError } = await supabase
+                            .from('clientes')
+                            .insert([{
+                                id: authData.user.id,
+                                nombre: nombre,
+                                apellido: apellido,
+                                telefono: telefono,
+                                email: email,
+                                rol: 'cliente',
+                                creado_en: new Date().toISOString()
+                            }]);
+
+                        if (dbError) {
+                            console.error('Error guardando en BD:', dbError);
+                            // El usuario ya está creado en auth, así que continuamos
                         }
                     }
-                });
 
-                if (authError) throw authError;
-
-                // 2. Guardar información adicional en tabla 'clientes'
-                if (authData.user) {
-                    const { error: dbError } = await supabase
-                        .from('clientes')
-                        .insert([{
-                            id: authData.user.id,
-                            nombre: nombre,
-                            apellido: apellido,
-                            telefono: telefono,
-                            email: email,
-                            rol: 'cliente',
-                            creado_en: new Date().toISOString()
-                        }]);
-
-                    if (dbError) {
-                        console.error('Error guardando en BD:', dbError);
-                        // El usuario ya está creado en auth, así que continuamos
-                    }
-                }
-
-                showAlert('✅ ¡Registro exitoso! Revisa tu correo para verificar tu cuenta.', 'success');
-                
-                // Limpiar formulario
-                registerForm.reset();
-                
-                // Cambiar a login después de 3 segundos
-                setTimeout(() => {
-                    switchForm();
-                }, 3000);
-
-            } catch (error) {
-                console.error('Error en registro:', error);
-                showAlert('❌ Error al registrarse: ' + error.message);
-            }
-        });
-
-        // Manejar login de usuario
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const email = document.getElementById('loginEmail').value;
-            const password = document.getElementById('loginPassword').value;
-
-            try {
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email: email,
-                    password: password
-                });
-
-                if (error) throw error;
-
-                showAlert('✅ ¡Inicio de sesión exitoso! Redirigiendo...', 'success');
-                
-                // Redirigir según el rol
-                setTimeout(() => {
-                    // Obtener el rol del usuario
-                    const userRole = data.user?.user_metadata?.rol || 'cliente';
+                    showAlert('✅ ¡Registro exitoso! Revisa tu correo para verificar tu cuenta.', 'success');
                     
-                    if (userRole === 'admin') {
-                        window.location.href = 'admin.html';
-                    } else {
-                        window.location.href = 'cliente.html';
-                    }
-                }, 2000);
+                    // Limpiar formulario
+                    registerForm.reset();
+                    
+                    // Cambiar a login después de 3 segundos
+                    setTimeout(() => {
+                        switchForm();
+                    }, 3000);
 
-            } catch (error) {
-                console.error('Error en login:', error);
-                showAlert('❌ Error al iniciar sesión: ' + error.message);
-            }
-        });
+                } catch (error) {
+                    console.error('Error en registro:', error);
+                    showAlert('❌ Error al registrarse: ' + error.message);
+                }
+            });
 
-        // Event listener para cambiar formulario
-        switchLink.addEventListener('click', switchForm);
-
-        // Verificar si ya está autenticado
-        async function checkAuth() {
-            const { data: { session } } = await supabase.auth.getSession();
-            
-            if (session) {
-                const userRole = session.user?.user_metadata?.rol || 'cliente';
+            // Manejar login de usuario
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
                 
-                if (userRole === 'admin') {
-                    window.location.href = 'admin.html';
-                } else {
-                    window.location.href = 'cliente.html';
+                const email = document.getElementById('loginEmail').value;
+                const password = document.getElementById('loginPassword').value;
+
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                        email: email,
+                        password: password
+                    });
+
+                    if (error) throw error;
+
+                    showAlert('✅ ¡Inicio de sesión exitoso! Redirigiendo...', 'success');
+                    
+                    // Redirigir según el rol
+                    setTimeout(() => {
+                        // Obtener el rol del usuario
+                        const userRole = data.user?.user_metadata?.rol || 'cliente';
+                        
+                        if (userRole === 'admin') {
+                            window.location.href = 'admin.html';
+                        } else {
+                            window.location.href = 'cliente.html';
+                        }
+                    }, 2000);
+
+                } catch (error) {
+                    console.error('Error en login:', error);
+                    showAlert('❌ Error al iniciar sesión: ' + error.message);
+                }
+            });
+
+            // Event listener para cambiar formulario
+            switchLink.addEventListener('click', switchForm);
+
+            // Verificar si ya está autenticado
+            async function checkAuth() {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    
+                    if (session) {
+                        const userRole = session.user?.user_metadata?.rol || 'cliente';
+                        
+                        if (userRole === 'admin') {
+                            window.location.href = 'admin.html';
+                        } else {
+                            window.location.href = 'cliente.html';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error en checkAuth:', error);
                 }
             }
-        }
 
-        // Verificar autenticación al cargar la página
-        checkAuth();
+            // ✅ CORREGIDO: Verificar autenticación DESPUÉS de inicializar Supabase
+            checkAuth();
+        }
     </script>
 </body>
 </html>
