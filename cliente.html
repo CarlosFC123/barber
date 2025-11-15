@@ -370,6 +370,9 @@
                 <div class="form-group">
                     <label for="fechaCita">Fecha y Hora</label>
                     <input type="datetime-local" id="fechaCita" required>
+                    <small id="fechaHelp" style="color: #718096; font-size: 14px; margin-top: 5px; display: block;">
+                        Solo se permiten citas de lunes a viernes en días futuros
+                    </small>
                 </div>
 
                 <div class="form-group">
@@ -452,6 +455,32 @@
                 }, 5000);
             }
 
+            // Función para configurar el selector de fechas
+            function configurarSelectorFechas() {
+                const fechaInput = document.getElementById('fechaCita');
+                
+                // Establecer la fecha mínima como hoy
+                const hoy = new Date();
+                const fechaMinima = new Date(hoy);
+                fechaMinima.setDate(hoy.getDate() + 1); // Mañana como fecha mínima
+                
+                // Formatear la fecha para el input datetime-local
+                const fechaMinimaFormateada = fechaMinima.toISOString().slice(0, 16);
+                fechaInput.min = fechaMinimaFormateada;
+                
+                // Validar que no se seleccionen fines de semana
+                fechaInput.addEventListener('change', function() {
+                    const fechaSeleccionada = new Date(this.value);
+                    const diaSemana = fechaSeleccionada.getDay(); // 0 = Domingo, 6 = Sábado
+                    
+                    // Si es sábado (6) o domingo (0), mostrar error
+                    if (diaSemana === 0 || diaSemana === 6) {
+                        showAlert('Solo se permiten citas de lunes a viernes', 'error');
+                        this.value = ''; // Limpiar el campo
+                    }
+                });
+            }
+
             // Configurar event listeners
             document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
             
@@ -485,6 +514,9 @@
                     await cargarServicios();
                     await cargarBarberos();
                     await cargarMisCitas();
+                    
+                    // Configurar el selector de fechas después de cargar todo
+                    configurarSelectorFechas();
 
                 } catch (error) {
                     console.error('Error de autenticación:', error);
@@ -670,6 +702,23 @@
 
                 if (!servicioId || !barberoId || !fecha) {
                     showAlert('Por favor, completa todos los campos obligatorios');
+                    return;
+                }
+
+                // Validación adicional de fecha (por si el usuario modifica el HTML)
+                const fechaSeleccionada = new Date(fecha);
+                const hoy = new Date();
+                const diaSemana = fechaSeleccionada.getDay();
+                
+                // Verificar que la fecha sea futura
+                if (fechaSeleccionada <= hoy) {
+                    showAlert('La fecha seleccionada debe ser en el futuro');
+                    return;
+                }
+                
+                // Verificar que no sea fin de semana
+                if (diaSemana === 0 || diaSemana === 6) {
+                    showAlert('Solo se permiten citas de lunes a viernes');
                     return;
                 }
 
