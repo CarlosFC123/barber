@@ -364,6 +364,12 @@
             border-color: #e2e8f0;
         }
 
+        .hora-btn.ocupada {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+        }
+
         .citas-grid {
             display: grid;
             gap: 20px;
@@ -917,7 +923,7 @@
 
             async function generateHoras(selectedDateObj) {
                 const horasGrid = document.getElementById('horasGrid');
-                horasGrid.innerHTML = '';
+                horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
 
                 const horas = [];
                 let hora = 8;
@@ -937,43 +943,52 @@
                 const horaActual = now.getHours();
                 const minutosActual = now.getMinutes();
 
-                const citasDelDia = await obtenerCitasDelDia(selectedDateObj);
-                const horasOcupadas = new Set();
-                
-                citasDelDia.forEach(cita => {
-                    const citaDate = new Date(cita.fecha);
-                    const horaStr = `${String(citaDate.getHours()).padStart(2, '0')}:${String(citaDate.getMinutes()).padStart(2, '0')}`;
-                    horasOcupadas.add(horaStr);
-                });
+                try {
+                    const citasDelDia = await obtenerCitasDelDia(selectedDateObj);
+                    const horasOcupadas = new Set();
+                    
+                    citasDelDia.forEach(cita => {
+                        const citaDate = new Date(cita.fecha);
+                        const horaStr = `${String(citaDate.getHours()).padStart(2, '0')}:${String(citaDate.getMinutes()).padStart(2, '0')}`;
+                        horasOcupadas.add(horaStr);
+                    });
 
-                horas.forEach(({ hora: h, minutos: m }) => {
-                    const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'hora-btn';
-                    btn.textContent = horaStr;
-                    
-                    const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
-                    const horaOcupada = horasOcupadas.has(horaStr);
-                    
-                    if (horaPasada || horaOcupada) {
-                        btn.disabled = true;
-                        if (horaOcupada) {
-                            btn.title = 'Hora ocupada';
+                    horasGrid.innerHTML = '';
+
+                    horas.forEach(({ hora: h, minutos: m }) => {
+                        const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'hora-btn';
+                        btn.textContent = horaStr;
+                        
+                        const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
+                        const horaOcupada = horasOcupadas.has(horaStr);
+                        
+                        if (horaPasada || horaOcupada) {
+                            btn.disabled = true;
+                            if (horaOcupada) {
+                                btn.classList.add('ocupada');
+                                btn.title = 'Hora ocupada por otro cliente';
+                            } else {
+                                btn.title = 'Hora pasada';
+                            }
                         } else {
-                            btn.title = 'Hora pasada';
+                            btn.onclick = () => selectHora(horaStr, btn);
                         }
-                    } else {
-                        btn.onclick = () => selectHora(horaStr, btn);
-                    }
-                    
-                    const selectedHora = document.getElementById('hora').value;
-                    if (selectedHora === horaStr) {
-                        btn.classList.add('selected');
-                    }
-                    
-                    horasGrid.appendChild(btn);
-                });
+                        
+                        const selectedHora = document.getElementById('hora').value;
+                        if (selectedHora === horaStr) {
+                            btn.classList.add('selected');
+                        }
+                        
+                        horasGrid.appendChild(btn);
+                    });
+
+                } catch (error) {
+                    console.error('Error generando horas:', error);
+                    horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
+                }
             }
 
             async function obtenerCitasDelDia(fecha) {
@@ -983,28 +998,40 @@
                         return [];
                     }
 
+                    // Crear fechas en formato ISO para la consulta
                     const fechaInicio = new Date(fecha);
                     fechaInicio.setHours(0, 0, 0, 0);
                     
                     const fechaFin = new Date(fecha);
                     fechaFin.setHours(23, 59, 59, 999);
 
+                    console.log('Consultando citas para:', {
+                        barbero: barberoFijo.id,
+                        fecha: fecha.toDateString(),
+                        inicio: fechaInicio.toISOString(),
+                        fin: fechaFin.toISOString()
+                    });
+
+                    // CONSULTA CORREGIDA - Buscar todas las citas del barbero en esa fecha
                     const { data: citas, error } = await supabase
                         .from('citas')
-                        .select('fecha')
+                        .select('fecha, estado, cliente_id')
                         .eq('barbero_id', barberoFijo.id)
                         .gte('fecha', fechaInicio.toISOString())
                         .lte('fecha', fechaFin.toISOString())
                         .neq('estado', 'cancelada');
 
                     if (error) {
-                        console.error('Error obteniendo citas del día:', error);
-                        return [];
+                        console.error('Error en consulta de citas:', error);
+                        throw error;
                     }
 
+                    console.log('Citas encontradas para el día:', citas);
                     return citas || [];
+
                 } catch (error) {
-                    console.error('Error:', error);
+                    console.error('Error obteniendo citas del día:', error);
+                    showAlert('Error al verificar disponibilidad de horas', 'error');
                     return [];
                 }
             }
@@ -1080,6 +1107,7 @@
                         barberoFijo = barberos[0];
                         document.getElementById('barberoNombre').textContent = barberoFijo.nombre;
                         document.getElementById('barberoEspecialidad').textContent = barberoFijo.especialidad || 'Barbero profesional';
+                        console.log('Barbero cargado:', barberoFijo);
                     } else {
                         // Si no hay barberos, crear uno por defecto
                         const { data: nuevoBarbero, error: errorCrear } = await supabase
@@ -1099,6 +1127,7 @@
                         barberoFijo = nuevoBarbero;
                         document.getElementById('barberoNombre').textContent = barberoFijo.nombre;
                         document.getElementById('barberoEspecialidad').textContent = barberoFijo.especialidad;
+                        console.log('Barbero creado:', barberoFijo);
                     }
 
                 } catch (error) {
@@ -1272,6 +1301,7 @@
                 fechaCita.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
                 try {
+                    // VERIFICACIÓN DOBLE - Asegurar que la hora no esté ocupada
                     const citasDelDia = await obtenerCitasDelDia(selectedDate);
                     const horaOcupada = citasDelDia.some(cita => {
                         const citaDate = new Date(cita.fecha);
