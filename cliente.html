@@ -260,6 +260,36 @@
             font-weight: bold;
         }
 
+        /* Estilos para los botones de hora */
+        .hora-btn {
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .hora-btn:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .hora-btn.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .hora-btn:disabled {
+            background: #fed7d7;
+            color: #742a2a;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .citas-grid {
             display: grid;
             gap: 20px;
@@ -484,27 +514,17 @@
                         </div>
                     </div>
 
-                    <label for="hora" style="margin-top: 20px;">Selecciona Hora</label>
-                    <select id="hora" required>
-                        <option value="">Selecciona una hora</option>
-                        <option value="09:00">09:00 AM</option>
-                        <option value="09:30">09:30 AM</option>
-                        <option value="10:00">10:00 AM</option>
-                        <option value="10:30">10:30 AM</option>
-                        <option value="11:00">11:00 AM</option>
-                        <option value="11:30">11:30 AM</option>
-                        <option value="12:00">12:00 PM</option>
-                        <option value="12:30">12:30 PM</option>
-                        <option value="14:00">2:00 PM</option>
-                        <option value="14:30">2:30 PM</option>
-                        <option value="15:00">3:00 PM</option>
-                        <option value="15:30">3:30 PM</option>
-                        <option value="16:00">4:00 PM</option>
-                        <option value="16:30">4:30 PM</option>
-                        <option value="17:00">5:00 PM</option>
-                        <option value="17:30">5:30 PM</option>
-                    </select>
+                    <!-- Nueva sección de selección de horas con validación de disponibilidad -->
+                    <div id="horasContainer" style="display: none; margin-top: 20px;">
+                        <label>Selecciona Hora (Cada 40 minutos)</label>
+                        <div id="horasGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px;">
+                            <!-- Se genera dinámicamente -->
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Campo oculto para almacenar la hora seleccionada -->
+                <input type="hidden" id="hora" required>
 
                 <div class="form-group">
                     <label for="notas">Notas adicionales (opcional)</label>
@@ -620,31 +640,24 @@
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
-                // Agregar días del mes (solo lunes a viernes)
+                // Agregar días del mes (solo lunes a viernes, y solo fechas futuras)
                 for (let date = 1; date <= lastDay.getDate(); date++) {
                     const currentDate = new Date(month.getFullYear(), month.getMonth(), date);
                     const dayOfWeekNum = currentDate.getDay();
                     
-                    // Solo mostrar lunes (1) a viernes (5)
-                    if (dayOfWeekNum >= 1 && dayOfWeekNum <= 5) {
+                    // Solo mostrar lunes (1) a viernes (5) Y que sean fechas futuras (hoy o después)
+                    if (dayOfWeekNum >= 1 && dayOfWeekNum <= 5 && currentDate >= today) {
                         const cell = document.createElement('div');
+                        cell.className = 'day-cell available';
+                        cell.textContent = date;
+                        cell.onclick = () => selectDate(currentDate);
                         
-                        // Verificar si la fecha es futura
-                        if (currentDate >= today) {
-                            cell.className = 'day-cell available';
-                            cell.textContent = date;
-                            cell.onclick = () => selectDate(currentDate);
-                            
-                            // Marcar el día seleccionado
-                            if (selectedDate && 
-                                selectedDate.getDate() === date && 
-                                selectedDate.getMonth() === month.getMonth() && 
-                                selectedDate.getFullYear() === month.getFullYear()) {
-                                cell.classList.add('selected');
-                            }
-                        } else {
-                            cell.className = 'day-cell disabled';
-                            cell.textContent = date;
+                        // Marcar el día seleccionado
+                        if (selectedDate && 
+                            selectedDate.getDate() === date && 
+                            selectedDate.getMonth() === month.getMonth() && 
+                            selectedDate.getFullYear() === month.getFullYear()) {
+                            cell.classList.add('selected');
                         }
                         
                         grid.appendChild(cell);
@@ -660,10 +673,118 @@
 
             function selectDate(date) {
                 selectedDate = new Date(date);
+                selectedDate.setHours(0, 0, 0, 0);
+                
                 const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
                 document.getElementById('selectedDateDisplay').textContent = 
                     `Fecha seleccionada: ${date.toLocaleDateString('es-MX', options)}`;
+                
+                generateHoras(date);
+                document.getElementById('horasContainer').style.display = 'block';
+                
                 generateCalendar(currentMonth);
+            }
+
+            async function generateHoras(selectedDateObj) {
+                const horasGrid = document.getElementById('horasGrid');
+                horasGrid.innerHTML = '';
+
+                // Generar horas cada 40 minutos desde las 8:00 hasta las 22:00
+                const horas = [];
+                let hora = 8;
+                let minutos = 0;
+
+                while (hora < 22 || (hora === 22 && minutos === 0)) {
+                    horas.push({ hora, minutos });
+                    minutos += 40;
+                    if (minutos >= 60) {
+                        minutos -= 60;
+                        hora += 1;
+                    }
+                }
+
+                // Obtener la hora actual si la fecha es hoy
+                const now = new Date();
+                const esHoy = selectedDateObj.toDateString() === now.toDateString();
+                const horaActual = now.getHours();
+                const minutosActual = now.getMinutes();
+
+                // Obtener citas ya agendadas para esta fecha
+                const citasDelDia = await obtenerCitasDelDia(selectedDateObj);
+                const horasOcupadas = new Set();
+                
+                citasDelDia.forEach(cita => {
+                    const citaDate = new Date(cita.fecha);
+                    const horaStr = `${String(citaDate.getHours()).padStart(2, '0')}:${String(citaDate.getMinutes()).padStart(2, '0')}`;
+                    horasOcupadas.add(horaStr);
+                });
+
+                // Crear botones de horas
+                horas.forEach(({ hora: h, minutos: m }) => {
+                    const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'hora-btn';
+                    btn.textContent = horaStr;
+                    
+                    const horaPasada = esHoy && (h < horaActual || (h === horaActual && m < minutosActual));
+                    const horaOcupada = horasOcupadas.has(horaStr);
+                    
+                    if (horaPasada || horaOcupada) {
+                        btn.disabled = true;
+                        if (horaOcupada) {
+                            btn.title = 'Esta hora ya está ocupada';
+                        } else {
+                            btn.title = 'Esta hora ya pasó';
+                        }
+                    } else {
+                        btn.onclick = () => selectHora(horaStr, btn);
+                    }
+                    
+                    // Marcar si está seleccionada
+                    const selectedHora = document.getElementById('hora').value;
+                    if (selectedHora === horaStr) {
+                        btn.classList.add('selected');
+                    }
+                    
+                    horasGrid.appendChild(btn);
+                });
+            }
+
+            async function obtenerCitasDelDia(fecha) {
+                try {
+                    const fechaInicio = new Date(fecha);
+                    fechaInicio.setHours(0, 0, 0, 0);
+                    
+                    const fechaFin = new Date(fecha);
+                    fechaFin.setHours(23, 59, 59, 999);
+
+                    const { data: citas, error } = await supabase
+                        .from('citas')
+                        .select('fecha')
+                        .gte('fecha', fechaInicio.toISOString())
+                        .lte('fecha', fechaFin.toISOString())
+                        .neq('estado', 'cancelada'); // No contar citas canceladas
+
+                    if (error) {
+                        console.error('Error obteniendo citas del día:', error);
+                        return [];
+                    }
+
+                    return citas || [];
+                } catch (error) {
+                    console.error('Error:', error);
+                    return [];
+                }
+            }
+
+            function selectHora(horaStr, btn) {
+                // Remover selección anterior
+                document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
+                
+                // Marcar nueva selección
+                btn.classList.add('selected');
+                document.getElementById('hora').value = horaStr;
             }
 
             document.getElementById('prevMonth').addEventListener('click', (e) => {
@@ -856,7 +977,7 @@
                                 <div>📅</div>
                                 <h3>No tienes citas agendadas</h3>
                                 <p>¡Agenda tu primera cita ahora!</p>
-                                <button class="btn btn-primary" onclick="cambiarPestana('agendar')">Agendar Cita</button>
+                                <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
                             </div>
                         `;
                     } else {
@@ -898,7 +1019,7 @@
                 const notas = document.getElementById('notas').value;
 
                 if (!servicioId || !barberoId || !selectedDate || !hora) {
-                    showAlert('Por favor, completa todos los campos obligatorios');
+                    showAlert('Por favor, completa todos los campos obligatorios', 'error');
                     return;
                 }
 
@@ -907,6 +1028,18 @@
                 fechaCita.setHours(parseInt(hours), parseInt(minutes), 0);
 
                 try {
+                    const citasDelDia = await obtenerCitasDelDia(selectedDate);
+                    const horaOcupada = citasDelDia.some(cita => {
+                        const citaDate = new Date(cita.fecha);
+                        const horaStr = `${String(citaDate.getHours()).padStart(2, '0')}:${String(citaDate.getMinutes()).padStart(2, '0')}`;
+                        return horaStr === hora;
+                    });
+
+                    if (horaOcupada) {
+                        showAlert('Lo siento, esa hora ya fue agendada por otro usuario. Selecciona otra.', 'error');
+                        return;
+                    }
+
                     const { data, error } = await supabase
                         .from('citas')
                         .insert([{
@@ -928,8 +1061,10 @@
 
                     showAlert('✅ ¡Cita agendada exitosamente!', 'success');
                     document.getElementById('formAgendarCita').reset();
+                    document.getElementById('hora').value = '';
                     selectedDate = null;
                     document.getElementById('selectedDateDisplay').textContent = 'Selecciona una fecha';
+                    document.getElementById('horasContainer').style.display = 'none';
                     currentMonth = new Date();
                     generateCalendar(currentMonth);
                     
@@ -941,7 +1076,7 @@
 
                 } catch (error) {
                     console.error('Error agendando cita:', error);
-                    showAlert('❌ Error al agendar la cita: ' + error.message);
+                    showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
                 }
             }
 
