@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel del Cliente - Barbería Elite</title>
+    <title>Panel del Cliente - Barbería</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
-        /* TUS ESTILOS SE MANTIENEN IGUALES */
+        /* ESTILOS ORIGINALES (se mantienen igual) */
         * {
             margin: 0;
             padding: 0;
@@ -521,6 +521,91 @@
             transform: translateY(-1px);
         }
 
+        /* NUEVOS ESTILOS PARA SERVICIOS EN AGENDAR CITA */
+        .servicios-seleccion {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .servicio-option {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .servicio-option:hover {
+            transform: translateY(-2px);
+            border-color: #e94560;
+            box-shadow: 0 8px 20px rgba(233, 69, 96, 0.15);
+        }
+
+        .servicio-option.selected {
+            background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
+            color: white;
+            border-color: #e94560;
+            box-shadow: 0 8px 20px rgba(233, 69, 96, 0.3);
+        }
+
+        .servicio-option h3 {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .servicio-option .precio {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+
+        .servicio-option .duracion {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .servicio-option.selected .duracion {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .barbero-info {
+            background: #f8f9fa;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .barbero-info h3 {
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .barbero-info p {
+            color: #4a5568;
+            margin-bottom: 5px;
+        }
+
+        .calendar-disabled {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .calendar-disabled-message {
+            text-align: center;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            color: #856404;
+        }
+
         @media (max-width: 768px) {
             .nav-tabs {
                 flex-direction: column;
@@ -556,6 +641,10 @@
                 font-size: 10px;
                 padding: 6px 2px;
             }
+
+            .servicios-seleccion {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 480px) {
@@ -581,7 +670,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>✂️ Barbería Elite</h1>
+        <h1>✂️ Barbería</h1>
         <p>Panel del Cliente</p>
         <div class="user-info">
             <span id="userWelcome">Bienvenido</span>
@@ -595,31 +684,40 @@
         <div class="nav-tabs">
             <button class="nav-tab active" data-tab="agendar">Agendar Cita</button>
             <button class="nav-tab" data-tab="mis-citas">Mis Citas</button>
-            <button class="nav-tab" data-tab="servicios">Servicios</button>
             <button class="nav-tab" data-tab="perfil">Mi Perfil</button>
         </div>
 
         <!-- Tab Agendar Cita -->
         <div id="agendar" class="tab-content active">
             <h2>📅 Agendar Nueva Cita</h2>
-            <form id="formAgendarCita">
-                <div class="form-group">
-                    <label for="servicio">Servicio</label>
-                    <select id="servicio" required>
-                        <option value="">Selecciona un servicio</option>
-                    </select>
+            
+            <!-- Información del barbero fijo -->
+            <div class="barbero-info">
+                <h3>Tu Barbero</h3>
+                <p id="barberoNombre">Cargando información del barbero...</p>
+                <p id="barberoEspecialidad"></p>
+            </div>
+            
+            <!-- Selección de servicios -->
+            <div class="form-group">
+                <label>Selecciona un Servicio</label>
+                <div id="serviciosContainer" class="servicios-seleccion">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Cargando servicios...</p>
+                    </div>
                 </div>
+            </div>
 
-                <div class="form-group">
-                    <label for="barbero">Barbero</label>
-                    <select id="barbero" required>
-                        <option value="">Selecciona tu barbero</option>
-                    </select>
+            <!-- CALENDARIO COMPACTO MEJORADO -->
+            <div class="form-group">
+                <label>Selecciona Fecha y Hora</label>
+                
+                <div id="calendarDisabledMessage" class="calendar-disabled-message" style="display: none;">
+                    ⚠️ Primero selecciona un servicio para habilitar el calendario
                 </div>
-
-                <!-- CALENDARIO COMPACTO MEJORADO -->
-                <div class="form-group">
-                    <label>Selecciona Fecha y Hora</label>
+                
+                <div id="calendarContainer" class="calendar-disabled">
                     <div class="calendar-picker">
                         <div class="calendar-header">
                             <h3 id="monthDisplay">Noviembre 2025</h3>
@@ -639,16 +737,17 @@
                         <div class="horas-grid" id="horasGrid"></div>
                     </div>
                 </div>
+            </div>
 
-                <input type="hidden" id="hora" required>
+            <input type="hidden" id="servicio" required>
+            <input type="hidden" id="hora" required>
 
-                <div class="form-group">
-                    <label for="notas">Notas adicionales (opcional)</label>
-                    <input type="text" id="notas" placeholder="Algún requerimiento especial...">
-                </div>
+            <div class="form-group">
+                <label for="notas">Notas adicionales (opcional)</label>
+                <input type="text" id="notas" placeholder="Algún requerimiento especial...">
+            </div>
 
-                <button type="submit" class="btn btn-primary">Agendar Cita</button>
-            </form>
+            <button type="submit" class="btn btn-primary" id="btnAgendarCita">Agendar Cita</button>
         </div>
 
         <!-- Tab Mis Citas -->
@@ -658,17 +757,6 @@
                 <div class="loading">
                     <div class="spinner"></div>
                     <p>Cargando tus citas...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab Servicios -->
-        <div id="servicios" class="tab-content">
-            <h2>✂️ Nuestros Servicios</h2>
-            <div id="listaServicios" class="servicios-grid">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>Cargando servicios...</p>
                 </div>
             </div>
         </div>
@@ -708,6 +796,8 @@
             let usuarioActual = null;
             let selectedDate = null;
             let currentMonth = new Date();
+            let barberoFijo = null;
+            let calendarioHabilitado = false;
 
             function showAlert(message, type = 'error') {
                 const alertDiv = document.getElementById('alert');
@@ -718,6 +808,19 @@
                 setTimeout(() => {
                     alertDiv.style.display = 'none';
                 }, 5000);
+            }
+
+            function habilitarCalendario() {
+                const calendarContainer = document.getElementById('calendarContainer');
+                const calendarDisabledMessage = document.getElementById('calendarDisabledMessage');
+                
+                if (calendarioHabilitado) {
+                    calendarContainer.classList.remove('calendar-disabled');
+                    calendarDisabledMessage.style.display = 'none';
+                } else {
+                    calendarContainer.classList.add('calendar-disabled');
+                    calendarDisabledMessage.style.display = 'block';
+                }
             }
 
             function generateCalendar(month = new Date()) {
@@ -754,7 +857,7 @@
                     
                     const cell = document.createElement('div');
                     
-                    if (currentDate >= today) {
+                    if (currentDate >= today && calendarioHabilitado) {
                         cell.className = 'day-cell available';
                         cell.textContent = date;
 
@@ -792,6 +895,8 @@
             }
 
             function selectDate(date) {
+                if (!calendarioHabilitado) return;
+                
                 selectedDate = new Date(date);
                 selectedDate.setHours(0, 0, 0, 0);
                 
@@ -804,14 +909,13 @@
                 document.getElementById('selectedDateDisplay').textContent = 
                     `Fecha seleccionada: ${dateText}`;
                 
-                const barberoId = document.getElementById('barbero').value;
-                generateHoras(date, barberoId);
+                generateHoras(date);
                 document.getElementById('horasContainer').style.display = 'block';
                 
                 generateCalendar(currentMonth);
             }
 
-            async function generateHoras(selectedDateObj, barberoId) {
+            async function generateHoras(selectedDateObj) {
                 const horasGrid = document.getElementById('horasGrid');
                 horasGrid.innerHTML = '';
 
@@ -833,7 +937,7 @@
                 const horaActual = now.getHours();
                 const minutosActual = now.getMinutes();
 
-                const citasDelDia = await obtenerCitasDelDia(selectedDateObj, barberoId);
+                const citasDelDia = await obtenerCitasDelDia(selectedDateObj);
                 const horasOcupadas = new Set();
                 
                 citasDelDia.forEach(cita => {
@@ -872,8 +976,13 @@
                 });
             }
 
-            async function obtenerCitasDelDia(fecha, barberoId) {
+            async function obtenerCitasDelDia(fecha) {
                 try {
+                    if (!barberoFijo) {
+                        console.error('No hay barbero seleccionado');
+                        return [];
+                    }
+
                     const fechaInicio = new Date(fecha);
                     fechaInicio.setHours(0, 0, 0, 0);
                     
@@ -883,7 +992,7 @@
                     const { data: citas, error } = await supabase
                         .from('citas')
                         .select('fecha')
-                        .eq('barbero_id', barberoId)
+                        .eq('barbero_id', barberoFijo.id)
                         .gte('fecha', fechaInicio.toISOString())
                         .lte('fecha', fechaFin.toISOString())
                         .neq('estado', 'cancelada');
@@ -900,15 +1009,6 @@
                 }
             }
 
-            document.getElementById('barbero').addEventListener('change', () => {
-                if (selectedDate) {
-                    const barberoId = document.getElementById('barbero').value;
-                    if (barberoId) {
-                        generateHoras(selectedDate, barberoId);
-                    }
-                }
-            });
-
             function selectHora(horaStr, btn) {
                 document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
                 btn.classList.add('selected');
@@ -917,12 +1017,14 @@
 
             document.getElementById('prevMonth').addEventListener('click', (e) => {
                 e.preventDefault();
+                if (!calendarioHabilitado) return;
                 currentMonth.setMonth(currentMonth.getMonth() - 1);
                 generateCalendar(currentMonth);
             });
 
             document.getElementById('nextMonth').addEventListener('click', (e) => {
                 e.preventDefault();
+                if (!calendarioHabilitado) return;
                 currentMonth.setMonth(currentMonth.getMonth() + 1);
                 generateCalendar(currentMonth);
             });
@@ -935,7 +1037,7 @@
                 });
             });
 
-            document.getElementById('formAgendarCita').addEventListener('submit', agendarCita);
+            document.getElementById('btnAgendarCita').addEventListener('click', agendarCita);
 
             async function verificarAutenticacion() {
                 try {
@@ -949,17 +1051,59 @@
                     }
 
                     usuarioActual = session.user;
+                    await cargarBarberoFijo();
                     await cargarInformacionUsuario();
                     await cargarServicios();
-                    await cargarBarberos();
                     await cargarMisCitas();
                     
                     currentMonth = new Date();
                     generateCalendar(currentMonth);
+                    habilitarCalendario();
 
                 } catch (error) {
                     console.error('Error de autenticación:', error);
                     window.location.href = 'index.html';
+                }
+            }
+
+            async function cargarBarberoFijo() {
+                try {
+                    // Obtener el primer barbero disponible
+                    const { data: barberos, error } = await supabase
+                        .from('barberos')
+                        .select('*')
+                        .limit(1);
+
+                    if (error) throw error;
+
+                    if (barberos && barberos.length > 0) {
+                        barberoFijo = barberos[0];
+                        document.getElementById('barberoNombre').textContent = barberoFijo.nombre;
+                        document.getElementById('barberoEspecialidad').textContent = barberoFijo.especialidad || 'Barbero profesional';
+                    } else {
+                        // Si no hay barberos, crear uno por defecto
+                        const { data: nuevoBarbero, error: errorCrear } = await supabase
+                            .from('barberos')
+                            .insert([
+                                {
+                                    nombre: 'Barbero Principal',
+                                    especialidad: 'Cortes clásicos y modernos',
+                                    activo: true
+                                }
+                            ])
+                            .select()
+                            .single();
+
+                        if (errorCrear) throw errorCrear;
+                        
+                        barberoFijo = nuevoBarbero;
+                        document.getElementById('barberoNombre').textContent = barberoFijo.nombre;
+                        document.getElementById('barberoEspecialidad').textContent = barberoFijo.especialidad;
+                    }
+
+                } catch (error) {
+                    console.error('Error cargando barbero:', error);
+                    showAlert('Error al cargar información del barbero', 'error');
                 }
             }
 
@@ -1011,61 +1155,45 @@
 
                     if (error) throw error;
 
-                    const selectServicio = document.getElementById('servicio');
-                    selectServicio.innerHTML = '<option value="">Selecciona un servicio</option>';
+                    const serviciosContainer = document.getElementById('serviciosContainer');
                     
-                    servicios.forEach(servicio => {
-                        const option = document.createElement('option');
-                        option.value = servicio.id;
-                        option.textContent = `${servicio.nombre} - $${servicio.precio}`;
-                        selectServicio.appendChild(option);
-                    });
-
-                    const serviciosGrid = document.getElementById('listaServicios');
                     if (servicios.length === 0) {
-                        serviciosGrid.innerHTML = `
+                        serviciosContainer.innerHTML = `
                             <div class="empty-state">
                                 <div>📋</div>
                                 <p>No hay servicios disponibles en este momento</p>
                             </div>
                         `;
                     } else {
-                        serviciosGrid.innerHTML = servicios.map(servicio => `
-                            <div class="servicio-card">
+                        serviciosContainer.innerHTML = servicios.map(servicio => `
+                            <div class="servicio-option" data-servicio-id="${servicio.id}">
                                 <h3>${servicio.nombre}</h3>
-                                <div class="servicio-precio">$${servicio.precio}</div>
-                                <div class="servicio-duracion">⏱️ ${servicio.duracion || '30 min'}</div>
+                                <div class="precio">$${servicio.precio}</div>
+                                <div class="duracion">⏱️ ${servicio.duracion || '30 min'}</div>
                                 <p>${servicio.descripcion || 'Servicio profesional de barbería'}</p>
                             </div>
                         `).join('');
+
+                        // Agregar event listeners para seleccionar servicios
+                        document.querySelectorAll('.servicio-option').forEach(option => {
+                            option.addEventListener('click', function() {
+                                document.querySelectorAll('.servicio-option').forEach(opt => {
+                                    opt.classList.remove('selected');
+                                });
+                                this.classList.add('selected');
+                                document.getElementById('servicio').value = this.dataset.servicioId;
+                                
+                                // Habilitar calendario cuando se selecciona un servicio
+                                calendarioHabilitado = true;
+                                habilitarCalendario();
+                                generateCalendar(currentMonth);
+                            });
+                        });
                     }
 
                 } catch (error) {
                     console.error('Error cargando servicios:', error);
                     showAlert('Error al cargar los servicios', 'error');
-                }
-            }
-
-            async function cargarBarberos() {
-                try {
-                    const { data: barberos, error } = await supabase
-                        .from('barberos')
-                        .select('*');
-
-                    if (error) throw error;
-
-                    const selectBarbero = document.getElementById('barbero');
-                    selectBarbero.innerHTML = '<option value="">Selecciona tu barbero</option>';
-                    
-                    barberos.forEach(barbero => {
-                        const option = document.createElement('option');
-                        option.value = barbero.id;
-                        option.textContent = `${barbero.nombre} - ${barbero.especialidad}`;
-                        selectBarbero.appendChild(option);
-                    });
-
-                } catch (error) {
-                    console.error('Error cargando barberos:', error);
                 }
             }
 
@@ -1106,6 +1234,7 @@
                                     <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
                                     <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
                                     ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                                    <p><strong>📅 Creado el:</strong> ${new Date(cita.creado_en).toLocaleString('es-MX')}</p>
                                 </div>
                                 <div class="cita-acciones">
                                     ${cita.estado === 'pendiente' ? `
@@ -1123,17 +1252,16 @@
                 }
             }
 
-            // FUNCIÓN CORREGIDA - Manejo correcto de zona horaria
+            // FUNCIÓN CORREGIDA - Manejo correcto de zona horaria para ambas fechas
             async function agendarCita(e) {
                 e.preventDefault();
                 
                 const servicioId = document.getElementById('servicio').value;
-                const barberoId = document.getElementById('barbero').value;
                 const hora = document.getElementById('hora').value;
                 const notas = document.getElementById('notas').value;
 
-                if (!servicioId || !barberoId || !selectedDate || !hora) {
-                    showAlert('Por favor, completa todos los campos obligatorios', 'error');
+                if (!servicioId || !selectedDate || !hora) {
+                    showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
                     return;
                 }
 
@@ -1144,7 +1272,7 @@
                 fechaCita.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
                 try {
-                    const citasDelDia = await obtenerCitasDelDia(selectedDate, barberoId);
+                    const citasDelDia = await obtenerCitasDelDia(selectedDate);
                     const horaOcupada = citasDelDia.some(cita => {
                         const citaDate = new Date(cita.fecha);
                         const horaStr = `${String(citaDate.getHours()).padStart(2, '0')}:${String(citaDate.getMinutes()).padStart(2, '0')}`;
@@ -1156,19 +1284,20 @@
                         return;
                     }
 
-                    // CORRECCIÓN: Crear fecha en formato ISO sin conversión de zona horaria
+                    // CORRECCIÓN: Crear fechas en formato ISO sin conversión de zona horaria
                     const fechaCitaISO = formatDateToLocalISO(fechaCita);
+                    const fechaCreacionISO = formatDateToLocalISO(new Date());
                     
                     const { data, error } = await supabase
                         .from('citas')
                         .insert([{
                             cliente_id: usuarioActual.id,
                             servicio_id: servicioId,
-                            barbero_id: barberoId,
+                            barbero_id: barberoFijo.id,
                             fecha: fechaCitaISO,
                             notas: notas,
                             estado: 'pendiente',
-                            creado_en: new Date().toISOString()
+                            creado_en: fechaCreacionISO  // CORREGIDO: Usar formato local
                         }])
                         .select(`
                             *,
@@ -1179,11 +1308,21 @@
                     if (error) throw error;
 
                     showAlert('✅ ¡Cita agendada exitosamente!', 'success');
-                    document.getElementById('formAgendarCita').reset();
+                    
+                    // Limpiar formulario
+                    document.querySelectorAll('.servicio-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    document.getElementById('servicio').value = '';
                     document.getElementById('hora').value = '';
+                    document.getElementById('notas').value = '';
                     selectedDate = null;
                     document.getElementById('selectedDateDisplay').textContent = 'Selecciona una fecha';
                     document.getElementById('horasContainer').style.display = 'none';
+                    
+                    // Deshabilitar calendario hasta que se seleccione un servicio
+                    calendarioHabilitado = false;
+                    habilitarCalendario();
                     currentMonth = new Date();
                     generateCalendar(currentMonth);
                     
