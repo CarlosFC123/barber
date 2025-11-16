@@ -671,6 +671,15 @@
                 padding: 8px 4px;
                 font-size: 12px;
             }
+
+            .cita-card.aceptada {
+            border-left: 5px solid #28a745;
+            }
+            
+            .estado-aceptada { 
+                background: #d4edda; 
+                color: #155724; 
+            }
         }
     </style>
 </head>
@@ -1014,6 +1023,7 @@
 
                     // CONSULTA CORREGIDA - Buscar TODAS las citas del barbero en esa fecha
                     // SIN filtrar por cliente_id, para obtener citas de TODOS los usuarios
+                    // Incluir citas con estado 'aceptada' y 'pendiente' como ocupadas
                     const { data: citas, error } = await supabase
                         .from('citas')
                         .select('fecha, estado, cliente_id, barbero_id')
@@ -1268,7 +1278,7 @@
                                     <p><strong>📅 Creado el:</strong> ${new Date(cita.creado_en).toLocaleString('es-MX')}</p>
                                 </div>
                                 <div class="cita-acciones">
-                                    ${cita.estado === 'pendiente' ? `
+                                    ${cita.estado === 'pendiente' || cita.estado === 'aceptada' ? `
                                         <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
                                     ` : ''}
                                     <button class="btn btn-secondary" onclick="app.verDetallesCita('${cita.id}')">Ver Detalles</button>
@@ -1283,7 +1293,7 @@
                 }
             }
 
-            // FUNCIÓN CORREGIDA - Manejo correcto de zona horaria para ambas fechas
+            // FUNCIÓN MODIFICADA - Las citas se crean automáticamente como "aceptada"
             async function agendarCita(e) {
                 e.preventDefault();
                 
@@ -1320,6 +1330,7 @@
                     const fechaCitaISO = formatDateToLocalISO(fechaCita);
                     const fechaCreacionISO = formatDateToLocalISO(new Date());
                     
+                    // MODIFICACIÓN: Crear la cita con estado "aceptada" automáticamente
                     const { data, error } = await supabase
                         .from('citas')
                         .insert([{
@@ -1328,8 +1339,8 @@
                             barbero_id: barberoFijo.id,
                             fecha: fechaCitaISO,
                             notas: notas,
-                            estado: 'pendiente',
-                            creado_en: fechaCreacionISO  // CORREGIDO: Usar formato local
+                            estado: 'aceptada',  // CAMBIO: Estado automáticamente aceptada
+                            creado_en: fechaCreacionISO
                         }])
                         .select(`
                             *,
@@ -1339,7 +1350,7 @@
 
                     if (error) throw error;
 
-                    showAlert('✅ ¡Cita agendada exitosamente!', 'success');
+                    showAlert('✅ ¡Cita agendada y aceptada exitosamente!', 'success');
                     
                     // Limpiar formulario
                     document.querySelectorAll('.servicio-option').forEach(opt => {
