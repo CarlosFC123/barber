@@ -1005,17 +1005,18 @@
                     const fechaFin = new Date(fecha);
                     fechaFin.setHours(23, 59, 59, 999);
 
-                    console.log('Consultando citas para:', {
+                    console.log('Consultando TODAS las citas para:', {
                         barbero: barberoFijo.id,
                         fecha: fecha.toDateString(),
                         inicio: fechaInicio.toISOString(),
                         fin: fechaFin.toISOString()
                     });
 
-                    // CONSULTA CORREGIDA - Buscar todas las citas del barbero en esa fecha
+                    // CONSULTA CORREGIDA - Buscar TODAS las citas del barbero en esa fecha
+                    // SIN filtrar por cliente_id, para obtener citas de TODOS los usuarios
                     const { data: citas, error } = await supabase
                         .from('citas')
-                        .select('fecha, estado, cliente_id')
+                        .select('fecha, estado, cliente_id, barbero_id')
                         .eq('barbero_id', barberoFijo.id)
                         .gte('fecha', fechaInicio.toISOString())
                         .lte('fecha', fechaFin.toISOString())
@@ -1026,7 +1027,7 @@
                         throw error;
                     }
 
-                    console.log('Citas encontradas para el día:', citas);
+                    console.log('TODAS las citas encontradas para el día:', citas);
                     return citas || [];
 
                 } catch (error) {
@@ -1228,6 +1229,7 @@
 
             async function cargarMisCitas() {
                 try {
+                    // ESTA función SÍ debe filtrar por cliente_id para mostrar solo las citas del usuario
                     const { data: citas, error } = await supabase
                         .from('citas')
                         .select(`
@@ -1235,7 +1237,7 @@
                             servicios(nombre, precio),
                             barberos(nombre)
                         `)
-                        .eq('cliente_id', usuarioActual.id)
+                        .eq('cliente_id', usuarioActual.id)  // ESTO ESTÁ BIEN - solo citas del usuario
                         .order('fecha', { ascending: false });
 
                     if (error) throw error;
