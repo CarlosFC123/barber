@@ -6,6 +6,7 @@
     <title>Panel del Cliente - Barbería Elite</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
+        /* TUS ESTILOS SE MANTIENEN IGUALES */
         * {
             margin: 0;
             padding: 0;
@@ -898,14 +899,16 @@
                     return [];
                 }
             }
-             document.getElementById('barbero').addEventListener('change', () => {
+
+            document.getElementById('barbero').addEventListener('change', () => {
                 if (selectedDate) {
                     const barberoId = document.getElementById('barbero').value;
                     if (barberoId) {
                         generateHoras(selectedDate, barberoId);
                     }
                 }
-            }); 
+            });
+
             function selectHora(horaStr, btn) {
                 document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
                 btn.classList.add('selected');
@@ -1120,6 +1123,7 @@
                 }
             }
 
+            // FUNCIÓN CORREGIDA - Manejo correcto de zona horaria
             async function agendarCita(e) {
                 e.preventDefault();
                 
@@ -1135,10 +1139,12 @@
 
                 const [hours, minutes] = hora.split(':');
                 const fechaCita = new Date(selectedDate);
-                fechaCita.setHours(parseInt(hours), parseInt(minutes), 0);
+                
+                // CORRECCIÓN: Establecer hora local sin conversión UTC
+                fechaCita.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
                 try {
-                    const citasDelDia = await obtenerCitasDelDia(selectedDate);
+                    const citasDelDia = await obtenerCitasDelDia(selectedDate, barberoId);
                     const horaOcupada = citasDelDia.some(cita => {
                         const citaDate = new Date(cita.fecha);
                         const horaStr = `${String(citaDate.getHours()).padStart(2, '0')}:${String(citaDate.getMinutes()).padStart(2, '0')}`;
@@ -1150,13 +1156,16 @@
                         return;
                     }
 
+                    // CORRECCIÓN: Crear fecha en formato ISO sin conversión de zona horaria
+                    const fechaCitaISO = formatDateToLocalISO(fechaCita);
+                    
                     const { data, error } = await supabase
                         .from('citas')
                         .insert([{
                             cliente_id: usuarioActual.id,
                             servicio_id: servicioId,
                             barbero_id: barberoId,
-                            fecha: fechaCita.toISOString(),
+                            fecha: fechaCitaISO,
                             notas: notas,
                             estado: 'pendiente',
                             creado_en: new Date().toISOString()
@@ -1185,6 +1194,18 @@
                     console.error('Error agendando cita:', error);
                     showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
                 }
+            }
+
+            // FUNCIÓN NUEVA: Formatear fecha a ISO sin conversión UTC
+            function formatDateToLocalISO(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                const seconds = String(date.getSeconds()).padStart(2, '0');
+                
+                return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
             }
 
             async function cancelarCita(citaId) {
