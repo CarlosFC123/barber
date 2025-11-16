@@ -10,33 +10,37 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Arial', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             min-height: 100vh;
             color: #333;
         }
 
         .header {
-            background: #2d3748;
+            background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
             color: white;
-            padding: 20px;
+            padding: 25px 20px;
             text-align: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
 
         .header h1 {
-            font-size: 24px;
+            font-size: 28px;
             margin-bottom: 5px;
+            font-weight: 700;
         }
 
         .user-info {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 10px;
+            margin-top: 15px;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .container {
@@ -48,107 +52,121 @@
         .nav-tabs {
             display: flex;
             background: white;
-            border-radius: 10px 10px 0 0;
+            border-radius: 12px 12px 0 0;
             overflow: hidden;
             margin-bottom: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
         .nav-tab {
             flex: 1;
-            padding: 15px;
+            padding: 16px;
             text-align: center;
-            background: #f7fafc;
+            background: #f8f9fa;
             border: none;
             cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 15px;
         }
 
         .nav-tab.active {
-            background: white;
-            color: #667eea;
-            border-bottom: 3px solid #667eea;
+            background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
+            color: white;
+            border-bottom: none;
+        }
+
+        .nav-tab:hover:not(.active) {
+            background: #f0f1f5;
         }
 
         .tab-content {
             display: none;
             background: white;
-            padding: 30px;
-            border-radius: 0 0 10px 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            padding: 35px;
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
         }
 
         .tab-content.active {
             display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .btn {
-            padding: 12px 25px;
+            padding: 12px 24px;
             border: none;
             border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
         }
 
         .btn-primary {
-            background: #667eea;
+            background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
             color: white;
         }
 
         .btn-primary:hover {
-            background: #5a6fd8;
             transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(233, 69, 96, 0.4);
         }
 
         .btn-secondary {
-            background: #e2e8f0;
+            background: #e8edf2;
             color: #4a5568;
         }
 
         .btn-secondary:hover {
-            background: #cbd5e0;
+            background: #d8dfe8;
         }
 
         .btn-danger {
-            background: #e53e3e;
+            background: #dc3545;
             color: white;
         }
 
         .btn-danger:hover {
-            background: #c53030;
+            background: #c82333;
         }
 
         .alert {
-            padding: 12px;
+            padding: 14px 16px;
             border-radius: 8px;
             margin-bottom: 20px;
             font-size: 14px;
             display: none;
+            border-left: 4px solid;
         }
 
         .alert-success {
-            background: #c6f6d5;
-            color: #22543d;
-            border: 1px solid #9ae6b4;
+            background: #d4edda;
+            color: #155724;
+            border-color: #28a745;
         }
 
         .alert-error {
-            background: #fed7d7;
-            color: #742a2a;
-            border: 1px solid #feb2b2;
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         label {
             display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            color: #4a5568;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 14px;
         }
 
         input, select {
@@ -156,34 +174,35 @@
             padding: 12px 15px;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s;
+            font-size: 15px;
+            transition: all 0.3s ease;
         }
 
         input:focus, select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #e94560;
+            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
         }
 
-        /* Estilos para el calendario de selección de fechas */
         .calendar-picker {
-            background: #f7fafc;
+            background: #f8f9fa;
             border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
         }
 
         .calendar-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         .calendar-header h3 {
             color: #2d3748;
-            font-size: 18px;
+            font-size: 20px;
+            font-weight: 700;
         }
 
         .calendar-nav {
@@ -192,31 +211,37 @@
         }
 
         .calendar-nav button {
-            background: #667eea;
+            background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
             color: white;
             border: none;
-            padding: 8px 12px;
-            border-radius: 5px;
+            padding: 10px 16px;
+            border-radius: 6px;
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.3s ease;
         }
 
         .calendar-nav button:hover {
-            background: #5a6fd8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
         }
 
         .calendar-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 8px;
+            gap: 10px;
+            margin-bottom: 20px;
         }
 
         .day-label {
             text-align: center;
-            font-weight: bold;
-            color: #667eea;
-            padding: 10px;
-            font-size: 12px;
+            font-weight: 700;
+            color: #e94560;
+            padding: 12px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .day-cell {
@@ -225,145 +250,208 @@
             align-items: center;
             justify-content: center;
             border: 2px solid #e2e8f0;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
-            transition: all 0.3s;
-            font-weight: bold;
+            transition: all 0.3s ease;
+            font-weight: 600;
             background: white;
-        }
-
-        .day-cell.disabled {
-            background: #e2e8f0;
-            color: #cbd5e0;
-            cursor: not-allowed;
+            font-size: 15px;
         }
 
         .day-cell.available:hover {
-            background: #667eea;
+            background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
             color: white;
             transform: scale(1.05);
+            border-color: #e94560;
         }
 
         .day-cell.selected {
-            background: #667eea;
+            background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
             color: white;
-            border-color: #667eea;
+            border-color: #e94560;
+            box-shadow: 0 6px 16px rgba(233, 69, 96, 0.3);
+        }
+
+        .day-cell.today {
+            border: 2px solid #ffc107;
+            font-weight: 700;
+            color: #e94560;
+        }
+
+        .day-cell.today.selected {
+            background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
+            color: white;
+            border-color: #e94560;
         }
 
         .selected-date-display {
             margin-top: 15px;
-            padding: 10px;
+            padding: 16px;
             background: white;
             border-radius: 8px;
             text-align: center;
-            color: #667eea;
-            font-weight: bold;
+            color: #e94560;
+            font-weight: 700;
+            font-size: 15px;
+            border: 2px solid #e94560;
         }
 
-        /* Estilos para los botones de hora */
+        .horas-container {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        .horas-container label {
+            display: block;
+            margin-bottom: 15px;
+            color: #2d3748;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .horas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            gap: 12px;
+        }
+
         .hora-btn {
-            padding: 10px;
+            padding: 14px 10px;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             background: white;
             cursor: pointer;
-            transition: all 0.3s;
-            font-weight: bold;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 14px;
+            color: #2d3748;
         }
 
-        .hora-btn:hover {
-            background: #667eea;
+        .hora-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
             color: white;
             transform: translateY(-2px);
+            border-color: #e94560;
+            box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
         }
 
         .hora-btn.selected {
-            background: #667eea;
+            background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
             color: white;
-            border-color: #667eea;
+            border-color: #e94560;
+            box-shadow: 0 6px 16px rgba(233, 69, 96, 0.3);
         }
 
         .hora-btn:disabled {
-            background: #fed7d7;
-            color: #742a2a;
+            background: #f0f1f5;
+            color: #cbd5e0;
             cursor: not-allowed;
-            transform: none;
+            border-color: #e2e8f0;
+        }
+
+        .hora-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .hora-badge.occupied {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .hora-badge.passed {
+            background: #e2e8f0;
+            color: #4a5568;
         }
 
         .citas-grid {
             display: grid;
             gap: 20px;
-            margin-top: 20px;
+            margin-top: 25px;
         }
 
         .cita-card {
-            background: #f7fafc;
+            background: #f8f9fa;
             border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 20px;
-            transition: all 0.3s;
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.3s ease;
         }
 
         .cita-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+            border-color: #e94560;
         }
 
         .cita-card.pendiente {
-            border-left: 4px solid #ed8936;
+            border-left: 5px solid #ffc107;
         }
 
         .cita-card.confirmada {
-            border-left: 4px solid #38a169;
+            border-left: 5px solid #28a745;
         }
 
         .cita-card.completada {
-            border-left: 4px solid #667eea;
+            border-left: 5px solid #e94560;
         }
 
         .cita-card.cancelada {
-            border-left: 4px solid #e53e3e;
+            border-left: 5px solid #dc3545;
+            opacity: 0.7;
         }
 
         .cita-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
         .cita-estado {
-            padding: 5px 10px;
-            border-radius: 15px;
+            padding: 6px 14px;
+            border-radius: 20px;
             font-size: 12px;
-            font-weight: bold;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .estado-pendiente { background: #fed7d7; color: #742a2a; }
-        .estado-confirmada { background: #c6f6d5; color: #22543d; }
-        .estado-completada { background: #bee3f8; color: #2a4365; }
-        .estado-cancelada { background: #fed7d7; color: #742a2a; }
+        .estado-pendiente { background: #fff3cd; color: #856404; }
+        .estado-confirmada { background: #d4edda; color: #155724; }
+        .estado-completada { background: #d1ecf1; color: #0c5460; }
+        .estado-cancelada { background: #f8d7da; color: #721c24; }
 
         .cita-detalles p {
-            margin: 5px 0;
+            margin: 10px 0;
             color: #4a5568;
+            font-size: 15px;
+        }
+
+        .cita-detalles strong {
+            color: #2d3748;
         }
 
         .cita-acciones {
-            margin-top: 15px;
+            margin-top: 20px;
             display: flex;
-            gap: 10px;
+            gap: 12px;
         }
 
         .loading {
             text-align: center;
-            padding: 40px;
+            padding: 50px;
             color: #4a5568;
         }
 
         .spinner {
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border-top: 4px solid #e94560;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -378,42 +466,42 @@
 
         .empty-state {
             text-align: center;
-            padding: 40px;
+            padding: 50px 20px;
             color: #4a5568;
         }
 
-        .empty-state img {
-            width: 100px;
-            margin-bottom: 20px;
-            opacity: 0.5;
+        .empty-state div {
+            font-size: 48px;
+            margin-bottom: 15px;
         }
 
         .servicios-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 24px;
+            margin-top: 25px;
         }
 
         .servicio-card {
             background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
             text-align: center;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
         }
 
         .servicio-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-4px);
+            border-color: #e94560;
+            box-shadow: 0 12px 24px rgba(233, 69, 96, 0.15);
         }
 
         .servicio-precio {
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-            margin: 10px 0;
+            font-size: 28px;
+            font-weight: 700;
+            color: #e94560;
+            margin: 15px 0;
         }
 
         .servicio-duracion {
@@ -422,35 +510,46 @@
         }
 
         .logout-btn {
-            background: #e53e3e;
+            background: #dc3545;
             color: white;
             border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
+            padding: 10px 18px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
         }
 
         .logout-btn:hover {
-            background: #c53030;
+            background: #c82333;
+            transform: translateY(-1px);
         }
 
         @media (max-width: 768px) {
             .nav-tabs {
                 flex-direction: column;
             }
-            
+
             .cita-acciones {
                 flex-direction: column;
             }
-            
+
             .user-info {
                 flex-direction: column;
-                gap: 10px;
+                gap: 15px;
+            }
+
+            .horas-grid {
+                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
             }
 
             .calendar-grid {
                 grid-template-columns: repeat(5, 1fr);
+            }
+
+            .tab-content {
+                padding: 20px;
             }
         }
     </style>
@@ -460,16 +559,14 @@
         <h1>✂️ Barbería Elite</h1>
         <p>Panel del Cliente</p>
         <div class="user-info">
-            <span id="userWelcome">Bienvenido, </span>
+            <span id="userWelcome">Bienvenido</span>
             <button class="logout-btn" id="logoutBtn">Cerrar Sesión</button>
         </div>
     </div>
 
     <div class="container">
-        <!-- Alertas -->
         <div id="alert" class="alert"></div>
 
-        <!-- Pestañas de Navegación -->
         <div class="nav-tabs">
             <button class="nav-tab active" data-tab="agendar">Agendar Cita</button>
             <button class="nav-tab" data-tab="mis-citas">Mis Citas</button>
@@ -477,7 +574,7 @@
             <button class="nav-tab" data-tab="perfil">Mi Perfil</button>
         </div>
 
-        <!-- Contenido de Agendar Cita -->
+        <!-- Tab Agendar Cita -->
         <div id="agendar" class="tab-content active">
             <h2>📅 Agendar Nueva Cita</h2>
             <form id="formAgendarCita">
@@ -495,7 +592,7 @@
                     </select>
                 </div>
 
-                <!-- Nuevo selector de fechas interactivo con calendario -->
+                <!-- Mejorado calendario con incluir hoy y solo mostrar fechas disponibles -->
                 <div class="form-group">
                     <label>Selecciona Fecha y Hora</label>
                     <div class="calendar-picker">
@@ -506,24 +603,19 @@
                                 <button type="button" id="nextMonth">Siguiente →</button>
                             </div>
                         </div>
-                        <div class="calendar-grid" id="calendarGrid">
-                            <!-- Se genera dinámicamente -->
-                        </div>
+                        <div class="calendar-grid" id="calendarGrid"></div>
                         <div class="selected-date-display" id="selectedDateDisplay">
                             Selecciona una fecha
                         </div>
                     </div>
 
-                    <!-- Nueva sección de selección de horas con validación de disponibilidad -->
-                    <div id="horasContainer" style="display: none; margin-top: 20px;">
+                    <!-- Nuevo contenedor de horas con validación de disponibilidad y horas pasadas -->
+                    <div id="horasContainer" class="horas-container" style="display: none;">
                         <label>Selecciona Hora (Cada 40 minutos)</label>
-                        <div id="horasGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px;">
-                            <!-- Se genera dinámicamente -->
-                        </div>
+                        <div class="horas-grid" id="horasGrid"></div>
                     </div>
                 </div>
 
-                <!-- Campo oculto para almacenar la hora seleccionada -->
                 <input type="hidden" id="hora" required>
 
                 <div class="form-group">
@@ -535,7 +627,7 @@
             </form>
         </div>
 
-        <!-- Contenido de Mis Citas -->
+        <!-- Tab Mis Citas -->
         <div id="mis-citas" class="tab-content">
             <h2>📋 Mis Citas</h2>
             <div id="listaCitas" class="citas-grid">
@@ -546,7 +638,7 @@
             </div>
         </div>
 
-        <!-- Contenido de Servicios -->
+        <!-- Tab Servicios -->
         <div id="servicios" class="tab-content">
             <h2>✂️ Nuestros Servicios</h2>
             <div id="listaServicios" class="servicios-grid">
@@ -557,7 +649,7 @@
             </div>
         </div>
 
-        <!-- Contenido de Perfil -->
+        <!-- Tab Perfil -->
         <div id="perfil" class="tab-content">
             <h2>👤 Mi Perfil</h2>
             <div id="infoPerfil">
@@ -570,17 +662,14 @@
     </div>
 
     <script>
-        // ESPERAR A QUE EL DOM Y SUPABASE ESTÉN LISTOS
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
         });
 
         function initializeApp() {
-            // Configuración Supabase
             const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
             
-            // Verificar que Supabase esté disponible
             if (typeof supabase === 'undefined') {
                 console.error('Supabase no está cargado');
                 showAlert('Error: No se pudo cargar la configuración', 'error');
@@ -596,7 +685,6 @@
             let selectedDate = null;
             let currentMonth = new Date();
 
-            // Función para mostrar alertas
             function showAlert(message, type = 'error') {
                 const alertDiv = document.getElementById('alert');
                 alertDiv.textContent = message;
@@ -612,7 +700,6 @@
                 const grid = document.getElementById('calendarGrid');
                 grid.innerHTML = '';
 
-                // Encabezados de días (Lunes a Viernes)
                 const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
                 days.forEach(day => {
                     const dayLabel = document.createElement('div');
@@ -621,38 +708,30 @@
                     grid.appendChild(dayLabel);
                 });
 
-                // Obtener el primer día del mes
                 const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
                 const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0);
                 
-                // Obtener el día de la semana (0 = domingo, 1 = lunes, etc.)
                 let dayOfWeek = firstDay.getDay();
-                // Ajustar para que lunes sea 0
                 dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-
-                // Agregar espacios vacíos antes del primer día
-                for (let i = 0; i < dayOfWeek; i++) {
-                    const emptyCell = document.createElement('div');
-                    emptyCell.className = 'day-cell disabled';
-                    grid.appendChild(emptyCell);
-                }
 
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
-                // Agregar días del mes (solo lunes a viernes, y solo fechas futuras)
                 for (let date = 1; date <= lastDay.getDate(); date++) {
                     const currentDate = new Date(month.getFullYear(), month.getMonth(), date);
                     const dayOfWeekNum = currentDate.getDay();
                     
-                    // Solo mostrar lunes (1) a viernes (5) Y que sean fechas futuras (hoy o después)
                     if (dayOfWeekNum >= 1 && dayOfWeekNum <= 5 && currentDate >= today) {
                         const cell = document.createElement('div');
                         cell.className = 'day-cell available';
                         cell.textContent = date;
+
+                        if (currentDate.toDateString() === today.toDateString()) {
+                            cell.classList.add('today');
+                        }
+
                         cell.onclick = () => selectDate(currentDate);
                         
-                        // Marcar el día seleccionado
                         if (selectedDate && 
                             selectedDate.getDate() === date && 
                             selectedDate.getMonth() === month.getMonth() && 
@@ -664,7 +743,6 @@
                     }
                 }
 
-                // Actualizar encabezado del mes
                 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                 document.getElementById('monthDisplay').textContent = 
@@ -676,8 +754,13 @@
                 selectedDate.setHours(0, 0, 0, 0);
                 
                 const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const isToday = selectedDate.toDateString() === today.toDateString();
+                
+                const dateText = isToday ? 'Hoy' : date.toLocaleDateString('es-MX', options);
                 document.getElementById('selectedDateDisplay').textContent = 
-                    `Fecha seleccionada: ${date.toLocaleDateString('es-MX', options)}`;
+                    `Fecha seleccionada: ${dateText}`;
                 
                 generateHoras(date);
                 document.getElementById('horasContainer').style.display = 'block';
@@ -689,7 +772,6 @@
                 const horasGrid = document.getElementById('horasGrid');
                 horasGrid.innerHTML = '';
 
-                // Generar horas cada 40 minutos desde las 8:00 hasta las 22:00
                 const horas = [];
                 let hora = 8;
                 let minutos = 0;
@@ -703,13 +785,11 @@
                     }
                 }
 
-                // Obtener la hora actual si la fecha es hoy
                 const now = new Date();
                 const esHoy = selectedDateObj.toDateString() === now.toDateString();
                 const horaActual = now.getHours();
                 const minutosActual = now.getMinutes();
 
-                // Obtener citas ya agendadas para esta fecha
                 const citasDelDia = await obtenerCitasDelDia(selectedDateObj);
                 const horasOcupadas = new Set();
                 
@@ -719,7 +799,6 @@
                     horasOcupadas.add(horaStr);
                 });
 
-                // Crear botones de horas
                 horas.forEach(({ hora: h, minutos: m }) => {
                     const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
                     const btn = document.createElement('button');
@@ -727,21 +806,20 @@
                     btn.className = 'hora-btn';
                     btn.textContent = horaStr;
                     
-                    const horaPasada = esHoy && (h < horaActual || (h === horaActual && m < minutosActual));
+                    const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
                     const horaOcupada = horasOcupadas.has(horaStr);
                     
                     if (horaPasada || horaOcupada) {
                         btn.disabled = true;
                         if (horaOcupada) {
-                            btn.title = 'Esta hora ya está ocupada';
+                            btn.title = 'Hora ocupada';
                         } else {
-                            btn.title = 'Esta hora ya pasó';
+                            btn.title = 'Hora pasada';
                         }
                     } else {
                         btn.onclick = () => selectHora(horaStr, btn);
                     }
                     
-                    // Marcar si está seleccionada
                     const selectedHora = document.getElementById('hora').value;
                     if (selectedHora === horaStr) {
                         btn.classList.add('selected');
@@ -764,7 +842,7 @@
                         .select('fecha')
                         .gte('fecha', fechaInicio.toISOString())
                         .lte('fecha', fechaFin.toISOString())
-                        .neq('estado', 'cancelada'); // No contar citas canceladas
+                        .neq('estado', 'cancelada');
 
                     if (error) {
                         console.error('Error obteniendo citas del día:', error);
@@ -779,10 +857,7 @@
             }
 
             function selectHora(horaStr, btn) {
-                // Remover selección anterior
                 document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
-                
-                // Marcar nueva selección
                 btn.classList.add('selected');
                 document.getElementById('hora').value = horaStr;
             }
@@ -799,23 +874,16 @@
                 generateCalendar(currentMonth);
             });
 
-            // Configurar event listeners
             document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
             
-            // Configurar pestañas
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 tab.addEventListener('click', function() {
                     cambiarPestana(this.dataset.tab);
                 });
             });
 
-            // Configurar formulario
-            document.getElementById('formAgendarCita').addEventListener('submit', function(e) {
-                e.preventDefault();
-                agendarCita(e);
-            });
+            document.getElementById('formAgendarCita').addEventListener('submit', agendarCita);
 
-            // Verificar autenticación
             async function verificarAutenticacion() {
                 try {
                     const { data: { session }, error } = await supabase.auth.getSession();
@@ -842,7 +910,6 @@
                 }
             }
 
-            // Cargar información del usuario
             async function cargarInformacionUsuario() {
                 try {
                     const { data: cliente, error } = await supabase
@@ -856,7 +923,6 @@
                     document.getElementById('userWelcome').textContent = 
                         `Bienvenido, ${cliente.nombre} ${cliente.apellido}`;
 
-                    // Mostrar información en el perfil
                     const perfilHTML = `
                         <div class="form-group">
                             <label>Nombre completo</label>
@@ -883,7 +949,6 @@
                 }
             }
 
-            // Cargar servicios disponibles
             async function cargarServicios() {
                 try {
                     const { data: servicios, error } = await supabase
@@ -893,7 +958,6 @@
 
                     if (error) throw error;
 
-                    // Llenar select de servicios
                     const selectServicio = document.getElementById('servicio');
                     selectServicio.innerHTML = '<option value="">Selecciona un servicio</option>';
                     
@@ -904,7 +968,6 @@
                         selectServicio.appendChild(option);
                     });
 
-                    // Mostrar servicios en la pestaña
                     const serviciosGrid = document.getElementById('listaServicios');
                     if (servicios.length === 0) {
                         serviciosGrid.innerHTML = `
@@ -930,7 +993,6 @@
                 }
             }
 
-            // Cargar barberos disponibles
             async function cargarBarberos() {
                 try {
                     const { data: barberos, error } = await supabase
@@ -954,7 +1016,6 @@
                 }
             }
 
-            // Cargar citas del usuario
             async function cargarMisCitas() {
                 try {
                     const { data: citas, error } = await supabase
@@ -1009,7 +1070,6 @@
                 }
             }
 
-            // Agendar nueva cita
             async function agendarCita(e) {
                 e.preventDefault();
                 
@@ -1068,10 +1128,7 @@
                     currentMonth = new Date();
                     generateCalendar(currentMonth);
                     
-                    // Recargar la lista de citas
                     await cargarMisCitas();
-                    
-                    // Cambiar a la pestaña de mis citas
                     cambiarPestana('mis-citas');
 
                 } catch (error) {
@@ -1080,7 +1137,6 @@
                 }
             }
 
-            // Cancelar cita
             async function cancelarCita(citaId) {
                 if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
                     return;
@@ -1103,31 +1159,23 @@
                 }
             }
 
-            // Ver detalles de cita
             function verDetallesCita(citaId) {
                 alert('Función de detalles de cita - Próximamente');
             }
 
-            // Cambiar entre pestañas
             function cambiarPestana(pestanaId) {
-                // Ocultar todas las pestañas
                 document.querySelectorAll('.tab-content').forEach(tab => {
                     tab.classList.remove('active');
                 });
                 
-                // Remover activo de todos los botones
                 document.querySelectorAll('.nav-tab').forEach(tab => {
                     tab.classList.remove('active');
                 });
                 
-                // Mostrar pestaña seleccionada
                 document.getElementById(pestanaId).classList.add('active');
-                
-                // Activar botón correspondiente
                 document.querySelector(`[data-tab="${pestanaId}"]`).classList.add('active');
             }
 
-            // Cerrar sesión
             async function cerrarSesion() {
                 try {
                     const { error } = await supabase.auth.signOut();
@@ -1140,18 +1188,14 @@
                 }
             }
 
-            // Hacer funciones disponibles globalmente
             window.app = {
                 cancelarCita,
                 verDetallesCita,
                 cambiarPestana
             };
 
-            // Iniciar la aplicación
             verificarAutenticacion();
-
-            // Verificar si el usuario está autenticado cada cierto tiempo
-            setInterval(verificarAutenticacion, 300000); // 5 minutos
+            setInterval(verificarAutenticacion, 300000);
         }
     </script>
 </body>
