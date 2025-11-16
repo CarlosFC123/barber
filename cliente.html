@@ -803,13 +803,14 @@
                 document.getElementById('selectedDateDisplay').textContent = 
                     `Fecha seleccionada: ${dateText}`;
                 
-                generateHoras(date);
+                const barberoId = document.getElementById('barbero').value;
+                generateHoras(date, barberoId);
                 document.getElementById('horasContainer').style.display = 'block';
                 
                 generateCalendar(currentMonth);
             }
 
-            async function generateHoras(selectedDateObj) {
+            async function generateHoras(selectedDateObj, barberoId) {
                 const horasGrid = document.getElementById('horasGrid');
                 horasGrid.innerHTML = '';
 
@@ -831,7 +832,7 @@
                 const horaActual = now.getHours();
                 const minutosActual = now.getMinutes();
 
-                const citasDelDia = await obtenerCitasDelDia(selectedDateObj);
+                const citasDelDia = await obtenerCitasDelDia(selectedDateObj, barberoId);
                 const horasOcupadas = new Set();
                 
                 citasDelDia.forEach(cita => {
@@ -870,7 +871,7 @@
                 });
             }
 
-            async function obtenerCitasDelDia(fecha) {
+            async function obtenerCitasDelDia(fecha, barberoId) {
                 try {
                     const fechaInicio = new Date(fecha);
                     fechaInicio.setHours(0, 0, 0, 0);
@@ -881,6 +882,7 @@
                     const { data: citas, error } = await supabase
                         .from('citas')
                         .select('fecha')
+                        .eq('barbero_id', barberoId)
                         .gte('fecha', fechaInicio.toISOString())
                         .lte('fecha', fechaFin.toISOString())
                         .neq('estado', 'cancelada');
@@ -896,7 +898,14 @@
                     return [];
                 }
             }
-
+             document.getElementById('barbero').addEventListener('change', () => {
+                if (selectedDate) {
+                    const barberoId = document.getElementById('barbero').value;
+                    if (barberoId) {
+                        generateHoras(selectedDate, barberoId);
+                    }
+                }
+            }); 
             function selectHora(horaStr, btn) {
                 document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
                 btn.classList.add('selected');
