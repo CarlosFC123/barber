@@ -700,7 +700,7 @@
                 const grid = document.getElementById('calendarGrid');
                 grid.innerHTML = '';
 
-                const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+                const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
                 days.forEach(day => {
                     const dayLabel = document.createElement('div');
                     dayLabel.className = 'day-label';
@@ -712,16 +712,19 @@
                 const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0);
                 
                 let dayOfWeek = firstDay.getDay();
-                dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
+                for (let i = 0; i < dayOfWeek; i++) {
+                    const emptyCell = document.createElement('div');
+                    grid.appendChild(emptyCell);
+                }
+
                 for (let date = 1; date <= lastDay.getDate(); date++) {
                     const currentDate = new Date(month.getFullYear(), month.getMonth(), date);
-                    const dayOfWeekNum = currentDate.getDay();
                     
-                    if (dayOfWeekNum >= 1 && dayOfWeekNum <= 5 && currentDate >= today) {
+                    if (currentDate >= today) {
                         const cell = document.createElement('div');
                         cell.className = 'day-cell available';
                         cell.textContent = date;
