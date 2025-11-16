@@ -184,11 +184,12 @@
             box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
         }
 
+        /* CALENDARIO COMPACTO */
         .calendar-picker {
             background: #f8f9fa;
             border: 2px solid #e2e8f0;
             border-radius: 12px;
-            padding: 25px;
+            padding: 20px;
             margin-bottom: 20px;
         }
 
@@ -196,29 +197,29 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 25px;
+            margin-bottom: 15px;
         }
 
         .calendar-header h3 {
             color: #2d3748;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 700;
         }
 
         .calendar-nav {
             display: flex;
-            gap: 10px;
+            gap: 8px;
         }
 
         .calendar-nav button {
             background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
             color: white;
             border: none;
-            padding: 10px 16px;
+            padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 12px;
             transition: all 0.3s ease;
         }
 
@@ -229,17 +230,17 @@
 
         .calendar-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            margin-bottom: 15px;
         }
 
         .day-label {
             text-align: center;
             font-weight: 700;
             color: #e94560;
-            padding: 12px;
-            font-size: 13px;
+            padding: 8px 4px;
+            font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -250,12 +251,13 @@
             align-items: center;
             justify-content: center;
             border: 2px solid #e2e8f0;
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: 600;
             background: white;
-            font-size: 15px;
+            font-size: 13px;
+            min-height: 35px;
         }
 
         .day-cell.available:hover {
@@ -269,7 +271,7 @@
             background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
             color: white;
             border-color: #e94560;
-            box-shadow: 0 6px 16px rgba(233, 69, 96, 0.3);
+            box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
         }
 
         .day-cell.today {
@@ -284,47 +286,58 @@
             border-color: #e94560;
         }
 
+        .day-cell.weekend {
+            background: #f8f9fa;
+            color: #a0aec0;
+        }
+
+        .day-cell.disabled {
+            background: #f0f1f5;
+            color: #cbd5e0;
+            cursor: not-allowed;
+        }
+
         .selected-date-display {
             margin-top: 15px;
-            padding: 16px;
+            padding: 12px;
             background: white;
             border-radius: 8px;
             text-align: center;
             color: #e94560;
             font-weight: 700;
-            font-size: 15px;
+            font-size: 14px;
             border: 2px solid #e94560;
         }
 
         .horas-container {
-            margin-top: 30px;
-            padding-top: 30px;
+            margin-top: 25px;
+            padding-top: 20px;
             border-top: 2px solid #e2e8f0;
         }
 
         .horas-container label {
             display: block;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             color: #2d3748;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 700;
         }
 
         .horas-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 8px;
         }
 
         .hora-btn {
-            padding: 14px 10px;
+            padding: 10px 8px;
             border: 2px solid #e2e8f0;
-            border-radius: 8px;
+            border-radius: 6px;
             background: white;
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
             color: #2d3748;
         }
 
@@ -340,7 +353,7 @@
             background: linear-gradient(135deg, #e94560 0%, #d63447 100%);
             color: white;
             border-color: #e94560;
-            box-shadow: 0 6px 16px rgba(233, 69, 96, 0.3);
+            box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
         }
 
         .hora-btn:disabled {
@@ -348,25 +361,6 @@
             color: #cbd5e0;
             cursor: not-allowed;
             border-color: #e2e8f0;
-        }
-
-        .hora-badge {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 700;
-            margin-top: 2px;
-        }
-
-        .hora-badge.occupied {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .hora-badge.passed {
-            background: #e2e8f0;
-            color: #4a5568;
         }
 
         .citas-grid {
@@ -541,15 +535,45 @@
             }
 
             .horas-grid {
-                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+                grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
             }
 
             .calendar-grid {
-                grid-template-columns: repeat(5, 1fr);
+                grid-template-columns: repeat(7, 1fr);
             }
 
             .tab-content {
                 padding: 20px;
+            }
+
+            .day-cell {
+                min-height: 30px;
+                font-size: 12px;
+            }
+
+            .day-label {
+                font-size: 10px;
+                padding: 6px 2px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .calendar-grid {
+                gap: 4px;
+            }
+
+            .day-cell {
+                min-height: 25px;
+                font-size: 11px;
+            }
+
+            .horas-grid {
+                grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            }
+
+            .hora-btn {
+                padding: 8px 4px;
+                font-size: 12px;
             }
         }
     </style>
@@ -592,15 +616,15 @@
                     </select>
                 </div>
 
-                <!-- Mejorado calendario con incluir hoy y solo mostrar fechas disponibles -->
+                <!-- CALENDARIO COMPACTO MEJORADO -->
                 <div class="form-group">
                     <label>Selecciona Fecha y Hora</label>
                     <div class="calendar-picker">
                         <div class="calendar-header">
                             <h3 id="monthDisplay">Noviembre 2025</h3>
                             <div class="calendar-nav">
-                                <button type="button" id="prevMonth">← Anterior</button>
-                                <button type="button" id="nextMonth">Siguiente →</button>
+                                <button type="button" id="prevMonth">←</button>
+                                <button type="button" id="nextMonth">→</button>
                             </div>
                         </div>
                         <div class="calendar-grid" id="calendarGrid"></div>
@@ -609,7 +633,6 @@
                         </div>
                     </div>
 
-                    <!-- Nuevo contenedor de horas con validación de disponibilidad y horas pasadas -->
                     <div id="horasContainer" class="horas-container" style="display: none;">
                         <label>Selecciona Hora (Cada 40 minutos)</label>
                         <div class="horas-grid" id="horasGrid"></div>
@@ -700,7 +723,7 @@
                 const grid = document.getElementById('calendarGrid');
                 grid.innerHTML = '';
 
-                const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
                 days.forEach(day => {
                     const dayLabel = document.createElement('div');
                     dayLabel.className = 'day-label';
@@ -716,34 +739,49 @@
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
+                // Espacios vacíos antes del primer día
                 for (let i = 0; i < dayOfWeek; i++) {
                     const emptyCell = document.createElement('div');
+                    emptyCell.className = 'day-cell disabled';
                     grid.appendChild(emptyCell);
                 }
 
+                // Días del mes
                 for (let date = 1; date <= lastDay.getDate(); date++) {
                     const currentDate = new Date(month.getFullYear(), month.getMonth(), date);
+                    const dayOfWeekNum = currentDate.getDay();
+                    
+                    const cell = document.createElement('div');
                     
                     if (currentDate >= today) {
-                        const cell = document.createElement('div');
                         cell.className = 'day-cell available';
                         cell.textContent = date;
 
+                        // Marcar fin de semana
+                        if (dayOfWeekNum === 0 || dayOfWeekNum === 6) {
+                            cell.classList.add('weekend');
+                        }
+
+                        // Marcar hoy
                         if (currentDate.toDateString() === today.toDateString()) {
                             cell.classList.add('today');
                         }
 
                         cell.onclick = () => selectDate(currentDate);
                         
+                        // Marcar seleccionado
                         if (selectedDate && 
                             selectedDate.getDate() === date && 
                             selectedDate.getMonth() === month.getMonth() && 
                             selectedDate.getFullYear() === month.getFullYear()) {
                             cell.classList.add('selected');
                         }
-                        
-                        grid.appendChild(cell);
+                    } else {
+                        cell.className = 'day-cell disabled';
+                        cell.textContent = date;
                     }
+                    
+                    grid.appendChild(cell);
                 }
 
                 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
