@@ -708,7 +708,7 @@
             
             <!-- Información del barbero fijo -->
             <div class="barbero-info">
-                <h3>Tu Barbero</h3>
+                <h3>Barber</h3>
                 <p id="barberoNombre">Cargando información del barbero...</p>
                 <p id="barberoEspecialidad"></p>
             </div>
@@ -748,7 +748,7 @@
                     </div>
 
                     <div id="horasContainer" class="horas-container" style="display: none;">
-                        <label>Selecciona Hora (Cada 40 minutos)</label>
+                        <label>Selecciona Hora</label>
                         <div class="horas-grid" id="horasGrid"></div>
                     </div>
                 </div>
@@ -789,667 +789,858 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeApp();
+    });
+
+    function initializeApp() {
+        const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
+        
+        if (typeof supabase === 'undefined') {
+            console.error('Supabase no está cargado');
+            showAlert('Error: No se pudo cargar la configuración', 'error');
+            return;
+        }
+        
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        startApplication(supabaseClient);
+    }
+
+    function startApplication(supabase) {
+        let usuarioActual = null;
+        let selectedDate = null;
+        let currentMonth = new Date();
+        let barberoFijo = null;
+        let calendarioHabilitado = false;
+        let todasLasCitasFuturasCache = [];
+
+        function showAlert(message, type = 'error') {
+            const alertDiv = document.getElementById('alert');
+            alertDiv.textContent = message;
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                alertDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function habilitarCalendario() {
+            const calendarContainer = document.getElementById('calendarContainer');
+            const calendarDisabledMessage = document.getElementById('calendarDisabledMessage');
+            
+            if (calendarioHabilitado) {
+                calendarContainer.classList.remove('calendar-disabled');
+                calendarDisabledMessage.style.display = 'none';
+            } else {
+                calendarContainer.classList.add('calendar-disabled');
+                calendarDisabledMessage.style.display = 'block';
+            }
+        }
+
+        function generateCalendar(month = new Date()) {
+    const grid = document.getElementById('calendarGrid');
+    grid.innerHTML = '';
+
+    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    days.forEach(day => {
+        const dayLabel = document.createElement('div');
+        dayLabel.className = 'day-label';
+        dayLabel.textContent = day;
+        grid.appendChild(dayLabel);
+    });
+
+    const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+    const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+    
+    let dayOfWeek = firstDay.getDay();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // AGREGAR LOGGING PARA DEBUG
+    console.log('📅 Generando calendario:', {
+        mes_actual: month.getMonth() + 1,
+        año_actual: month.getFullYear(),
+        hoy_local: today.toLocaleDateString('es-MX'),
+        hora_actual: new Date().toLocaleTimeString('es-MX')
+    });
+
+    // Espacios vacíos antes del primer día
+    for (let i = 0; i < dayOfWeek; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'day-cell disabled';
+        grid.appendChild(emptyCell);
+    }
+
+    // Días del mes
+    for (let date = 1; date <= lastDay.getDate(); date++) {
+        const currentDate = new Date(month.getFullYear(), month.getMonth(), date);
+        const dayOfWeekNum = currentDate.getDay();
+        
+        const cell = document.createElement('div');
+        
+        if (currentDate >= today && calendarioHabilitado) {
+            cell.className = 'day-cell available';
+            cell.textContent = date;
+
+            // Marcar fin de semana
+            if (dayOfWeekNum === 0 || dayOfWeekNum === 6) {
+                cell.classList.add('weekend');
+            }
+
+            // Marcar hoy
+            if (currentDate.toDateString() === today.toDateString()) {
+                cell.classList.add('today');
+                console.log('📍 Marcando como HOY:', currentDate.toLocaleDateString('es-MX'));
+            }
+
+            cell.onclick = () => selectDate(currentDate);
+            
+            // Marcar seleccionado
+            if (selectedDate && 
+                selectedDate.getDate() === date && 
+                selectedDate.getMonth() === month.getMonth() && 
+                selectedDate.getFullYear() === month.getFullYear()) {
+                cell.classList.add('selected');
+            }
+        } else {
+            cell.className = 'day-cell disabled';
+            cell.textContent = date;
+            // Debug para días deshabilitados
+            if (currentDate < today) {
+                console.log('🚫 Día deshabilitado (pasado):', currentDate.toLocaleDateString('es-MX'));
+            }
+        }
+        
+        grid.appendChild(cell);
+    }
+
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    document.getElementById('monthDisplay').textContent = 
+        `${monthNames[month.getMonth()]} ${month.getFullYear()}`;
+}
+
+        function selectDate(date) {
+            if (!calendarioHabilitado) return;
+            
+            selectedDate = new Date(date);
+            selectedDate.setHours(0, 0, 0, 0);
+            
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const isToday = selectedDate.toDateString() === today.toDateString();
+            
+            const dateText = isToday ? 'Hoy' : date.toLocaleDateString('es-MX', options);
+            document.getElementById('selectedDateDisplay').textContent = 
+                `Fecha seleccionada: ${dateText}`;
+            
+            generateHoras(date);
+            document.getElementById('horasContainer').style.display = 'block';
+            
+            generateCalendar(currentMonth);
+        }
+
+
+
+
+        function selectHora(horaStr, btn) {
+            document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            document.getElementById('hora').value = horaStr;
+        }
+
+        
+
+        // AGREGAR esta función para precargar las citas futuras al iniciar
+        async function precargarCitasFuturas() {
+    try {
+        console.log('🔄 Precargando todas las citas futuras...');
+        const nuevasCitas = await obtenerCitasFuturasDelBarbero();
+        todasLasCitasFuturasCache = nuevasCitas;
+        console.log('✅ Citas futuras actualizadas:', todasLasCitasFuturasCache.length);
+        
+        // Si hay una fecha seleccionada y el calendario está habilitado, actualizar horas
+        if (selectedDate && calendarioHabilitado) {
+            console.log('🔄 Actualizando horas después de precargar citas...');
+            await generateHoras(selectedDate);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error precargando citas futuras:', error);
+    }
+}
+
+        document.getElementById('prevMonth').addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!calendarioHabilitado) return;
+            currentMonth.setMonth(currentMonth.getMonth() - 1);
+            generateCalendar(currentMonth);
         });
 
-        function initializeApp() {
-            const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
-            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
-            
-            if (typeof supabase === 'undefined') {
-                console.error('Supabase no está cargado');
-                showAlert('Error: No se pudo cargar la configuración', 'error');
-                return;
+        document.getElementById('nextMonth').addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!calendarioHabilitado) return;
+            currentMonth.setMonth(currentMonth.getMonth() + 1);
+            generateCalendar(currentMonth);
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
+        
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                cambiarPestana(this.dataset.tab);
+            });
+        });
+
+        document.getElementById('btnAgendarCita').addEventListener('click', agendarCita);
+
+        async function verificarAutenticacion() {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) throw error;
+                
+                if (!session) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+
+                usuarioActual = session.user;
+                await cargarBarberoFijo();
+                await cargarInformacionUsuario();
+                await cargarServicios();
+                await cargarMisCitas();
+                await precargarCitasFuturas(); // PRECARGAR CITAS FUTURAS
+                
+                currentMonth = new Date();
+                generateCalendar(currentMonth);
+                habilitarCalendario();
+
+            } catch (error) {
+                console.error('Error de autenticación:', error);
+                window.location.href = 'index.html';
             }
-            
-            const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-            startApplication(supabaseClient);
         }
 
-        function startApplication(supabase) {
-            let usuarioActual = null;
-            let selectedDate = null;
-            let currentMonth = new Date();
-            let barberoFijo = null;
-            let calendarioHabilitado = false;
+async function obtenerCitasFuturasDelBarbero() {
+    try {
+        if (!barberoFijo) {
+            console.error('No hay barbero seleccionado');
+            return [];
+        }
 
-            function showAlert(message, type = 'error') {
-                const alertDiv = document.getElementById('alert');
-                alertDiv.textContent = message;
-                alertDiv.className = `alert alert-${type}`;
-                alertDiv.style.display = 'block';
-                
-                setTimeout(() => {
-                    alertDiv.style.display = 'none';
-                }, 5000);
-            }
+        // CORRECCIÓN: Usar fecha local en lugar de UTC
+        const ahora = new Date();
+        // Obtener fecha local en formato YYYY-MM-DD
+        const año = ahora.getFullYear();
+        const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+        const dia = String(ahora.getDate()).padStart(2, '0');
+        const fechaActual = `${año}-${mes}-${dia}`;
+        
+        console.log('🔍 Consultando TODAS las citas futuras del barbero:', {
+            barbero: barberoFijo.id,
+            barbero_nombre: barberoFijo.nombre,
+            fecha_actual: fechaActual,
+            hora_local: ahora.toLocaleTimeString('es-MX'),
+            fecha_local: ahora.toLocaleDateString('es-MX')
+        });
 
-            function habilitarCalendario() {
-                const calendarContainer = document.getElementById('calendarContainer');
-                const calendarDisabledMessage = document.getElementById('calendarDisabledMessage');
-                
-                if (calendarioHabilitado) {
-                    calendarContainer.classList.remove('calendar-disabled');
-                    calendarDisabledMessage.style.display = 'none';
-                } else {
-                    calendarContainer.classList.add('calendar-disabled');
-                    calendarDisabledMessage.style.display = 'block';
-                }
-            }
+        // CONSULTA CORREGIDA - Buscar TODAS las citas futuras del barbero SIN filtrar por cliente
+        const { data: citas, error } = await supabase
+            .from('citas')
+            .select('id, fecha, hora, estado, cliente_id, barbero_id')
+            .eq('barbero_id', barberoFijo.id)
+            .gte('fecha', fechaActual)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada']);
 
-            function generateCalendar(month = new Date()) {
-                const grid = document.getElementById('calendarGrid');
-                grid.innerHTML = '';
+        if (error) {
+            console.error('❌ Error en consulta de citas:', error);
+            throw error;
+        }
 
-                const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-                days.forEach(day => {
-                    const dayLabel = document.createElement('div');
-                    dayLabel.className = 'day-label';
-                    dayLabel.textContent = day;
-                    grid.appendChild(dayLabel);
-                });
-
-                const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
-                const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0);
-                
-                let dayOfWeek = firstDay.getDay();
-
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
-                // Espacios vacíos antes del primer día
-                for (let i = 0; i < dayOfWeek; i++) {
-                    const emptyCell = document.createElement('div');
-                    emptyCell.className = 'day-cell disabled';
-                    grid.appendChild(emptyCell);
-                }
-
-                // Días del mes
-                for (let date = 1; date <= lastDay.getDate(); date++) {
-                    const currentDate = new Date(month.getFullYear(), month.getMonth(), date);
-                    const dayOfWeekNum = currentDate.getDay();
-                    
-                    const cell = document.createElement('div');
-                    
-                    if (currentDate >= today && calendarioHabilitado) {
-                        cell.className = 'day-cell available';
-                        cell.textContent = date;
-
-                        // Marcar fin de semana
-                        if (dayOfWeekNum === 0 || dayOfWeekNum === 6) {
-                            cell.classList.add('weekend');
-                        }
-
-                        // Marcar hoy
-                        if (currentDate.toDateString() === today.toDateString()) {
-                            cell.classList.add('today');
-                        }
-
-                        cell.onclick = () => selectDate(currentDate);
-                        
-                        // Marcar seleccionado
-                        if (selectedDate && 
-                            selectedDate.getDate() === date && 
-                            selectedDate.getMonth() === month.getMonth() && 
-                            selectedDate.getFullYear() === month.getFullYear()) {
-                            cell.classList.add('selected');
-                        }
-                    } else {
-                        cell.className = 'day-cell disabled';
-                        cell.textContent = date;
-                    }
-                    
-                    grid.appendChild(cell);
-                }
-
-                const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                document.getElementById('monthDisplay').textContent = 
-                    `${monthNames[month.getMonth()]} ${month.getFullYear()}`;
-            }
-
-            function selectDate(date) {
-                if (!calendarioHabilitado) return;
-                
-                selectedDate = new Date(date);
-                selectedDate.setHours(0, 0, 0, 0);
-                
-                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const isToday = selectedDate.toDateString() === today.toDateString();
-                
-                const dateText = isToday ? 'Hoy' : date.toLocaleDateString('es-MX', options);
-                document.getElementById('selectedDateDisplay').textContent = 
-                    `Fecha seleccionada: ${dateText}`;
-                
-                generateHoras(date);
-                document.getElementById('horasContainer').style.display = 'block';
-                
-                generateCalendar(currentMonth);
-            }
-
-            async function generateHoras(selectedDateObj) {
-                const horasGrid = document.getElementById('horasGrid');
-                horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
-
-                const horas = [];
-                let hora = 8;
-                let minutos = 0;
-
-                while (hora < 22 || (hora === 22 && minutos === 0)) {
-                    horas.push({ hora, minutos });
-                    minutos += 40;
-                    if (minutos >= 60) {
-                        minutos -= 60;
-                        hora += 1;
-                    }
-                }
-
-                const now = new Date();
-                const esHoy = selectedDateObj.toDateString() === now.toDateString();
-                const horaActual = now.getHours();
-                const minutosActual = now.getMinutes();
-
-                try {
-                    const citasDelDia = await obtenerCitasDelDia(selectedDateObj);
-                    const horasOcupadas = new Set();
-                    
-                    citasDelDia.forEach(cita => {
-                        const citaDate = new Date(cita.fecha);
-                        const horaStr = `${String(citaDate.getHours()).padStart(2, '0')}:${String(citaDate.getMinutes()).padStart(2, '0')}`;
-                        horasOcupadas.add(horaStr);
-                    });
-
-                    horasGrid.innerHTML = '';
-
-                    horas.forEach(({ hora: h, minutos: m }) => {
-                        const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'hora-btn';
-                        btn.textContent = horaStr;
-                        
-                        const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
-                        const horaOcupada = horasOcupadas.has(horaStr);
-                        
-                        if (horaPasada || horaOcupada) {
-                            btn.disabled = true;
-                            if (horaOcupada) {
-                                btn.classList.add('ocupada');
-                                btn.title = 'Hora ocupada por otro cliente';
-                            } else {
-                                btn.title = 'Hora pasada';
-                            }
-                        } else {
-                            btn.onclick = () => selectHora(horaStr, btn);
-                        }
-                        
-                        const selectedHora = document.getElementById('hora').value;
-                        if (selectedHora === horaStr) {
-                            btn.classList.add('selected');
-                        }
-                        
-                        horasGrid.appendChild(btn);
-                    });
-
-                } catch (error) {
-                    console.error('Error generando horas:', error);
-                    horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
-                }
-            }
-
-            async function obtenerCitasDelDia(fecha) {
-                try {
-                    if (!barberoFijo) {
-                        console.error('No hay barbero seleccionado');
-                        return [];
-                    }
-
-                    // Crear fechas en formato ISO para la consulta
-                    const fechaInicio = new Date(fecha);
-                    fechaInicio.setHours(0, 0, 0, 0);
-                    
-                    const fechaFin = new Date(fecha);
-                    fechaFin.setHours(23, 59, 59, 999);
-
-                    console.log('Consultando TODAS las citas para:', {
-                        barbero: barberoFijo.id,
-                        fecha: fecha.toDateString(),
-                        inicio: fechaInicio.toISOString(),
-                        fin: fechaFin.toISOString()
-                    });
-
-                    // CONSULTA CORREGIDA - Buscar TODAS las citas del barbero en esa fecha
-                    // SIN filtrar por cliente_id, para obtener citas de TODOS los usuarios
-                    // Incluir citas con estado 'aceptada' y 'pendiente' como ocupadas
-                    const { data: citas, error } = await supabase
-                        .from('citas')
-                        .select('fecha, estado, cliente_id, barbero_id')
-                        .eq('barbero_id', barberoFijo.id)
-                        .gte('fecha', fechaInicio.toISOString())
-                        .lte('fecha', fechaFin.toISOString())
-                        .neq('estado', 'cancelada');
-
-                    if (error) {
-                        console.error('Error en consulta de citas:', error);
-                        throw error;
-                    }
-
-                    console.log('TODAS las citas encontradas para el día:', citas);
-                    return citas || [];
-
-                } catch (error) {
-                    console.error('Error obteniendo citas del día:', error);
-                    showAlert('Error al verificar disponibilidad de horas', 'error');
-                    return [];
-                }
-            }
-
-            function selectHora(horaStr, btn) {
-                document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-                document.getElementById('hora').value = horaStr;
-            }
-
-            document.getElementById('prevMonth').addEventListener('click', (e) => {
-                e.preventDefault();
-                if (!calendarioHabilitado) return;
-                currentMonth.setMonth(currentMonth.getMonth() - 1);
-                generateCalendar(currentMonth);
+        console.log('📋 TODAS las citas futuras encontradas:', citas ? citas.length : 0);
+        
+        // Log detallado de cada cita
+        if (citas && citas.length > 0) {
+            citas.forEach(cita => {
+                console.log(`   📅 Cita: ${cita.fecha} ${cita.hora} | Estado: ${cita.estado} | Cliente: ${cita.cliente_id}`);
             });
+        } else {
+            console.log('   ✅ No hay citas futuras para este barbero');
+        }
 
-            document.getElementById('nextMonth').addEventListener('click', (e) => {
-                e.preventDefault();
-                if (!calendarioHabilitado) return;
-                currentMonth.setMonth(currentMonth.getMonth() + 1);
-                generateCalendar(currentMonth);
-            });
+        return citas || [];
 
-            document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
+    } catch (error) {
+        console.error('❌ Error obteniendo citas futuras:', error);
+        showAlert('Error al verificar disponibilidad de horas', 'error');
+        return [];
+    }
+}
+// FUNCIÓN MEJORADA para generar horas
+async function generateHoras(selectedDateObj) {
+    const horasGrid = document.getElementById('horasGrid');
+    horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
+
+    const horas = [];
+    
+    // TURNO DE LA MAÑANA: 9:00 AM a 1:00 PM
+    let hora = 9;
+    let minutos = 0;
+    
+    // Solo incluir horas hasta las 12:20 (última hora antes del descanso)
+    while (!(hora === 13 && minutos === 0)) {
+        horas.push({ hora, minutos });
+        minutos += 40;
+        if (minutos >= 60) {
+            minutos -= 60;
+            hora += 1;
+        }
+        // Detener antes de llegar a la 1:00 PM
+        if (hora === 13 && minutos === 0) {
+            break;
+        }
+    }
+
+    // TURNO DE LA TARDE: 2:40 PM a 8:00 PM
+    hora = 14; // 2:00 PM
+    minutos = 40; // 40 minutos - comenzar exactamente a las 2:40 PM
+    
+    // Incluir hasta las 20:00 (8:00 PM)
+    while (hora <= 20) {
+        // Solo agregar si no hemos pasado de las 20:00
+        if (hora < 20 || (hora === 20 && minutos === 0)) {
+            horas.push({ hora, minutos });
+        }
+        
+        minutos += 40;
+        if (minutos >= 60) {
+            minutos -= 60;
+            hora += 1;
+        }
+        
+        // Detener después de agregar las 20:00
+        if (hora > 20 || (hora === 20 && minutos > 0)) {
+            break;
+        }
+    }
+
+    const now = new Date();
+    const esHoy = selectedDateObj.toDateString() === now.toDateString();
+    const horaActual = now.getHours();
+    const minutosActual = now.getMinutes();
+
+    console.log('🕒 Información de tiempo:', {
+        fecha_seleccionada: selectedDateObj.toLocaleDateString('es-MX'),
+        es_hoy: esHoy,
+        hora_actual: `${horaActual}:${minutosActual}`,
+        fecha_actual: now.toLocaleDateString('es-MX')
+    });
+
+    try {
+        // USAR CACHE DE CITAS FUTURAS
+        const todasLasCitasFuturas = todasLasCitasFuturasCache;
+        const horasOcupadas = new Set();
+        
+        // Formatear fecha para comparación (YYYY-MM-DD) - CORREGIR PARA LOCAL
+        const año = selectedDateObj.getFullYear();
+        const mes = String(selectedDateObj.getMonth() + 1).padStart(2, '0');
+        const dia = String(selectedDateObj.getDate()).padStart(2, '0');
+        const fechaSeleccionadaFormateada = `${año}-${mes}-${dia}`;
+        
+        console.log('🕒 Procesando horas disponibles para:', fechaSeleccionadaFormateada);
+        
+        // Filtrar solo las citas del día seleccionado
+        const citasDelDiaSeleccionado = todasLasCitasFuturas.filter(cita => {
+            return cita.fecha === fechaSeleccionadaFormateada;
+        });
+
+        console.log(`📊 Citas encontradas para ${fechaSeleccionadaFormateada}:`, citasDelDiaSeleccionado.length);
+
+        citasDelDiaSeleccionado.forEach(cita => {
+            if (cita.hora) {
+                horasOcupadas.add(cita.hora);
+                console.log(`   ❌ Hora ocupada: ${cita.hora} (Cita ID: ${cita.id}, Estado: ${cita.estado}, Cliente: ${cita.cliente_id})`);
+            }
+        });
+
+        horasGrid.innerHTML = '';
+
+        let horasDisponibles = 0;
+        let horasOcupadasCount = 0;
+        let horasPasadasCount = 0;
+
+        horas.forEach(({ hora: h, minutos: m }) => {
+            const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'hora-btn';
+            btn.textContent = horaStr;
+            btn.dataset.hora = horaStr;
             
-            document.querySelectorAll('.nav-tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    cambiarPestana(this.dataset.tab);
-                });
-            });
-
-            document.getElementById('btnAgendarCita').addEventListener('click', agendarCita);
-
-            async function verificarAutenticacion() {
-                try {
-                    const { data: { session }, error } = await supabase.auth.getSession();
-                    
-                    if (error) throw error;
-                    
-                    if (!session) {
-                        window.location.href = 'index.html';
-                        return;
-                    }
-
-                    usuarioActual = session.user;
-                    await cargarBarberoFijo();
-                    await cargarInformacionUsuario();
-                    await cargarServicios();
-                    await cargarMisCitas();
-                    
-                    currentMonth = new Date();
-                    generateCalendar(currentMonth);
-                    habilitarCalendario();
-
-                } catch (error) {
-                    console.error('Error de autenticación:', error);
-                    window.location.href = 'index.html';
-                }
+            const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
+            const horaOcupada = horasOcupadas.has(horaStr);
+            
+            if (horaPasada) {
+                btn.disabled = true;
+                btn.title = 'Hora pasada';
+                btn.classList.add('disabled');
+                horasPasadasCount++;
+                console.log(`   ⏰ Hora pasada: ${horaStr}`);
+            } else if (horaOcupada) {
+                btn.disabled = true;
+                btn.classList.add('ocupada');
+                btn.title = 'Hora ocupada por otro cliente';
+                horasOcupadasCount++;
+                console.log(`   🚫 Bloqueando hora ocupada: ${horaStr}`);
+            } else {
+                btn.onclick = () => selectHora(horaStr, btn);
+                btn.title = 'Hora disponible';
+                horasDisponibles++;
+                console.log(`   ✅ Hora disponible: ${horaStr}`);
             }
+            
+            const selectedHora = document.getElementById('hora').value;
+            if (selectedHora === horaStr) {
+                btn.classList.add('selected');
+            }
+            
+            horasGrid.appendChild(btn);
+        });
 
-            async function cargarBarberoFijo() {
-                try {
-                    // Obtener el primer barbero disponible
-                    const { data: barberos, error } = await supabase
+        console.log(`📊 Resumen de disponibilidad para ${fechaSeleccionadaFormateada}:`);
+        console.log(`   ✅ Horas disponibles: ${horasDisponibles}`);
+        console.log(`   ❌ Horas ocupadas: ${horasOcupadasCount}`);
+        console.log(`   ⏰ Horas pasadas: ${horasPasadasCount}`);
+        console.log(`   📅 Total de citas futuras del barbero: ${todasLasCitasFuturas.length}`);
+
+        if (horasDisponibles === 0) {
+            horasGrid.innerHTML += `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 20px;">
+                    <div class="alert alert-error">
+                        <strong>⚠️ No hay horas disponibles</strong><br>
+                        ${
+                            horasOcupadasCount > 0 
+                            ? `Todas las horas para esta fecha están ocupadas por otros clientes.` 
+                            : `Todas las horas para esta fecha son pasadas.`
+                        }
+                    </div>
+                </div>
+            `;
+        }
+
+    } catch (error) {
+        console.error('❌ Error generando horas:', error);
+        horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
+    }
+}
+        async function cargarBarberoFijo() {
+            try {
+                // Obtener el primer barbero disponible
+                const { data: barberos, error } = await supabase
+                    .from('barberos')
+                    .select('*')
+                    .limit(1);
+
+                if (error) throw error;
+
+                if (barberos && barberos.length > 0) {
+                    barberoFijo = barberos[0];
+                    document.getElementById('barberoNombre').textContent = barberoFijo.nombre;
+                    document.getElementById('barberoEspecialidad').textContent = barberoFijo.especialidad || 'Barbero profesional';
+                    console.log('Barbero cargado:', barberoFijo);
+                } else {
+                    // Si no hay barberos, crear uno por defecto
+                    const { data: nuevoBarbero, error: errorCrear } = await supabase
                         .from('barberos')
-                        .select('*')
-                        .limit(1);
-
-                    if (error) throw error;
-
-                    if (barberos && barberos.length > 0) {
-                        barberoFijo = barberos[0];
-                        document.getElementById('barberoNombre').textContent = barberoFijo.nombre;
-                        document.getElementById('barberoEspecialidad').textContent = barberoFijo.especialidad || 'Barbero profesional';
-                        console.log('Barbero cargado:', barberoFijo);
-                    } else {
-                        // Si no hay barberos, crear uno por defecto
-                        const { data: nuevoBarbero, error: errorCrear } = await supabase
-                            .from('barberos')
-                            .insert([
-                                {
-                                    nombre: 'Barbero Principal',
-                                    especialidad: 'Cortes clásicos y modernos',
-                                    activo: true
-                                }
-                            ])
-                            .select()
-                            .single();
-
-                        if (errorCrear) throw errorCrear;
-                        
-                        barberoFijo = nuevoBarbero;
-                        document.getElementById('barberoNombre').textContent = barberoFijo.nombre;
-                        document.getElementById('barberoEspecialidad').textContent = barberoFijo.especialidad;
-                        console.log('Barbero creado:', barberoFijo);
-                    }
-
-                } catch (error) {
-                    console.error('Error cargando barbero:', error);
-                    showAlert('Error al cargar información del barbero', 'error');
-                }
-            }
-
-            async function cargarInformacionUsuario() {
-                try {
-                    const { data: cliente, error } = await supabase
-                        .from('clientes')
-                        .select('*')
-                        .eq('id', usuarioActual.id)
+                        .insert([
+                            {
+                                nombre: 'Barbero Principal',
+                                especialidad: 'Cortes clásicos y modernos',
+                                activo: true
+                            }
+                        ])
+                        .select()
                         .single();
 
-                    if (error) throw error;
+                    if (errorCrear) throw errorCrear;
+                    
+                    barberoFijo = nuevoBarbero;
+                    document.getElementById('barberoNombre').textContent = barberoFijo.nombre;
+                    document.getElementById('barberoEspecialidad').textContent = barberoFijo.especialidad;
+                    console.log('Barbero creado:', barberoFijo);
+                }
 
-                    document.getElementById('userWelcome').textContent = 
-                        `Bienvenido, ${cliente.nombre} ${cliente.apellido}`;
+            } catch (error) {
+                console.error('Error cargando barbero:', error);
+                showAlert('Error al cargar información del barbero', 'error');
+            }
+        }
 
-                    const perfilHTML = `
-                        <div class="form-group">
-                            <label>Nombre completo</label>
-                            <input type="text" value="${cliente.nombre} ${cliente.apellido}" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label>Correo electrónico</label>
-                            <input type="email" value="${cliente.email}" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label>Teléfono</label>
-                            <input type="tel" value="${cliente.telefono}" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label>Fecha de registro</label>
-                            <input type="text" value="${new Date(cliente.creado_en).toLocaleDateString('es-MX')}" readonly>
+        async function cargarInformacionUsuario() {
+            try {
+                const { data: cliente, error } = await supabase
+                    .from('clientes')
+                    .select('*')
+                    .eq('id', usuarioActual.id)
+                    .single();
+
+                if (error) throw error;
+
+                document.getElementById('userWelcome').textContent = 
+                    `Bienvenido, ${cliente.nombre} ${cliente.apellido}`;
+
+                const perfilHTML = `
+                    <div class="form-group">
+                        <label>Nombre completo</label>
+                        <input type="text" value="${cliente.nombre} ${cliente.apellido}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Correo electrónico</label>
+                        <input type="email" value="${cliente.email}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Teléfono</label>
+                        <input type="tel" value="${cliente.telefono}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha de registro</label>
+                        <input type="text" value="${new Date(cliente.creado_en).toLocaleDateString('es-MX')}" readonly>
+                    </div>
+                `;
+
+                document.getElementById('infoPerfil').innerHTML = perfilHTML;
+
+            } catch (error) {
+                console.error('Error cargando información del usuario:', error);
+            }
+        }
+
+        async function cargarServicios() {
+            try {
+                const { data: servicios, error } = await supabase
+                    .from('servicios')
+                    .select('*')
+                    .order('precio');
+
+                if (error) throw error;
+
+                const serviciosContainer = document.getElementById('serviciosContainer');
+                
+                if (servicios.length === 0) {
+                    serviciosContainer.innerHTML = `
+                        <div class="empty-state">
+                            <div>📋</div>
+                            <p>No hay servicios disponibles en este momento</p>
                         </div>
                     `;
+                } else {
+                    serviciosContainer.innerHTML = servicios.map(servicio => `
+                        <div class="servicio-option" data-servicio-id="${servicio.id}">
+                            <h3>${servicio.nombre}</h3>
+                            <div class="precio">$${servicio.precio}</div>
+                            <div class="duracion">⏱️ ${servicio.duracion || '30 min'}</div>
+                            <p>${servicio.descripcion || 'Servicio profesional de barbería'}</p>
+                        </div>
+                    `).join('');
 
-                    document.getElementById('infoPerfil').innerHTML = perfilHTML;
-
-                } catch (error) {
-                    console.error('Error cargando información del usuario:', error);
-                }
-            }
-
-            async function cargarServicios() {
-                try {
-                    const { data: servicios, error } = await supabase
-                        .from('servicios')
-                        .select('*')
-                        .order('precio');
-
-                    if (error) throw error;
-
-                    const serviciosContainer = document.getElementById('serviciosContainer');
-                    
-                    if (servicios.length === 0) {
-                        serviciosContainer.innerHTML = `
-                            <div class="empty-state">
-                                <div>📋</div>
-                                <p>No hay servicios disponibles en este momento</p>
-                            </div>
-                        `;
-                    } else {
-                        serviciosContainer.innerHTML = servicios.map(servicio => `
-                            <div class="servicio-option" data-servicio-id="${servicio.id}">
-                                <h3>${servicio.nombre}</h3>
-                                <div class="precio">$${servicio.precio}</div>
-                                <div class="duracion">⏱️ ${servicio.duracion || '30 min'}</div>
-                                <p>${servicio.descripcion || 'Servicio profesional de barbería'}</p>
-                            </div>
-                        `).join('');
-
-                        // Agregar event listeners para seleccionar servicios
-                        document.querySelectorAll('.servicio-option').forEach(option => {
-                            option.addEventListener('click', function() {
-                                document.querySelectorAll('.servicio-option').forEach(opt => {
-                                    opt.classList.remove('selected');
-                                });
-                                this.classList.add('selected');
-                                document.getElementById('servicio').value = this.dataset.servicioId;
-                                
-                                // Habilitar calendario cuando se selecciona un servicio
-                                calendarioHabilitado = true;
-                                habilitarCalendario();
-                                generateCalendar(currentMonth);
+                    // Agregar event listeners para seleccionar servicios
+                    document.querySelectorAll('.servicio-option').forEach(option => {
+                        option.addEventListener('click', function() {
+                            document.querySelectorAll('.servicio-option').forEach(opt => {
+                                opt.classList.remove('selected');
                             });
+                            this.classList.add('selected');
+                            document.getElementById('servicio').value = this.dataset.servicioId;
+                            
+                            // Habilitar calendario cuando se selecciona un servicio
+                            calendarioHabilitado = true;
+                            habilitarCalendario();
+                            generateCalendar(currentMonth);
                         });
-                    }
-
-                } catch (error) {
-                    console.error('Error cargando servicios:', error);
-                    showAlert('Error al cargar los servicios', 'error');
-                }
-            }
-
-            async function cargarMisCitas() {
-                try {
-                    // ESTA función SÍ debe filtrar por cliente_id para mostrar solo las citas del usuario
-                    const { data: citas, error } = await supabase
-                        .from('citas')
-                        .select(`
-                            *,
-                            servicios(nombre, precio),
-                            barberos(nombre)
-                        `)
-                        .eq('cliente_id', usuarioActual.id)  // ESTO ESTÁ BIEN - solo citas del usuario
-                        .order('fecha', { ascending: false });
-
-                    if (error) throw error;
-
-                    const listaCitas = document.getElementById('listaCitas');
-                    
-                    if (!citas || citas.length === 0) {
-                        listaCitas.innerHTML = `
-                            <div class="empty-state">
-                                <div>📅</div>
-                                <h3>No tienes citas agendadas</h3>
-                                <p>¡Agenda tu primera cita ahora!</p>
-                                <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
-                            </div>
-                        `;
-                    } else {
-                        listaCitas.innerHTML = citas.map(cita => `
-                            <div class="cita-card ${cita.estado}">
-                                <div class="cita-header">
-                                    <h3>${cita.servicios.nombre}</h3>
-                                    <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
-                                </div>
-                                <div class="cita-detalles">
-                                    <p><strong>📅 Fecha:</strong> ${new Date(cita.fecha).toLocaleString('es-MX')}</p>
-                                    <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
-                                    <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
-                                    ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                                    <p><strong>📅 Creado el:</strong> ${new Date(cita.creado_en).toLocaleString('es-MX')}</p>
-                                </div>
-                                <div class="cita-acciones">
-                                    ${cita.estado === 'pendiente' || cita.estado === 'aceptada' ? `
-                                        <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
-                                    ` : ''}
-                                    <button class="btn btn-secondary" onclick="app.verDetallesCita('${cita.id}')">Ver Detalles</button>
-                                </div>
-                            </div>
-                        `).join('');
-                    }
-
-                } catch (error) {
-                    console.error('Error cargando citas:', error);
-                    showAlert('Error al cargar tus citas', 'error');
-                }
-            }
-
-            // FUNCIÓN MODIFICADA - Las citas se crean automáticamente como "aceptada"
-            async function agendarCita(e) {
-                e.preventDefault();
-                
-                const servicioId = document.getElementById('servicio').value;
-                const hora = document.getElementById('hora').value;
-                const notas = document.getElementById('notas').value;
-
-                if (!servicioId || !selectedDate || !hora) {
-                    showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
-                    return;
-                }
-
-                const [hours, minutes] = hora.split(':');
-                const fechaCita = new Date(selectedDate);
-                
-                // CORRECCIÓN: Establecer hora local sin conversión UTC
-                fechaCita.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-                try {
-                    // VERIFICACIÓN DOBLE - Asegurar que la hora no esté ocupada
-                    const citasDelDia = await obtenerCitasDelDia(selectedDate);
-                    const horaOcupada = citasDelDia.some(cita => {
-                        const citaDate = new Date(cita.fecha);
-                        const horaStr = `${String(citaDate.getHours()).padStart(2, '0')}:${String(citaDate.getMinutes()).padStart(2, '0')}`;
-                        return horaStr === hora;
                     });
-
-                    if (horaOcupada) {
-                        showAlert('Lo siento, esa hora ya fue agendada por otro usuario. Selecciona otra.', 'error');
-                        return;
-                    }
-
-                    // CORRECCIÓN: Crear fechas en formato ISO sin conversión de zona horaria
-                    const fechaCitaISO = formatDateToLocalISO(fechaCita);
-                    const fechaCreacionISO = formatDateToLocalISO(new Date());
-                    
-                    // MODIFICACIÓN: Crear la cita con estado "aceptada" automáticamente
-                    const { data, error } = await supabase
-                        .from('citas')
-                        .insert([{
-                            cliente_id: usuarioActual.id,
-                            servicio_id: servicioId,
-                            barbero_id: barberoFijo.id,
-                            fecha: fechaCitaISO,
-                            notas: notas,
-                            estado: 'aceptada',  // CAMBIO: Estado automáticamente aceptada
-                            creado_en: fechaCreacionISO
-                        }])
-                        .select(`
-                            *,
-                            servicios(nombre, precio),
-                            barberos(nombre)
-                        `);
-
-                    if (error) throw error;
-
-                    showAlert('✅ ¡Cita agendada y aceptada exitosamente!', 'success');
-                    
-                    // Limpiar formulario
-                    document.querySelectorAll('.servicio-option').forEach(opt => {
-                        opt.classList.remove('selected');
-                    });
-                    document.getElementById('servicio').value = '';
-                    document.getElementById('hora').value = '';
-                    document.getElementById('notas').value = '';
-                    selectedDate = null;
-                    document.getElementById('selectedDateDisplay').textContent = 'Selecciona una fecha';
-                    document.getElementById('horasContainer').style.display = 'none';
-                    
-                    // Deshabilitar calendario hasta que se seleccione un servicio
-                    calendarioHabilitado = false;
-                    habilitarCalendario();
-                    currentMonth = new Date();
-                    generateCalendar(currentMonth);
-                    
-                    await cargarMisCitas();
-                    cambiarPestana('mis-citas');
-
-                } catch (error) {
-                    console.error('Error agendando cita:', error);
-                    showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
-                }
-            }
-
-            // FUNCIÓN NUEVA: Formatear fecha a ISO sin conversión UTC
-            function formatDateToLocalISO(date) {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                const hours = String(date.getHours()).padStart(2, '0');
-                const minutes = String(date.getMinutes()).padStart(2, '0');
-                const seconds = String(date.getSeconds()).padStart(2, '0');
-                
-                return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-            }
-
-            async function cancelarCita(citaId) {
-                if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
-                    return;
                 }
 
-                try {
-                    const { error } = await supabase
-                        .from('citas')
-                        .update({ estado: 'cancelada' })
-                        .eq('id', citaId);
-
-                    if (error) throw error;
-
-                    showAlert('✅ Cita cancelada exitosamente', 'success');
-                    await cargarMisCitas();
-
-                } catch (error) {
-                    console.error('Error cancelando cita:', error);
-                    showAlert('❌ Error al cancelar la cita', 'error');
-                }
+            } catch (error) {
+                console.error('Error cargando servicios:', error);
+                showAlert('Error al cargar los servicios', 'error');
             }
-
-            function verDetallesCita(citaId) {
-                alert('Función de detalles de cita - Próximamente');
-            }
-
-            function cambiarPestana(pestanaId) {
-                document.querySelectorAll('.tab-content').forEach(tab => {
-                    tab.classList.remove('active');
-                });
-                
-                document.querySelectorAll('.nav-tab').forEach(tab => {
-                    tab.classList.remove('active');
-                });
-                
-                document.getElementById(pestanaId).classList.add('active');
-                document.querySelector(`[data-tab="${pestanaId}"]`).classList.add('active');
-            }
-
-            async function cerrarSesion() {
-                try {
-                    const { error } = await supabase.auth.signOut();
-                    if (error) throw error;
-                    
-                    window.location.href = 'index.html';
-                } catch (error) {
-                    console.error('Error cerrando sesión:', error);
-                    showAlert('Error al cerrar sesión', 'error');
-                }
-            }
-
-            window.app = {
-                cancelarCita,
-                verDetallesCita,
-                cambiarPestana
-            };
-
-            verificarAutenticacion();
-            setInterval(verificarAutenticacion, 300000);
         }
-    </script>
+
+        async function cargarMisCitas() {
+    try {
+        // ESTA función SÍ debe filtrar por cliente_id para mostrar solo las citas del usuario
+        const { data: citas, error } = await supabase
+            .from('citas')
+            .select(`
+                *,
+                servicios(nombre, precio),
+                barberos(nombre)
+            `)
+            .eq('cliente_id', usuarioActual.id)  // ESTO ESTÁ BIEN - solo citas del usuario
+            .order('fecha', { ascending: false });
+
+        if (error) throw error;
+
+        const listaCitas = document.getElementById('listaCitas');
+        
+        if (!citas || citas.length === 0) {
+            listaCitas.innerHTML = `
+                <div class="empty-state">
+                    <div>📅</div>
+                    <h3>No tienes citas agendadas</h3>
+                    <p>¡Agenda tu primera cita ahora!</p>
+                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
+                </div>
+            `;
+        } else {
+            listaCitas.innerHTML = citas.map(cita => {
+                // CORREGIR: Convertir fecha UTC a local para mostrar
+                const fechaCreado = new Date(cita.creado_en);
+                const fechaLocal = fechaCreado.toLocaleString('es-MX');
+                
+                return `
+                    <div class="cita-card ${cita.estado}">
+                        <div class="cita-header">
+                            <h3>${cita.servicios.nombre}</h3>
+                            <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
+                        </div>
+                        <div class="cita-detalles">
+                            <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
+                            <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
+                            <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
+                            ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                            <p><strong>📅 Creado el:</strong> ${fechaLocal}</p>
+                        </div>
+                        <div class="cita-acciones">
+                            ${cita.estado === 'pendiente' || cita.estado === 'aceptada' ? `
+                                <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
+                            ` : ''}
+                            <button class="btn btn-secondary" onclick="app.verDetallesCita('${cita.id}')">Ver Detalles</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+    } catch (error) {
+        console.error('Error cargando citas:', error);
+        showAlert('Error al cargar tus citas', 'error');
+    }
+}
+
+async function agendarCita(e) {
+    e.preventDefault();
+    
+    const servicioId = document.getElementById('servicio').value;
+    const hora = document.getElementById('hora').value;
+    const notas = document.getElementById('notas').value;
+
+    if (!servicioId || !selectedDate || !hora) {
+        showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
+        return;
+    }
+
+    // CORREGIR: Usar fecha local para la fecha de la cita
+    const año = selectedDate.getFullYear();
+    const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const dia = String(selectedDate.getDate()).padStart(2, '0');
+    const fechaFormateada = `${año}-${mes}-${dia}`;
+    
+    // CORREGIR: Usar fecha/hora local para creado_en
+    const ahora = new Date();
+    // Convertir a formato ISO pero manteniendo la zona horaria local
+    const offset = ahora.getTimezoneOffset();
+    const creadoEnLocal = new Date(ahora.getTime() - (offset * 60 * 1000)).toISOString().slice(0, 19).replace('T', ' ');
+    
+    console.log('📅 Intentando agendar cita:', {
+        fecha: fechaFormateada,
+        hora: hora,
+        servicio: servicioId,
+        barbero: barberoFijo.id,
+        barbero_nombre: barberoFijo.nombre,
+        creado_en_local: creadoEnLocal,
+        hora_local: ahora.toLocaleString('es-MX')
+    });
+
+    try {
+        // VERIFICACIÓN DOBLE - Usar cache y hacer consulta directa
+        const todasLasCitasFuturas = todasLasCitasFuturasCache;
+        
+        // Verificar en cache
+        const citaExistenteCache = todasLasCitasFuturas.find(cita => {
+            return cita.fecha === fechaFormateada && cita.hora === hora;
+        });
+
+        if (citaExistenteCache) {
+            console.log('❌ Hora ocupada encontrada en cache:', citaExistenteCache);
+            showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
+            await generateHoras(selectedDate);
+            return;
+        }
+
+        // VERIFICACIÓN EXTRA - Consulta directa para confirmar
+        console.log('🔄 Verificación extra con consulta directa...');
+        const { data: verificacionDirecta, error: errorVerificacion } = await supabase
+            .from('citas')
+            .select('id')
+            .eq('barbero_id', barberoFijo.id)
+            .eq('fecha', fechaFormateada)
+            .eq('hora', hora)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .limit(1);
+
+        if (errorVerificacion) {
+            console.error('❌ Error en verificación directa:', errorVerificacion);
+            throw errorVerificacion;
+        }
+
+        if (verificacionDirecta && verificacionDirecta.length > 0) {
+            console.log('❌ Hora ocupada encontrada en verificación directa:', verificacionDirecta);
+            showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
+            
+            // Actualizar cache y recargar horas
+            await precargarCitasFuturas();
+            await generateHoras(selectedDate);
+            return;
+        }
+
+        console.log('✅ Hora disponible confirmada, procediendo a agendar...');
+
+        // CORREGIDO: Usar fecha local para creado_en
+        const { data, error } = await supabase
+            .from('citas')
+            .insert([{
+                cliente_id: usuarioActual.id,
+                servicio_id: servicioId,
+                barbero_id: barberoFijo.id,
+                fecha: fechaFormateada,
+                hora: hora,
+                notas: notas,
+                estado: 'aceptada',
+                creado_en: creadoEnLocal
+            }])
+            .select(`
+                *,
+                servicios(nombre, precio),
+                barberos(nombre)
+            `);
+
+        if (error) {
+            console.error('❌ Error insertando cita:', error);
+            throw error;
+        }
+
+        console.log('✅ Cita agendada exitosamente:', data[0]);
+        showAlert('✅ ¡Cita agendada y aceptada exitosamente!', 'success');
+        
+        // Actualizar cache de citas futuras
+        await precargarCitasFuturas();
+        
+        // Limpiar formulario
+        document.querySelectorAll('.servicio-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        document.getElementById('servicio').value = '';
+        document.getElementById('hora').value = '';
+        document.getElementById('notas').value = '';
+        selectedDate = null;
+        document.getElementById('selectedDateDisplay').textContent = 'Selecciona una fecha';
+        document.getElementById('horasContainer').style.display = 'none';
+        
+        calendarioHabilitado = false;
+        habilitarCalendario();
+        currentMonth = new Date();
+        generateCalendar(currentMonth);
+        
+        await cargarMisCitas();
+        cambiarPestana('mis-citas');
+
+    } catch (error) {
+        console.error('❌ Error agendando cita:', error);
+        showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
+    }
+}
+
+        async function cancelarCita(citaId) {
+    if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
+        return;
+    }
+
+    try {
+        const { error } = await supabase
+            .from('citas')
+            .update({ estado: 'cancelada' })
+            .eq('id', citaId);
+
+        if (error) throw error;
+
+        showAlert('✅ Cita cancelada exitosamente', 'success');
+        
+        // ACTUALIZAR CACHE INMEDIATAMENTE
+        await precargarCitasFuturas();
+        
+        // Si estamos en la pestaña de agendar y hay una fecha seleccionada, actualizar las horas
+        if (selectedDate && document.getElementById('agendar').classList.contains('active')) {
+            console.log('🔄 Actualizando horas disponibles después de cancelar cita...');
+            await generateHoras(selectedDate);
+        }
+        
+        await cargarMisCitas();
+
+    } catch (error) {
+        console.error('Error cancelando cita:', error);
+        showAlert('❌ Error al cancelar la cita', 'error');
+    }
+}
+        function verDetallesCita(citaId) {
+            alert('Función de detalles de cita - Próximamente');
+        }
+
+        function cambiarPestana(pestanaId) {
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    document.getElementById(pestanaId).classList.add('active');
+    document.querySelector(`[data-tab="${pestanaId}"]`).classList.add('active');
+    
+    // Si cambiamos a la pestaña de agendar y hay una fecha seleccionada, actualizar horas
+    if (pestanaId === 'agendar' && selectedDate && calendarioHabilitado) {
+        console.log('🔄 Actualizando horas al cambiar a pestaña agendar...');
+        generateHoras(selectedDate);
+    }
+}
+
+        async function cerrarSesion() {
+            try {
+                const { error } = await supabase.auth.signOut();
+                if (error) throw error;
+                
+                window.location.href = 'index.html';
+            } catch (error) {
+                console.error('Error cerrando sesión:', error);
+                showAlert('Error al cerrar sesión', 'error');
+            }
+        }
+
+        window.app = {
+            cancelarCita,
+            verDetallesCita,
+            cambiarPestana
+        };
+
+        verificarAutenticacion();
+        setInterval(verificarAutenticacion, 300000);
+    }
+</script>
 </body>
 </html>
