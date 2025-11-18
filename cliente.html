@@ -1436,7 +1436,7 @@ async function generateHoras(selectedDateObj) {
       async function cargarMisCitas() {
     try {
         // PRIMERO verificar y actualizar estados antes de cargar
-        await verificarYActualizarEstadosCitas();
+        
         
         const { data: citas, error } = await supabase
             .from('citas')
@@ -1554,7 +1554,7 @@ async function generateHoras(selectedDateObj) {
                             <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
                             <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
                             ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                            <p><strong>📅 Creado el:</strong> ${fechaLocal}</p>
+                            <p><strong>📅 Solicitado:</strong> ${fechaLocal}</p>
                             ${contadorHTML}
                             ${mensajeCancelacionHTML}
                         </div>
