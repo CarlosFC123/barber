@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro - Barbería Elite</title>
+    <title>Registro - Barbería</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
-        /* Tus estilos CSS aquí (se mantienen igual) */
         * {
             margin: 0;
             padding: 0;
@@ -15,7 +14,7 @@
         }
 
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #0a0a0a;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -24,29 +23,37 @@
         }
 
         .container {
-            background: white;
+            background: #1a1a1a;
             border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             overflow: hidden;
             width: 100%;
             max-width: 450px;
         }
 
+        /* Header con imagen */
         .header {
-            background: #2d3748;
-            color: white;
+            background: #0a0a0a;
             padding: 30px 20px;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
 
-        .header h1 {
-            font-size: 28px;
-            margin-bottom: 5px;
+        .header img {
+            max-width: 200px;
+            width: 100%;
+            height: auto;
+            margin-bottom: 15px;
         }
 
         .header p {
-            opacity: 0.8;
+            color: #d4af37;
             font-size: 14px;
+            font-weight: 300;
+            letter-spacing: 2px;
         }
 
         .form-container {
@@ -61,22 +68,31 @@
             display: block;
             margin-bottom: 8px;
             font-weight: bold;
-            color: #4a5568;
+            color: #d4af37;
             font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         input {
             width: 100%;
             padding: 12px 15px;
-            border: 2px solid #e2e8f0;
+            border: 2px solid #333;
             border-radius: 8px;
             font-size: 16px;
             transition: border-color 0.3s;
+            background: #2a2a2a;
+            color: #fff;
         }
 
         input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #d4af37;
+            background: #333;
+        }
+
+        input::placeholder {
+            color: #666;
         }
 
         .btn {
@@ -88,26 +104,19 @@
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .btn-primary {
-            background: #667eea;
-            color: white;
+            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+            color: #000;
         }
 
         .btn-primary:hover {
-            background: #5a6fd8;
+            background: linear-gradient(135deg, #e4bf47 0%, #fff4b6 100%);
             transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: #e2e8f0;
-            color: #4a5568;
-            margin-top: 10px;
-        }
-
-        .btn-secondary:hover {
-            background: #cbd5e0;
+            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
         }
 
         .alert {
@@ -119,15 +128,15 @@
         }
 
         .alert-success {
-            background: #c6f6d5;
-            color: #22543d;
-            border: 1px solid #9ae6b4;
+            background: #1a5c3a;
+            color: #90ee90;
+            border: 1px solid #2d8659;
         }
 
         .alert-error {
-            background: #fed7d7;
-            color: #742a2a;
-            border: 1px solid #feb2b2;
+            background: #5c1a1a;
+            color: #ff6b6b;
+            border: 1px solid #8c2d2d;
         }
 
         .loading {
@@ -138,7 +147,7 @@
 
         .spinner {
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border-top: 4px solid #d4af37;
             border-radius: 50%;
             width: 30px;
             height: 30px;
@@ -155,13 +164,14 @@
             text-align: center;
             margin-top: 20px;
             font-size: 14px;
-            color: #4a5568;
+            color: #999;
         }
 
         .login-link a {
-            color: #667eea;
+            color: #d4af37;
             text-decoration: none;
             font-weight: bold;
+            cursor: pointer;
         }
 
         .login-link a:hover {
@@ -179,8 +189,9 @@
 
         .requirements {
             font-size: 12px;
-            color: #718096;
+            color: #d4af37;
             margin-top: 5px;
+            opacity: 0.7;
         }
 
         .success-message {
@@ -191,15 +202,34 @@
 
         .success-icon {
             font-size: 48px;
-            color: #48bb78;
+            color: #d4af37;
             margin-bottom: 15px;
+        }
+
+        .success-message h3 {
+            color: #d4af37;
+            margin-bottom: 10px;
+        }
+
+        .success-message p {
+            color: #999;
+        }
+
+        /* Estilos para validación en tiempo real */
+        .password-match {
+            border-color: #38a169 !important;
+        }
+
+        .password-mismatch {
+            border-color: #e53e3e !important;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>✂️ Crear Cuenta</h1>
+            <!-- Imagen del logo -->
+            <img src="img/fondo_barber.jpg" alt="Waldo Barber Shop Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMEEwQTBBIi8+CjxwYXRoIGQ9Ik00MCAyMEgxNjBWNDBIMzBWNTBIMTYwVjYwSDQwVjIwWiIgZmlsbD0iI0Q0QUYzNyIvPgo8dGV4dCB4PSIxMDAiIHk9IjUwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRDRBRjM3IiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iQXJpYWwiPldBTERPIEJBUkJFUiBTSG9QPC90ZXh0Pgo8L3N2Zz4K'">
             <p>Regístrate para agendar tus citas</p>
         </div>
 
@@ -210,7 +240,7 @@
             <!-- Loading -->
             <div id="loading" class="loading">
                 <div class="spinner"></div>
-                <p>Creando tu cuenta...</p>
+                <p style="color: #d4af37; margin-top: 10px;">Creando tu cuenta...</p>
             </div>
 
             <!-- Mensaje de éxito -->
@@ -269,7 +299,7 @@
     <script>
         // Esperar a que el DOM esté completamente cargado
         document.addEventListener('DOMContentLoaded', function() {
-            // Configuración Supabase - REEMPLAZA CON TUS CREDENCIALES
+            // Configuración Supabase
             const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
             
@@ -422,7 +452,7 @@
                     showSuccess();
                     showAlert('✅ ¡Registro exitoso! Ya puedes iniciar sesión.', 'success');
 
-                    // Redirigir al login después de 3 segundos
+                    // Redirigir al index.html después de 3 segundos
                     setTimeout(() => {
                         window.location.href = 'index.html';
                     }, 3000);
@@ -454,33 +484,35 @@
                 const confirmPassword = this.value;
                 
                 if (confirmPassword && password !== confirmPassword) {
-                    this.style.borderColor = '#e53e3e';
+                    this.classList.add('password-mismatch');
+                    this.classList.remove('password-match');
                 } else if (confirmPassword) {
-                    this.style.borderColor = '#38a169';
+                    this.classList.add('password-match');
+                    this.classList.remove('password-mismatch');
                 } else {
-                    this.style.borderColor = '#e2e8f0';
+                    this.classList.remove('password-match', 'password-mismatch');
                 }
             });
 
             // Verificar si ya está autenticado
-            // async function checkAuth() {
-            //     try {
-            //         const { data: { session } } = await supabase.auth.getSession();
+            async function checkAuth() {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
                     
-            //         if (session) {
-            //             const userRole = session.user?.user_metadata?.rol || 'cliente';
+                    if (session) {
+                        const userRole = session.user?.user_metadata?.rol || 'cliente';
                         
-            //             // Si ya está logueado, redirigir según su rol
-            //             if (userRole === 'admin') {
-            //                 window.location.href = 'admin.html';
-            //             } else {
-            //                 window.location.href = 'index.html';
-            //             }
-            //         }
-            //     } catch (error) {
-            //         console.error('Error verificando autenticación:', error);
-            //     }
-            // }
+                        // Si ya está logueado, redirigir según su rol
+                        if (userRole === 'admin') {
+                            window.location.href = 'admin.html';
+                        } else {
+                            window.location.href = 'index.html';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error verificando autenticación:', error);
+                }
+            }
 
             // Verificar autenticación al cargar la página
             checkAuth();
