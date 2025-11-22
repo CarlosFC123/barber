@@ -14,7 +14,7 @@
         }
 
         body {
-            background: #000000;
+            background: #0a0a0a;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -29,8 +29,10 @@
             overflow: hidden;
             width: 100%;
             max-width: 400px;
+            /* border: 2px solid #d4af37; */
         }
 
+        /* Reemplazar header con imagen en lugar de texto */
         .header {
             background: #0a0a0a;
             padding: 30px 20px;
@@ -61,7 +63,6 @@
 
         .form-group {
             margin-bottom: 20px;
-            position: relative;
         }
 
         label {
@@ -72,11 +73,6 @@
             font-size: 14px;
             text-transform: uppercase;
             letter-spacing: 1px;
-        }
-
-        .input-container {
-            position: relative;
-            width: 100%;
         }
 
         input {
@@ -100,20 +96,6 @@
             color: #666;
         }
 
-        .toggle-password {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: #d4af37;
-            cursor: pointer;
-            font-size: 16px;
-            padding: 5px;
-            z-index: 2;
-        }
-
         .btn {
             width: 100%;
             padding: 12px;
@@ -125,28 +107,61 @@
             transition: all 0.3s;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 10px;
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000;
-        }
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
 
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #e4bf47 0%, #fff4b6 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
-        }
+.btn-primary:hover {
+    background: linear-gradient(135deg, #e4bf47 0%, #fff4b6 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
+}
 
         .btn-secondary {
-            background: transparent;
+            background: #333;
             color: #d4af37;
+            margin-top: 10px;
             border: 2px solid #d4af37;
         }
 
         .btn-secondary:hover {
-            background: rgba(212, 175, 55, 0.1);
+            background: #d4af37;
+            color: #0a0a0a;
+        }
+
+        .divider {
+            text-align: center;
+            margin: 20px 0;
+            color: #666;
+            font-size: 14px;
+            position: relative;
+        }
+
+        .divider::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #333;
+        }
+
+        .divider span {
+            background: #1a1a1a;
+            padding: 0 15px;
+            position: relative;
         }
 
         .alert {
@@ -169,328 +184,285 @@
             border: 1px solid #8c2d2d;
         }
 
-        .info-text {
-            color: #d4af37;
-            text-align: center;
-            margin-top: 15px;
-            font-size: 14px;
-        }
-
-        .loading {
+        .hidden {
             display: none;
-            text-align: center;
-            color: #d4af37;
-            margin-top: 10px;
         }
 
-        .form-toggle {
+        .switch-form {
             text-align: center;
             margin-top: 20px;
+            font-size: 14px;
+            color: #999;
         }
 
-        .toggle-link {
+        .switch-form a {
             color: #d4af37;
-            background: none;
-            border: none;
+            text-decoration: none;
+            font-weight: bold;
             cursor: pointer;
+        }
+
+        .switch-form a:hover {
             text-decoration: underline;
-            font-size: 14px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
+            <!-- Imagen del logo en lugar de texto "Barbería" -->
             <img src="img/fondo_barber.jpg" alt="Waldo Barber Shop Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMEEwQTBBIi8+CjxwYXRoIGQ9Ik00MCAyMEgxNjBWNDBIMzBWNTBIMTYwVjYwSDQwVjIwWiIgZmlsbD0iI0Q0QUYzNyIvPgo8dGV4dCB4PSIxMDAiIHk9IjUwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRDRBRjM3IiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iQXJpYWwiPldBTERPIEJBUkJFUiBTSG9QPC90ZXh0Pgo8L3N2Zz4K'">
-            <p>Iniciar Sesión</p>
+            <p>Reserva tu cita fácilmente</p>
         </div>
 
         <div class="form-container">
             <!-- Alertas -->
             <div id="alert" class="alert"></div>
 
-            <!-- Loading -->
-            <div id="loading" class="loading">
-                ⏳ Procesando...
-            </div>
-
-            <!-- Formulario de Inicio de Sesión -->
+            <!-- Formulario Login -->
             <form id="loginForm">
                 <div class="form-group">
-                    <label for="userEmail">Correo Electrónico</label>
-                    <div class="input-container">
-                        <input type="email" id="userEmail" required 
-                               placeholder="Tu correo electrónico"
-                               autocomplete="email"
-                               name="email">
-                    </div>
+                    <label for="loginEmail">Correo Electrónico</label>
+                    <input type="email" id="loginEmail" required placeholder="tu@correo.com">
                 </div>
 
                 <div class="form-group">
-                    <label for="userPassword">Contraseña</label>
-                    <div class="input-container">
-                        <input type="password" id="userPassword" required 
-                               placeholder="Tu contraseña"
-                               autocomplete="current-password"
-                               name="password">
-                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
-                            👁️
-                        </button>
-                    </div>
+                    <label for="loginPassword">Contraseña</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••">
                 </div>
 
-                <button type="submit" class="btn btn-primary">
-                    🔑 Iniciar Sesión
-                </button>
+                <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
             </form>
 
-            <div class="form-toggle">
-                <button type="button" class="toggle-link" id="toggleForm">
-                    ¿No tienes cuenta? Regístrate aquí
-                </button>
-            </div>
+            <!-- Formulario Registro -->
+            <form id="registerForm" class="hidden">
+                <div class="form-group">
+                    <label for="regNombre">Nombre</label>
+                    <input type="text" id="regNombre" required placeholder="Juan">
+                </div>
 
-            <div class="info-text">
-                Usa tu correo y contraseña para acceder
+                <div class="form-group">
+                    <label for="regApellido">Apellido</label>
+                    <input type="text" id="regApellido" required placeholder="Pérez">
+                </div>
+
+                <div class="form-group">
+                    <label for="regTelefono">Teléfono</label>
+                    <input type="tel" id="regTelefono" required placeholder="+52 123 456 7890">
+                </div>
+
+                <div class="form-group">
+                    <label for="regEmail">Correo Electrónico</label>
+                    <input type="email" id="regEmail" required placeholder="tu@correo.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="regPassword">Contraseña</label>
+                    <input type="password" id="regPassword" required placeholder="Mínimo 6 caracteres">
+                </div>
+
+                <button type="submit" class="btn btn-primary">Registrarse</button>
+            </form>
+
+            <div class="switch-form">
+                <span id="switchText">¿No tienes cuenta? </span>
+                <a id="switchLink" href="registro.html">Regístrate aquí</a>
             </div>
         </div>
     </div>
 
     <script>
+        // ESPERAR A QUE EL DOM ESTÉ LISTO
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
         });
 
-        let isLoginMode = true;
-        let supabaseClient;
-
         function initializeApp() {
+            // Configuración Supabase
             const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
             
-            supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-            startApplication();
-        }
-
-        function togglePasswordVisibility() {
-            const passwordInput = document.getElementById('userPassword');
-            const toggleButton = document.querySelector('.toggle-password');
-            
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                toggleButton.textContent = '🙈';
-            } else {
-                passwordInput.type = 'password';
-                toggleButton.textContent = '👁️';
+            // Verificar que Supabase esté disponible
+            if (typeof supabase === 'undefined') {
+                console.error('Supabase no está cargado');
+                showAlert('Error: No se pudo cargar la configuración', 'error');
+                return;
             }
-        }
-
-        function extractNameFromEmail(email) {
-            let username = email.split('@')[0];
-            username = username.replace(/[0-9._-]/g, ' ');
             
-            let nameParts = username.split(/[.-\s]+/).filter(part => part.length > 0);
-            
-            if (nameParts.length >= 2) {
-                return {
-                    nombre: capitalizeFirst(nameParts[0]),
-                    apellido: capitalizeFirst(nameParts.slice(1).join(' '))
-                };
-            } else if (nameParts.length === 1) {
-                return {
-                    nombre: capitalizeFirst(nameParts[0]),
-                    apellido: 'Usuario'
-                };
-            } else {
-                return {
-                    nombre: 'Cliente',
-                    apellido: 'Barbería'
-                };
-            }
+            const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+            startApplication(supabaseClient);
         }
 
-        function capitalizeFirst(str) {
-            return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-        }
-
-        async function saveUserToClients(userData, password) {
-            try {
-                const { data: existingUser } = await supabaseClient
-                    .from('clientes')
-                    .select('id')
-                    .eq('email', userData.email)
-                    .single();
-
-                if (!existingUser) {
-                    const { error: insertError } = await supabaseClient
-                        .from('clientes')
-                        .insert([{
-                            id: userData.id,
-                            nombre: userData.nombre,
-                            apellido: userData.apellido,
-                            email: userData.email,
-                            contraseña: password, // Guardar la contraseña
-                            rol: 'cliente',
-                            creado_en: new Date().toISOString()
-                        }]);
-
-                    if (insertError) {
-                        console.error('Error insertando cliente:', insertError);
-                        return false;
-                    } else {
-                        console.log('✅ Usuario registrado en clientes:', userData.email);
-                        return true;
-                    }
-                } else {
-                    console.log('✅ Usuario ya existe en clientes:', userData.email);
-                    return true;
-                }
-            } catch (error) {
-                console.error('Error guardando usuario:', error);
-                return false;
-            }
-        }
-
-        function showAlert(message, type = 'error') {
-            const alertDiv = document.getElementById('alert');
-            alertDiv.textContent = message;
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.style.display = 'block';
-            
-            setTimeout(() => {
-                alertDiv.style.display = 'none';
-            }, 5000);
-        }
-
-        function startApplication() {
+        function startApplication(supabase) {
+            // Elementos del DOM
             const loginForm = document.getElementById('loginForm');
-            const toggleFormBtn = document.getElementById('toggleForm');
-            const userEmailInput = document.getElementById('userEmail');
-            const userPasswordInput = document.getElementById('userPassword');
-            const loadingDiv = document.getElementById('loading');
+            const registerForm = document.getElementById('registerForm');
+            const switchLink = document.getElementById('switchLink');
+            const switchText = document.getElementById('switchText');
+            const alertDiv = document.getElementById('alert');
 
-            // Configurar el toggle entre login y registro
-            toggleFormBtn.addEventListener('click', function() {
-                isLoginMode = !isLoginMode;
+            // Variables de estado
+            let isLogin = true;
+
+            // Función para mostrar alertas
+            function showAlert(message, type = 'error') {
+                alertDiv.textContent = message;
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.style.display = 'block';
                 
-                if (isLoginMode) {
-                    document.querySelector('.header p').textContent = 'Iniciar Sesión';
-                    document.querySelector('.btn-primary').innerHTML = '🔑 Iniciar Sesión';
-                    toggleFormBtn.textContent = '¿No tienes cuenta? Regístrate aquí';
-                    document.querySelector('.info-text').textContent = 'Usa tu correo y contraseña para acceder';
-                } else {
-                    document.querySelector('.header p').textContent = 'Registrarse';
-                    document.querySelector('.btn-primary').innerHTML = '📝 Crear Cuenta';
-                    toggleFormBtn.textContent = '¿Ya tienes cuenta? Inicia sesión aquí';
-                    document.querySelector('.info-text').textContent = 'Crea tu cuenta con correo y contraseña';
-                }
-            });
+                setTimeout(() => {
+                    alertDiv.style.display = 'none';
+                }, 5000);
+            }
 
-            // Manejar envío del formulario
-            loginForm.addEventListener('submit', async (e) => {
+            // Función para cambiar entre login y registro
+            function switchForm() {
+                isLogin = !isLogin;
+                
+                if (isLogin) {
+                    loginForm.classList.remove('hidden');
+                    registerForm.classList.add('hidden');
+                    switchText.innerHTML = '¿No tienes cuenta? ';
+                    switchLink.textContent = 'Regístrate aquí';
+                } else {
+                    loginForm.classList.add('hidden');
+                    registerForm.classList.remove('hidden');
+                    switchText.innerHTML = '¿Ya tienes cuenta? ';
+                    switchLink.textContent = 'Inicia sesión aquí';
+                }
+                
+                // Limpiar alertas
+                alertDiv.style.display = 'none';
+            }
+
+            // Verificar si ya está autenticado
+            async function checkAuth() {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    
+                    if (session) {
+                        const userRole = session.user?.user_metadata?.rol || 'cliente';
+                        
+                        if (userRole === 'admin') {
+                            window.location.href = 'admin.html';
+                        } else {
+                            window.location.href = 'cliente.html';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error en checkAuth:', error);
+                }
+            }
+
+            // Manejar registro de usuario
+            registerForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
-                const email = userEmailInput.value.trim().toLowerCase();
-                const password = userPasswordInput.value;
+                const nombre = document.getElementById('regNombre').value;
+                const apellido = document.getElementById('regApellido').value;
+                const telefono = document.getElementById('regTelefono').value;
+                const email = document.getElementById('regEmail').value;
+                const password = document.getElementById('regPassword').value;
 
-                if (!email || !password) {
-                    showAlert('Por favor completa todos los campos');
-                    return;
-                }
-
+                // Validaciones básicas
                 if (password.length < 6) {
                     showAlert('La contraseña debe tener al menos 6 caracteres');
                     return;
                 }
 
                 try {
-                    loadingDiv.style.display = 'block';
-
-                    if (isLoginMode) {
-                        // INICIAR SESIÓN
-                        const { data, error } = await supabaseClient.auth.signInWithPassword({
-                            email: email,
-                            password: password
-                        });
-
-                        if (error) throw error;
-
-                        showAlert('✅ ¡Inicio de sesión exitoso!', 'success');
-                        
-                        // Redirigir después de login exitoso
-                        setTimeout(() => {
-                            window.location.href = 'cliente.html';
-                        }, 1000);
-
-                    } else {
-                        // REGISTRARSE
-                        // Extraer nombre y apellido del email
-                        const { nombre, apellido } = extractNameFromEmail(email);
-
-                        // Registrar usuario en Auth
-                        const { data, error } = await supabaseClient.auth.signUp({
-                            email: email,
-                            password: password,
-                            options: {
-                                data: {
-                                    nombre: nombre,
-                                    apellido: apellido,
-                                    rol: 'cliente'
-                                }
-                            }
-                        });
-
-                        if (error) throw error;
-
-                        // Guardar usuario en la tabla clientes
-                        if (data.user) {
-                            const userData = {
-                                id: data.user.id,
+                    // 1. Registrar usuario en Auth de Supabase
+                    const { data: authData, error: authError } = await supabase.auth.signUp({
+                        email: email,
+                        password: password,
+                        options: {
+                            data: {
                                 nombre: nombre,
                                 apellido: apellido,
-                                email: email
-                            };
-                            
-                            const saved = await saveUserToClients(userData, password);
-                            
-                            if (saved) {
-                                showAlert('✅ ¡Cuenta creada exitosamente! Ya puedes iniciar sesión.', 'success');
-                                loginForm.reset();
-                                // Cambiar a modo login
-                                isLoginMode = true;
-                                document.querySelector('.header p').textContent = 'Iniciar Sesión';
-                                document.querySelector('.btn-primary').innerHTML = '🔑 Iniciar Sesión';
-                                toggleFormBtn.textContent = '¿No tienes cuenta? Regístrate aquí';
+                                telefono: telefono,
+                                rol: 'cliente' // Todos los que se registran son clientes
                             }
+                        }
+                    });
+
+                    if (authError) throw authError;
+
+                    // 2. Guardar información adicional en tabla 'clientes'
+                    if (authData.user) {
+                        const { error: dbError } = await supabase
+                            .from('clientes')
+                            .insert([{
+                                id: authData.user.id,
+                                nombre: nombre,
+                                apellido: apellido,
+                                telefono: telefono,
+                                email: email,
+                                rol: 'cliente',
+                                creado_en: new Date().toISOString()
+                            }]);
+
+                        if (dbError) {
+                            console.error('Error guardando en BD:', dbError);
+                            // El usuario ya está creado en auth, así que continuamos
                         }
                     }
 
+                    showAlert('✅ ¡Registro exitoso! Revisa tu correo para verificar tu cuenta.', 'success');
+                    
+                    // Limpiar formulario
+                    registerForm.reset();
+                    
+                    // Cambiar a login después de 3 segundos
+                    setTimeout(() => {
+                        switchForm();
+                    }, 3000);
+
                 } catch (error) {
-                    console.error('Error:', error);
-                    showAlert('❌ Error: ' + error.message);
-                } finally {
-                    loadingDiv.style.display = 'none';
+                    console.error('Error en registro:', error);
+                    showAlert('❌ Error al registrarse: ' + error.message);
                 }
             });
 
-            // Verificar si ya está autenticado al cargar
-            checkAuth();
-        }
+            // Manejar login de usuario
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const email = document.getElementById('loginEmail').value;
+                const password = document.getElementById('loginPassword').value;
 
-        async function checkAuth() {
-            try {
-                const { data: { session }, error } = await supabaseClient.auth.getSession();
-                
-                if (error) throw error;
-                
-                if (session && session.user) {
-                    console.log('✅ Usuario ya autenticado:', session.user.email);
-                    // Redirigir directamente
-                    window.location.href = 'cliente.html';
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                        email: email,
+                        password: password
+                    });
+
+                    if (error) throw error;
+
+                    showAlert('✅ ¡Inicio de sesión exitoso! Redirigiendo...', 'success');
+                    
+                    // Redirigir según el rol
+                    setTimeout(() => {
+                        // Obtener el rol del usuario
+                        const userRole = data.user?.user_metadata?.rol || 'cliente';
+                        
+                        if (userRole === 'admin') {
+                            window.location.href = 'admin.html';
+                        } else {
+                            window.location.href = 'cliente.html';
+                        }
+                    }, 2000);
+
+                } catch (error) {
+                    console.error('Error en login:', error);
+                    showAlert('❌ Error al iniciar sesión: ' + error.message);
                 }
-            } catch (error) {
-                console.error('Error en checkAuth:', error);
-            }
+            });
+
+            // Event listener para cambiar formulario
+            switchLink.addEventListener('click', switchForm);
+
+            // ✅ CORREGIDO: Verificar autenticación DESPUÉS de inicializar Supabase
+            checkAuth();
         }
     </script>
 </body>
