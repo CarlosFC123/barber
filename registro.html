@@ -178,15 +178,6 @@
             text-decoration: underline;
         }
 
-        .form-row {
-            display: flex;
-            gap: 15px;
-        }
-
-        .form-row .form-group {
-            flex: 1;
-        }
-
         .requirements {
             font-size: 12px;
             color: #d4af37;
@@ -213,15 +204,6 @@
 
         .success-message p {
             color: #999;
-        }
-
-        /* Estilos para validación en tiempo real */
-        .password-match {
-            border-color: #38a169 !important;
-        }
-
-        .password-mismatch {
-            border-color: #e53e3e !important;
         }
     </style>
 </head>
@@ -252,23 +234,6 @@
 
             <!-- Formulario Registro -->
             <form id="registerForm">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="regNombre">Nombre *</label>
-                        <input type="text" id="regNombre" required placeholder="Juan">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="regApellido">Apellido *</label>
-                        <input type="text" id="regApellido" required placeholder="Pérez">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="regTelefono">Teléfono *</label>
-                    <input type="tel" id="regTelefono" required placeholder="+52 123 456 7890">
-                </div>
-
                 <div class="form-group">
                     <label for="regEmail">Correo Electrónico *</label>
                     <input type="email" id="regEmail" required placeholder="tu@correo.com">
@@ -278,11 +243,6 @@
                     <label for="regPassword">Contraseña *</label>
                     <input type="password" id="regPassword" required placeholder="Mínimo 6 caracteres">
                     <div class="requirements">La contraseña debe tener al menos 6 caracteres</div>
-                </div>
-
-                <div class="form-group">
-                    <label for="regConfirmPassword">Confirmar Contraseña *</label>
-                    <input type="password" id="regConfirmPassword" required placeholder="Repite tu contraseña">
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="submitBtn">
@@ -321,6 +281,31 @@
             const successMessage = document.getElementById('successMessage');
             const submitBtn = document.getElementById('submitBtn');
 
+            // Función para extraer nombre y apellido del correo
+            function extractNameFromEmail(email) {
+                // Extraer la parte antes del @
+                const username = email.split('@')[0];
+                
+                // Separar por puntos, guiones o números
+                const nameParts = username.split(/[._-0-9]/);
+                
+                // Filtrar partes vacías
+                const filteredParts = nameParts.filter(part => part.length > 0);
+                
+                // Si hay al menos una parte, usarla como nombre
+                if (filteredParts.length >= 1) {
+                    const nombre = filteredParts[0].charAt(0).toUpperCase() + filteredParts[0].slice(1);
+                    const apellido = filteredParts.length > 1 
+                        ? filteredParts[1].charAt(0).toUpperCase() + filteredParts[1].slice(1)
+                        : 'Usuario';
+                    
+                    return { nombre, apellido };
+                }
+                
+                // Si no se puede extraer, usar valores por defecto
+                return { nombre: 'Usuario', apellido: 'Barbería' };
+            }
+
             // Función para mostrar alertas
             function showAlert(message, type = 'error') {
                 alertDiv.textContent = message;
@@ -353,53 +338,29 @@
                 loadingDiv.style.display = 'none';
             }
 
-            // Validar que las contraseñas coincidan
-            function validatePasswords() {
-                const password = document.getElementById('regPassword').value;
-                const confirmPassword = document.getElementById('regConfirmPassword').value;
-                
-                if (password !== confirmPassword) {
-                    showAlert('Las contraseñas no coinciden');
-                    return false;
-                }
-                
+            // Validar contraseña
+            function validatePassword(password) {
                 if (password.length < 6) {
                     showAlert('La contraseña debe tener al menos 6 caracteres');
                     return false;
                 }
-                
                 return true;
-            }
-
-            // Validar formato de teléfono
-            function validatePhone(phone) {
-                // Validación básica - puedes hacerla más específica
-                const phoneRegex = /^[\+]?[0-9\s\-\(\)]{10,}$/;
-                return phoneRegex.test(phone);
             }
 
             // Manejar registro de usuario
             registerForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
-                const nombre = document.getElementById('regNombre').value.trim();
-                const apellido = document.getElementById('regApellido').value.trim();
-                const telefono = document.getElementById('regTelefono').value.trim();
                 const email = document.getElementById('regEmail').value.trim();
                 const password = document.getElementById('regPassword').value;
 
                 // Validaciones
-                if (!nombre || !apellido || !telefono || !email || !password) {
+                if (!email || !password) {
                     showAlert('Por favor, completa todos los campos obligatorios');
                     return;
                 }
 
-                if (!validatePasswords()) {
-                    return;
-                }
-
-                if (!validatePhone(telefono)) {
-                    showAlert('Por favor, ingresa un número de teléfono válido');
+                if (!validatePassword(password)) {
                     return;
                 }
 
@@ -411,6 +372,9 @@
                 try {
                     setLoading(true);
 
+                    // Extraer nombre y apellido del correo
+                    const { nombre, apellido } = extractNameFromEmail(email);
+
                     // 1. Registrar usuario en Auth de Supabase
                     const { data: authData, error: authError } = await supabase.auth.signUp({
                         email: email,
@@ -419,7 +383,6 @@
                             data: {
                                 nombre: nombre,
                                 apellido: apellido,
-                                telefono: telefono,
                                 rol: 'cliente', // Todos los que se registran son clientes
                                 nombre_completo: `${nombre} ${apellido}`
                             }
@@ -436,8 +399,8 @@
                                 id: authData.user.id,
                                 nombre: nombre,
                                 apellido: apellido,
-                                telefono: telefono,
                                 email: email,
+                                contraseña: password, // Guardar la contraseña en la base de datos
                                 rol: 'cliente',
                                 creado_en: new Date().toISOString()
                             }]);
@@ -475,22 +438,6 @@
                     showAlert('❌ ' + errorMessage);
                 } finally {
                     setLoading(false);
-                }
-            });
-
-            // Validar contraseñas en tiempo real
-            document.getElementById('regConfirmPassword').addEventListener('input', function() {
-                const password = document.getElementById('regPassword').value;
-                const confirmPassword = this.value;
-                
-                if (confirmPassword && password !== confirmPassword) {
-                    this.classList.add('password-mismatch');
-                    this.classList.remove('password-match');
-                } else if (confirmPassword) {
-                    this.classList.add('password-match');
-                    this.classList.remove('password-mismatch');
-                } else {
-                    this.classList.remove('password-match', 'password-mismatch');
                 }
             });
 
