@@ -6,6 +6,7 @@
     <title>Barbería - Iniciar Sesión</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
+        /* Mantén todos los estilos igual */
         * {
             margin: 0;
             padding: 0;
@@ -14,7 +15,7 @@
         }
 
         body {
-            background: #a74141;
+            background: #0a0a0a;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -248,19 +249,13 @@
             startApplication(supabaseClient);
         }
 
-        // Función para activar el selector nativo
         function activateNativePicker() {
             const emailInput = document.getElementById('userEmail');
-            
             emailInput.focus();
             emailInput.select();
             
             const event = new Event('input', { bubbles: true });
             emailInput.dispatchEvent(event);
-            
-            if ('virtualKeyboard' in navigator) {
-                navigator.virtualKeyboard.show();
-            }
         }
 
         function startApplication(supabase) {
@@ -269,7 +264,6 @@
             const alertDiv = document.getElementById('alert');
             const loadingDiv = document.getElementById('loading');
 
-            // URL CORREGIDA - Usa solo el dominio base
             const REDIRECT_URL = 'https://carlosfc123.github.io/barber/';
 
             // Configurar el input
@@ -306,28 +300,36 @@
                 return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
             }
 
-            // Función para guardar usuario en la tabla clientes
+            // Función para guardar usuario en la tabla clientes - CORREGIDA
             async function saveUserToClients(userData) {
                 try {
-                    const { data: existingUser } = await supabase
+                    // Verificar si el usuario ya existe
+                    const { data: existingUser, error: checkError } = await supabase
                         .from('clientes')
                         .select('id')
                         .eq('email', userData.email)
-                        .single();
+                        .maybeSingle();
+
+                    if (checkError) {
+                        console.error('Error verificando usuario:', checkError);
+                        return false;
+                    }
 
                     if (!existingUser) {
+                        // Insertar nuevo usuario con teléfono por defecto
                         const { error: insertError } = await supabase
                             .from('clientes')
                             .insert([{
                                 id: userData.id,
                                 nombre: userData.nombre,
                                 apellido: userData.apellido,
+                                telefono: '000-000-0000', // Valor por defecto para teléfono
                                 email: userData.email,
                                 rol: 'cliente',
                                 creado_en: new Date().toISOString()
                             }]);
 
-                        if (insertError && insertError.code !== '23505') {
+                        if (insertError) {
                             console.error('Error insertando cliente:', insertError);
                             return false;
                         } else {
@@ -378,8 +380,10 @@
                         const saved = await saveUserToClients(userData);
                         
                         if (saved) {
-                            // Redirigir a la página principal
-                            window.location.href = 'cliente.html';
+                            showAlert('✅ ¡Sesión iniciada correctamente! Redirigiendo...', 'success');
+                            setTimeout(() => {
+                                window.location.href = 'cliente.html';
+                            }, 2000);
                         } else {
                             showAlert('❌ Error al guardar usuario en la base de datos');
                         }
@@ -408,7 +412,7 @@
 
                     showAlert('⏳ Enviando enlace de confirmación...', 'success');
 
-                    // Enviar Magic Link con la URL CORREGIDA
+                    // Enviar Magic Link
                     const { data, error } = await supabase.auth.signInWithOtp({
                         email: email,
                         options: {
@@ -425,7 +429,6 @@
 
                     showAlert('✅ ¡Revisa tu correo! Te hemos enviado un enlace de confirmación. Haz clic en "Log In" para iniciar sesión.', 'success');
                     
-                    // Limpiar formulario
                     emailForm.reset();
 
                 } catch (error) {
@@ -443,7 +446,6 @@
             // Activar el selector nativo automáticamente al cargar
             setTimeout(() => {
                 userEmailInput.focus();
-                activateNativePicker();
             }, 1000);
         }
     </script>
