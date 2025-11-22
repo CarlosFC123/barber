@@ -230,7 +230,7 @@
             </div>
 
             <div class="browser-tips">
-                💡 Después de confirmar tu email, volverás automáticamente aquí
+                💡 Haz clic en "Log In" en el email para confirmar tu cuenta
             </div>
         </div>
     </div>
@@ -252,15 +252,12 @@
         function activateNativePicker() {
             const emailInput = document.getElementById('userEmail');
             
-            // Enfocar y seleccionar el input
             emailInput.focus();
             emailInput.select();
             
-            // Disparar evento de input para activar autocompletado
             const event = new Event('input', { bubbles: true });
             emailInput.dispatchEvent(event);
             
-            // En móviles, activar teclado especial para emails
             if ('virtualKeyboard' in navigator) {
                 navigator.virtualKeyboard.show();
             }
@@ -272,15 +269,13 @@
             const alertDiv = document.getElementById('alert');
             const loadingDiv = document.getElementById('loading');
 
-            // URL de tu GitHub Pages
-            const SITE_URL = 'https://carlosfc123.github.io/barber/';
+            // URL CORREGIDA - Usa solo el dominio base
+            const REDIRECT_URL = 'https://carlosfc123.github.io/barber/';
 
-            // Configurar el input para máximo autocompletado
+            // Configurar el input
             userEmailInput.setAttribute('autocomplete', 'email');
             userEmailInput.setAttribute('name', 'email');
             userEmailInput.setAttribute('inputmode', 'email');
-            userEmailInput.setAttribute('autocapitalize', 'off');
-            userEmailInput.setAttribute('spellcheck', 'false');
 
             // Función para extraer nombre y apellido del email
             function extractNameFromEmail(email) {
@@ -413,7 +408,7 @@
 
                     showAlert('⏳ Enviando enlace de confirmación...', 'success');
 
-                    // Enviar Magic Link con la URL correcta de GitHub Pages
+                    // Enviar Magic Link con la URL CORREGIDA
                     const { data, error } = await supabase.auth.signInWithOtp({
                         email: email,
                         options: {
@@ -422,13 +417,13 @@
                                 apellido: apellido,
                                 rol: 'cliente'
                             },
-                            emailRedirectTo: SITE_URL
+                            emailRedirectTo: REDIRECT_URL
                         }
                     });
 
                     if (error) throw error;
 
-                    showAlert('✅ ¡Revisa tu correo! Te hemos enviado un enlace de confirmación. Haz clic en él para iniciar sesión.', 'success');
+                    showAlert('✅ ¡Revisa tu correo! Te hemos enviado un enlace de confirmación. Haz clic en "Log In" para iniciar sesión.', 'success');
                     
                     // Limpiar formulario
                     emailForm.reset();
@@ -439,12 +434,11 @@
                 }
             });
 
-            // Verificar autenticación automáticamente al cargar la página
-            // Esto detectará cuando el usuario vuelve después de confirmar el email
+            // Verificar autenticación al cargar
             checkAuth();
 
-            // También verificar cada 5 segundos por si acaso
-            setInterval(checkAuth, 5000);
+            // También verificar cada 3 segundos
+            setInterval(checkAuth, 3000);
 
             // Activar el selector nativo automáticamente al cargar
             setTimeout(() => {
