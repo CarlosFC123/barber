@@ -14,7 +14,7 @@
         }
 
         body {
-            background: #0a0a0a;
+            background: #a74141;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -29,10 +29,8 @@
             overflow: hidden;
             width: 100%;
             max-width: 400px;
-            /* border: 2px solid #d4af37; */
         }
 
-        /* Reemplazar header con imagen en lugar de texto */
         .header {
             background: #0a0a0a;
             padding: 30px 20px;
@@ -61,8 +59,108 @@
             padding: 30px;
         }
 
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .alert-success {
+            background: #1a5c3a;
+            color: #90ee90;
+            border: 1px solid #2d8659;
+        }
+
+        .alert-error {
+            background: #5c1a1a;
+            color: #ff6b6b;
+            border: 1px solid #8c2d2d;
+        }
+
+        .info-text {
+            color: #d4af37;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #d4af37;
+            margin-top: 10px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-google {
+            background: #ffffff;
+            color: #757575;
+            border: 2px solid #ddd;
+        }
+
+        .btn-google:hover {
+            background: #f8f8f8;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-email {
+            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+            color: #000;
+        }
+
+        .btn-email:hover {
+            background: linear-gradient(135deg, #e4bf47 0%, #fff4b6 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #333;
+        }
+
+        .divider-text {
+            padding: 0 15px;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .email-form {
+            display: none;
+            margin-top: 20px;
+        }
+
         .form-group {
             margin-bottom: 20px;
+            position: relative;
         }
 
         label {
@@ -73,6 +171,11 @@
             font-size: 14px;
             text-transform: uppercase;
             letter-spacing: 1px;
+        }
+
+        .input-container {
+            position: relative;
+            width: 100%;
         }
 
         input {
@@ -96,374 +199,324 @@
             color: #666;
         }
 
-        .btn {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .btn-primary {
-    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-    color: #000;
-    width: 100%;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.btn-primary:hover {
-    background: linear-gradient(135deg, #e4bf47 0%, #fff4b6 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
-}
-
-        .btn-secondary {
-            background: #333;
-            color: #d4af37;
-            margin-top: 10px;
-            border: 2px solid #d4af37;
-        }
-
-        .btn-secondary:hover {
-            background: #d4af37;
-            color: #0a0a0a;
-        }
-
-        .divider {
-            text-align: center;
-            margin: 20px 0;
-            color: #666;
-            font-size: 14px;
-            position: relative;
-        }
-
-        .divider::before {
-            content: "";
+        .native-picker-btn {
             position: absolute;
+            right: 10px;
             top: 50%;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: #333;
-        }
-
-        .divider span {
-            background: #1a1a1a;
-            padding: 0 15px;
-            position: relative;
-        }
-
-        .alert {
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            display: none;
-        }
-
-        .alert-success {
-            background: #1a5c3a;
-            color: #90ee90;
-            border: 1px solid #2d8659;
-        }
-
-        .alert-error {
-            background: #5c1a1a;
-            color: #ff6b6b;
-            border: 1px solid #8c2d2d;
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .switch-form {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 14px;
-            color: #999;
-        }
-
-        .switch-form a {
+            transform: translateY(-50%);
+            background: none;
+            border: none;
             color: #d4af37;
-            text-decoration: none;
-            font-weight: bold;
             cursor: pointer;
-        }
-
-        .switch-form a:hover {
-            text-decoration: underline;
+            font-size: 20px;
+            padding: 5px;
+            z-index: 2;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <!-- Imagen del logo en lugar de texto "Barbería" -->
             <img src="img/fondo_barber.jpg" alt="Waldo Barber Shop Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMEEwQTBBIi8+CjxwYXRoIGQ9Ik00MCAyMEgxNjBWNDBIMzBWNTBIMTYwVjYwSDQwVjIwWiIgZmlsbD0iI0Q0QUYzNyIvPgo8dGV4dCB4PSIxMDAiIHk9IjUwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRDRBRjM3IiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iQXJpYWwiPldBTERPIEJBUkJFUiBTSG9QPC90ZXh0Pgo8L3N2Zz4K'">
-            <p>Reserva tu cita fácilmente</p>
+            <p>Iniciar Sesión</p>
         </div>
 
         <div class="form-container">
             <!-- Alertas -->
             <div id="alert" class="alert"></div>
 
-            <!-- Formulario Login -->
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="loginEmail">Correo Electrónico</label>
-                    <input type="email" id="loginEmail" required placeholder="tu@correo.com">
-                </div>
+            <!-- Loading -->
+            <div id="loading" class="loading">
+                ⏳ Iniciando sesión...
+            </div>
 
-                <div class="form-group">
-                    <label for="loginPassword">Contraseña</label>
-                    <input type="password" id="loginPassword" required placeholder="••••••••">
-                </div>
+            <!-- Botón de Google -->
+            <button class="btn btn-google" id="googleBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continuar con Google
+            </button>
 
-                <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
-            </form>
+            <div class="divider">
+                <span class="divider-text">O</span>
+            </div>
 
-            <!-- Formulario Registro -->
-            <form id="registerForm" class="hidden">
-                <div class="form-group">
-                    <label for="regNombre">Nombre</label>
-                    <input type="text" id="regNombre" required placeholder="Juan">
-                </div>
+            <!-- Botón para mostrar formulario de email -->
+            <button class="btn btn-email" id="emailToggleBtn">
+                📧 Continuar con Email
+            </button>
 
-                <div class="form-group">
-                    <label for="regApellido">Apellido</label>
-                    <input type="text" id="regApellido" required placeholder="Pérez">
-                </div>
+            <!-- Formulario de Email (oculto inicialmente) -->
+            <div class="email-form" id="emailForm">
+                <form id="magicLinkForm">
+                    <div class="form-group">
+                        <label for="userEmail">Correo Electrónico</label>
+                        <div class="input-container">
+                            <input type="email" id="userEmail" required 
+                                   placeholder="Selecciona o escribe tu email"
+                                   inputmode="email" 
+                                   autocomplete="email"
+                                   name="email"
+                                   list="emailSuggestions">
+                            <button type="button" class="native-picker-btn" onclick="activateNativePicker()" title="Seleccionar email guardado">
+                                👤
+                            </button>
+                        </div>
+                        <datalist id="emailSuggestions">
+                            <!-- El navegador llenará automáticamente con emails guardados -->
+                        </datalist>
+                    </div>
 
-                <div class="form-group">
-                    <label for="regTelefono">Teléfono</label>
-                    <input type="tel" id="regTelefono" required placeholder="+52 123 456 7890">
-                </div>
+                    <button type="submit" class="btn btn-email">
+                        📧 Enviar Enlace Mágico
+                    </button>
+                </form>
+            </div>
 
-                <div class="form-group">
-                    <label for="regEmail">Correo Electrónico</label>
-                    <input type="email" id="regEmail" required placeholder="tu@correo.com">
-                </div>
-
-                <div class="form-group">
-                    <label for="regPassword">Contraseña</label>
-                    <input type="password" id="regPassword" required placeholder="Mínimo 6 caracteres">
-                </div>
-
-                <button type="submit" class="btn btn-primary">Registrarse</button>
-            </form>
-
-            <div class="switch-form">
-                <span id="switchText">¿No tienes cuenta? </span>
-                <a id="switchLink" href="registro.html">Regístrate aquí</a>
+            <div class="info-text">
+                Elige tu método preferido para iniciar sesión
             </div>
         </div>
     </div>
 
     <script>
-        // ESPERAR A QUE EL DOM ESTÉ LISTO
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
         });
 
+        let supabaseClient;
+
         function initializeApp() {
-            // Configuración Supabase
             const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
             
-            // Verificar que Supabase esté disponible
-            if (typeof supabase === 'undefined') {
-                console.error('Supabase no está cargado');
-                showAlert('Error: No se pudo cargar la configuración', 'error');
-                return;
-            }
-            
-            const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-            startApplication(supabaseClient);
+            supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+            startApplication();
         }
 
-        function startApplication(supabase) {
-            // Elementos del DOM
-            const loginForm = document.getElementById('loginForm');
-            const registerForm = document.getElementById('registerForm');
-            const switchLink = document.getElementById('switchLink');
-            const switchText = document.getElementById('switchText');
-            const alertDiv = document.getElementById('alert');
-
-            // Variables de estado
-            let isLogin = true;
-
-            // Función para mostrar alertas
-            function showAlert(message, type = 'error') {
-                alertDiv.textContent = message;
-                alertDiv.className = `alert alert-${type}`;
-                alertDiv.style.display = 'block';
-                
-                setTimeout(() => {
-                    alertDiv.style.display = 'none';
-                }, 5000);
+        // Función para activar el selector nativo
+        function activateNativePicker() {
+            const emailInput = document.getElementById('userEmail');
+            
+            emailInput.focus();
+            emailInput.select();
+            
+            const event = new Event('input', { bubbles: true });
+            emailInput.dispatchEvent(event);
+            
+            if ('virtualKeyboard' in navigator) {
+                navigator.virtualKeyboard.show();
             }
+        }
 
-            // Función para cambiar entre login y registro
-            function switchForm() {
-                isLogin = !isLogin;
-                
-                if (isLogin) {
-                    loginForm.classList.remove('hidden');
-                    registerForm.classList.add('hidden');
-                    switchText.innerHTML = '¿No tienes cuenta? ';
-                    switchLink.textContent = 'Regístrate aquí';
-                } else {
-                    loginForm.classList.add('hidden');
-                    registerForm.classList.remove('hidden');
-                    switchText.innerHTML = '¿Ya tienes cuenta? ';
-                    switchLink.textContent = 'Inicia sesión aquí';
-                }
-                
-                // Limpiar alertas
-                alertDiv.style.display = 'none';
-            }
+        // Función para guardar usuario en la tabla clientes
+        async function saveUserToClients(userData) {
+            try {
+                const { data: existingUser } = await supabaseClient
+                    .from('clientes')
+                    .select('id')
+                    .eq('email', userData.email)
+                    .single();
 
-            // Verificar si ya está autenticado
-            async function checkAuth() {
-                try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    
-                    if (session) {
-                        const userRole = session.user?.user_metadata?.rol || 'cliente';
-                        
-                        if (userRole === 'admin') {
-                            window.location.href = 'admin.html';
-                        } else {
-                            window.location.href = 'cliente.html';
-                        }
+                if (!existingUser) {
+                    const { error: insertError } = await supabaseClient
+                        .from('clientes')
+                        .insert([{
+                            id: userData.id,
+                            nombre: userData.nombre,
+                            apellido: userData.apellido,
+                            email: userData.email,
+                            rol: 'cliente',
+                            proveedor: userData.proveedor || 'google',
+                            avatar_url: userData.avatar_url,
+                            email_confirmado: true, // Con Google ya está confirmado
+                            creado_en: new Date().toISOString(),
+                            ultimo_login: new Date().toISOString()
+                        }]);
+
+                    if (insertError && insertError.code !== '23505') {
+                        console.error('Error insertando cliente:', insertError);
+                        return false;
+                    } else {
+                        console.log('✅ Usuario guardado en clientes:', userData.email);
+                        return true;
                     }
-                } catch (error) {
-                    console.error('Error en checkAuth:', error);
+                } else {
+                    // Actualizar último login
+                    const { error: updateError } = await supabaseClient
+                        .from('clientes')
+                        .update({
+                            ultimo_login: new Date().toISOString(),
+                            avatar_url: userData.avatar_url
+                        })
+                        .eq('email', userData.email);
+
+                    if (updateError) {
+                        console.error('Error actualizando último login:', updateError);
+                    }
+                    
+                    console.log('✅ Usuario actualizado en clientes:', userData.email);
+                    return true;
                 }
+            } catch (error) {
+                console.error('Error guardando usuario:', error);
+                return false;
             }
+        }
 
-            // Manejar registro de usuario
-            registerForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const nombre = document.getElementById('regNombre').value;
-                const apellido = document.getElementById('regApellido').value;
-                const telefono = document.getElementById('regTelefono').value;
-                const email = document.getElementById('regEmail').value;
-                const password = document.getElementById('regPassword').value;
+        function showAlert(message, type = 'error') {
+            const alertDiv = document.getElementById('alert');
+            alertDiv.textContent = message;
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                alertDiv.style.display = 'none';
+            }, 5000);
+        }
 
-                // Validaciones básicas
-                if (password.length < 6) {
-                    showAlert('La contraseña debe tener al menos 6 caracteres');
-                    return;
+        function startApplication() {
+            const googleBtn = document.getElementById('googleBtn');
+            const emailToggleBtn = document.getElementById('emailToggleBtn');
+            const emailForm = document.getElementById('emailForm');
+            const magicLinkForm = document.getElementById('magicLinkForm');
+            const userEmailInput = document.getElementById('userEmail');
+            const loadingDiv = document.getElementById('loading');
+
+            // Mostrar/ocultar formulario de email
+            emailToggleBtn.addEventListener('click', function() {
+                if (emailForm.style.display === 'none' || !emailForm.style.display) {
+                    emailForm.style.display = 'block';
+                    emailToggleBtn.style.display = 'none';
+                    userEmailInput.focus();
+                    activateNativePicker();
                 }
+            });
 
+            // Inicio de sesión con Google
+            googleBtn.addEventListener('click', async function() {
                 try {
-                    // 1. Registrar usuario en Auth de Supabase
-                    const { data: authData, error: authError } = await supabase.auth.signUp({
-                        email: email,
-                        password: password,
+                    loadingDiv.style.display = 'block';
+                    googleBtn.disabled = true;
+
+                    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+                        provider: 'google',
                         options: {
-                            data: {
-                                nombre: nombre,
-                                apellido: apellido,
-                                telefono: telefono,
-                                rol: 'cliente' // Todos los que se registran son clientes
+                            redirectTo: 'https://carlosfc123.github.io/barber/',
+                            queryParams: {
+                                access_type: 'offline',
+                                prompt: 'consent'
                             }
                         }
                     });
 
-                    if (authError) throw authError;
+                    if (error) throw error;
 
-                    // 2. Guardar información adicional en tabla 'clientes'
-                    if (authData.user) {
-                        const { error: dbError } = await supabase
-                            .from('clientes')
-                            .insert([{
-                                id: authData.user.id,
-                                nombre: nombre,
-                                apellido: apellido,
-                                telefono: telefono,
-                                email: email,
-                                rol: 'cliente',
-                                creado_en: new Date().toISOString()
-                            }]);
-
-                        if (dbError) {
-                            console.error('Error guardando en BD:', dbError);
-                            // El usuario ya está creado en auth, así que continuamos
-                        }
-                    }
-
-                    showAlert('✅ ¡Registro exitoso! Revisa tu correo para verificar tu cuenta.', 'success');
-                    
-                    // Limpiar formulario
-                    registerForm.reset();
-                    
-                    // Cambiar a login después de 3 segundos
-                    setTimeout(() => {
-                        switchForm();
-                    }, 3000);
+                    // La redirección a Google ocurrirá automáticamente
 
                 } catch (error) {
-                    console.error('Error en registro:', error);
-                    showAlert('❌ Error al registrarse: ' + error.message);
+                    console.error('Error con Google OAuth:', error);
+                    showAlert('❌ Error al iniciar sesión con Google: ' + error.message);
+                    loadingDiv.style.display = 'none';
+                    googleBtn.disabled = false;
                 }
             });
 
-            // Manejar login de usuario
-            loginForm.addEventListener('submit', async (e) => {
+            // Manejar envío del formulario de magic link
+            magicLinkForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
-                const email = document.getElementById('loginEmail').value;
-                const password = document.getElementById('loginPassword').value;
+                const email = userEmailInput.value.trim().toLowerCase();
+
+                if (!email) {
+                    showAlert('Por favor ingresa tu correo electrónico');
+                    return;
+                }
 
                 try {
-                    const { data, error } = await supabase.auth.signInWithPassword({
+                    loadingDiv.style.display = 'block';
+
+                    // Extraer nombre y apellido del email
+                    const nombre = email.split('@')[0].split('.')[0];
+                    const apellido = email.split('@')[0].split('.')[1] || 'Usuario';
+
+                    const { data, error } = await supabaseClient.auth.signInWithOtp({
                         email: email,
-                        password: password
+                        options: {
+                            data: {
+                                nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1),
+                                apellido: apellido.charAt(0).toUpperCase() + apellido.slice(1),
+                                rol: 'cliente',
+                                proveedor: 'email'
+                            },
+                            emailRedirectTo: 'https://carlosfc123.github.io/barber/'
+                        }
                     });
 
                     if (error) throw error;
 
-                    showAlert('✅ ¡Inicio de sesión exitoso! Redirigiendo...', 'success');
-                    
-                    // Redirigir según el rol
-                    setTimeout(() => {
-                        // Obtener el rol del usuario
-                        const userRole = data.user?.user_metadata?.rol || 'cliente';
-                        
-                        if (userRole === 'admin') {
-                            window.location.href = 'admin.html';
-                        } else {
-                            window.location.href = 'cliente.html';
-                        }
-                    }, 2000);
+                    showAlert('✅ ¡Revisa tu correo! Te hemos enviado un enlace de confirmación.', 'success');
+                    magicLinkForm.reset();
 
                 } catch (error) {
-                    console.error('Error en login:', error);
-                    showAlert('❌ Error al iniciar sesión: ' + error.message);
+                    console.error('Error en Magic Link:', error);
+                    showAlert('❌ Error: ' + error.message);
+                } finally {
+                    loadingDiv.style.display = 'none';
                 }
             });
 
-            // Event listener para cambiar formulario
-            switchLink.addEventListener('click', switchForm);
-
-            // ✅ CORREGIDO: Verificar autenticación DESPUÉS de inicializar Supabase
-            checkAuth();
+            // Verificar si ya está autenticado y procesar usuario
+            checkAuthAndProcessUser();
         }
+
+        async function checkAuthAndProcessUser() {
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                
+                if (error) throw error;
+                
+                if (session && session.user) {
+                    console.log('✅ Usuario autenticado:', session.user);
+                    
+                    // Preparar datos del usuario para guardar en la base de datos
+                    const userData = {
+                        id: session.user.id,
+                        nombre: session.user.user_metadata?.nombre || 
+                               session.user.user_metadata?.full_name?.split(' ')[0] || 
+                               session.user.user_metadata?.given_name ||
+                               'Usuario',
+                        apellido: session.user.user_metadata?.apellido || 
+                                session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+                                session.user.user_metadata?.family_name ||
+                                'Google',
+                        email: session.user.email,
+                        proveedor: session.user.app_metadata?.provider || 'google',
+                        avatar_url: session.user.user_metadata?.avatar_url || 
+                                  session.user.user_metadata?.picture
+                    };
+
+                    // Guardar usuario en la base de datos
+                    const saved = await saveUserToClients(userData);
+                    
+                    if (saved) {
+                        // Redirigir a la página principal
+                        window.location.href = 'cliente.html';
+                    } else {
+                        showAlert('❌ Error al guardar usuario en la base de datos');
+                    }
+                }
+            } catch (error) {
+                console.error('Error en checkAuth:', error);
+            }
+        }
+
+        // Verificar autenticación cada 2 segundos (por si acaso)
+        setInterval(checkAuthAndProcessUser, 2000);
     </script>
 </body>
 </html>
