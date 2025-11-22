@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barbería - Registro e Inicio de Sesión</title>
+    <title>Barbería - Iniciar Sesión</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
         * {
@@ -14,7 +14,7 @@
         }
 
         body {
-            background: #000000;
+            background: #a74141;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -74,7 +74,7 @@
             letter-spacing: 1px;
         }
 
-        .input-container {
+        .email-input-container {
             position: relative;
             width: 100%;
         }
@@ -88,6 +88,7 @@
             transition: border-color 0.3s;
             background: #2a2a2a;
             color: #fff;
+            padding-right: 45px;
         }
 
         input:focus {
@@ -98,20 +99,6 @@
 
         input::placeholder {
             color: #666;
-        }
-
-        .toggle-password {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: #d4af37;
-            cursor: pointer;
-            font-size: 16px;
-            padding: 5px;
-            z-index: 2;
         }
 
         .native-picker-btn {
@@ -139,7 +126,6 @@
             transition: all 0.3s;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 10px;
         }
 
         .btn-primary {
@@ -151,16 +137,6 @@
             background: linear-gradient(135deg, #e4bf47 0%, #fff4b6 100%);
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: #d4af37;
-            border: 2px solid #d4af37;
-        }
-
-        .btn-secondary:hover {
-            background: rgba(212, 175, 55, 0.1);
         }
 
         .alert {
@@ -206,33 +182,13 @@
             color: #d4af37;
             margin-top: 10px;
         }
-
-        .form-toggle {
-            text-align: center;
-            margin-top: 20px;
-        }
-
-        .toggle-link {
-            color: #d4af37;
-            background: none;
-            border: none;
-            cursor: pointer;
-            text-decoration: underline;
-            font-size: 14px;
-        }
-
-        .password-requirements {
-            font-size: 12px;
-            color: #888;
-            margin-top: 5px;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <img src="img/fondo_barber.jpg" alt="Waldo Barber Shop Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMEEwQTBBIi8+CjxwYXRoIGQ9Ik00MCAyMEgxNjBWNDBIMzBWNTBIMTYwVjYwSDQwVjIwWiIgZmlsbD0iI0Q0QUYzNyIvPgo8dGV4dCB4PSIxMDAiIHk9IjUwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRDRBRjM3IiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iQXJpYWwiPldBTERPIEJBUkJFUiBTSG9QPC90ZXh0Pgo8L3N2Zz4K'">
-            <p id="formTitle">Crear Cuenta</p>
+            <p>Selecciona tu cuenta</p>
         </div>
 
         <div class="form-container">
@@ -241,14 +197,14 @@
 
             <!-- Loading -->
             <div id="loading" class="loading">
-                ⏳ Procesando...
+                ⏳ Verificando autenticación...
             </div>
 
-            <!-- Formulario de Registro/Login -->
-            <form id="authForm">
+            <!-- Formulario simple para Magic Link -->
+            <form id="emailForm">
                 <div class="form-group">
                     <label for="userEmail">Correo Electrónico</label>
-                    <div class="input-container">
+                    <div class="email-input-container">
                         <input type="email" id="userEmail" required 
                                placeholder="Selecciona o escribe tu email"
                                inputmode="email" 
@@ -264,58 +220,17 @@
                     </datalist>
                 </div>
 
-                <div class="form-group" id="passwordGroup">
-                    <label for="userPassword">Contraseña</label>
-                    <div class="input-container">
-                        <input type="password" id="userPassword" required 
-                               placeholder="Crea una contraseña segura"
-                               autocomplete="new-password"
-                               name="password"
-                               minlength="6">
-                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
-                            👁️
-                        </button>
-                    </div>
-                    <div class="password-requirements">
-                        Mínimo 6 caracteres
-                    </div>
-                </div>
-
-                <div class="form-group" id="confirmPasswordGroup">
-                    <label for="confirmPassword">Confirmar Contraseña</label>
-                    <div class="input-container">
-                        <input type="password" id="confirmPassword" required 
-                               placeholder="Repite tu contraseña"
-                               autocomplete="new-password"
-                               name="confirmPassword"
-                               minlength="6">
-                        <button type="button" class="toggle-password" onclick="toggleConfirmPasswordVisibility()">
-                            👁️
-                        </button>
-                    </div>
-                </div>
-
-                <button type="submit" class="btn btn-primary" id="submitBtn">
-                    📝 Crear Cuenta
-                </button>
-
-                <button type="button" class="btn btn-secondary" id="magicLinkBtn" style="display: none;">
-                    📧 Enviar Enlace Mágico
+                <button type="submit" class="btn btn-primary">
+                    📧 Enviar Enlace de Confirmación
                 </button>
             </form>
 
-            <div class="form-toggle">
-                <button type="button" class="toggle-link" id="toggleForm">
-                    ¿Ya tienes cuenta? Inicia sesión aquí
-                </button>
-            </div>
-
-            <div class="info-text" id="infoText">
-                Crea tu cuenta con correo y contraseña
+            <div class="info-text">
+                Te enviaremos un enlace de confirmación a tu correo
             </div>
 
             <div class="browser-tips">
-                💡 Tu correo debe ser válido para recibir la confirmación
+                💡 Haz clic en "Log In" en el email para confirmar tu cuenta
             </div>
         </div>
     </div>
@@ -325,15 +240,12 @@
             initializeApp();
         });
 
-        let isLoginMode = false; // Empieza en modo registro
-        let supabaseClient;
-
         function initializeApp() {
             const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
             
-            supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-            startApplication();
+            const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+            startApplication(supabaseClient);
         }
 
         // Función para activar el selector nativo
@@ -351,232 +263,153 @@
             }
         }
 
-        function togglePasswordVisibility() {
-            const passwordInput = document.getElementById('userPassword');
-            const toggleButton = document.querySelector('.toggle-password');
-            
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                toggleButton.textContent = '🙈';
-            } else {
-                passwordInput.type = 'password';
-                toggleButton.textContent = '👁️';
-            }
-        }
-
-        function toggleConfirmPasswordVisibility() {
-            const passwordInput = document.getElementById('confirmPassword');
-            const toggleButtons = document.querySelectorAll('.toggle-password');
-            const toggleButton = toggleButtons[1]; // Segundo botón
-            
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                toggleButton.textContent = '🙈';
-            } else {
-                passwordInput.type = 'password';
-                toggleButton.textContent = '👁️';
-            }
-        }
-
-        function extractNameFromEmail(email) {
-            let username = email.split('@')[0];
-            username = username.replace(/[0-9._-]/g, ' ');
-            
-            let nameParts = username.split(/[.-\s]+/).filter(part => part.length > 0);
-            
-            if (nameParts.length >= 2) {
-                return {
-                    nombre: capitalizeFirst(nameParts[0]),
-                    apellido: capitalizeFirst(nameParts.slice(1).join(' '))
-                };
-            } else if (nameParts.length === 1) {
-                return {
-                    nombre: capitalizeFirst(nameParts[0]),
-                    apellido: 'Usuario'
-                };
-            } else {
-                return {
-                    nombre: 'Cliente',
-                    apellido: 'Barbería'
-                };
-            }
-        }
-
-        function capitalizeFirst(str) {
-            return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-        }
-
-        // SQL PARA AGREGAR A LA BASE DE DATOS:
-        // ALTER TABLE clientes ADD COLUMN contraseña VARCHAR(255);
-        // ALTER TABLE clientes ADD COLUMN email_confirmado BOOLEAN DEFAULT false;
-        // ALTER TABLE clientes ADD COLUMN ultimo_login TIMESTAMP;
-
-        async function saveUserToClients(userData, password) {
-            try {
-                const { data: existingUser } = await supabaseClient
-                    .from('clientes')
-                    .select('id, email_confirmado')
-                    .eq('email', userData.email)
-                    .single();
-
-                if (!existingUser) {
-                    const { error: insertError } = await supabaseClient
-                        .from('clientes')
-                        .insert([{
-                            id: userData.id,
-                            nombre: userData.nombre,
-                            apellido: userData.apellido,
-                            email: userData.email,
-                            contraseña: password, // Guardar contraseña
-                            rol: 'cliente',
-                            email_confirmado: false, // Inicialmente no confirmado
-                            creado_en: new Date().toISOString(),
-                            ultimo_login: new Date().toISOString()
-                        }]);
-
-                    if (insertError) {
-                        console.error('Error insertando cliente:', insertError);
-                        return false;
-                    } else {
-                        console.log('✅ Usuario registrado en clientes:', userData.email);
-                        return true;
-                    }
-                } else {
-                    // Actualizar último login y contraseña si es necesario
-                    const { error: updateError } = await supabaseClient
-                        .from('clientes')
-                        .update({
-                            ultimo_login: new Date().toISOString(),
-                            contraseña: password // Actualizar contraseña si cambió
-                        })
-                        .eq('email', userData.email);
-
-                    if (updateError) {
-                        console.error('Error actualizando cliente:', updateError);
-                    }
-                    
-                    console.log('✅ Usuario ya existe en clientes:', userData.email);
-                    return true;
-                }
-            } catch (error) {
-                console.error('Error guardando usuario:', error);
-                return false;
-            }
-        }
-
-        async function markEmailAsConfirmed(email) {
-            try {
-                const { error } = await supabaseClient
-                    .from('clientes')
-                    .update({ 
-                        email_confirmado: true,
-                        ultimo_login: new Date().toISOString()
-                    })
-                    .eq('email', email);
-
-                if (error) {
-                    console.error('Error marcando email como confirmado:', error);
-                    return false;
-                }
-                console.log('✅ Email marcado como confirmado:', email);
-                return true;
-            } catch (error) {
-                console.error('Error:', error);
-                return false;
-            }
-        }
-
-        async function checkIfEmailConfirmed(email) {
-            try {
-                const { data, error } = await supabaseClient
-                    .from('clientes')
-                    .select('email_confirmado')
-                    .eq('email', email)
-                    .single();
-
-                if (error) {
-                    console.error('Error verificando email:', error);
-                    return false;
-                }
-                
-                return data?.email_confirmado || false;
-            } catch (error) {
-                console.error('Error:', error);
-                return false;
-            }
-        }
-
-        function showAlert(message, type = 'error') {
-            const alertDiv = document.getElementById('alert');
-            alertDiv.textContent = message;
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.style.display = 'block';
-            
-            setTimeout(() => {
-                alertDiv.style.display = 'none';
-            }, 5000);
-        }
-
-        function startApplication() {
-            const authForm = document.getElementById('authForm');
-            const toggleFormBtn = document.getElementById('toggleForm');
+        function startApplication(supabase) {
+            const emailForm = document.getElementById('emailForm');
             const userEmailInput = document.getElementById('userEmail');
-            const userPasswordInput = document.getElementById('userPassword');
-            const confirmPasswordInput = document.getElementById('confirmPassword');
-            const passwordGroup = document.getElementById('passwordGroup');
-            const confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
-            const submitBtn = document.getElementById('submitBtn');
-            const magicLinkBtn = document.getElementById('magicLinkBtn');
-            const formTitle = document.getElementById('formTitle');
-            const infoText = document.getElementById('infoText');
+            const alertDiv = document.getElementById('alert');
             const loadingDiv = document.getElementById('loading');
 
-            // Configurar el toggle entre login y registro
-            toggleFormBtn.addEventListener('click', function() {
-                isLoginMode = !isLoginMode;
-                
-                if (isLoginMode) {
-                    formTitle.textContent = 'Iniciar Sesión';
-                    submitBtn.innerHTML = '🔑 Iniciar Sesión';
-                    toggleFormBtn.textContent = '¿No tienes cuenta? Regístrate aquí';
-                    infoText.textContent = 'Usa tu correo y contraseña para acceder';
-                    confirmPasswordGroup.style.display = 'none';
-                    magicLinkBtn.style.display = 'block';
-                } else {
-                    formTitle.textContent = 'Crear Cuenta';
-                    submitBtn.innerHTML = '📝 Crear Cuenta';
-                    toggleFormBtn.textContent = '¿Ya tienes cuenta? Inicia sesión aquí';
-                    infoText.textContent = 'Crea tu cuenta con correo y contraseña';
-                    confirmPasswordGroup.style.display = 'block';
-                    magicLinkBtn.style.display = 'none';
-                }
-            });
+            // URL CORREGIDA - Usa solo el dominio base
+            const REDIRECT_URL = 'https://carlosfc123.github.io/barber/';
 
-            // Botón de Magic Link para usuarios existentes
-            magicLinkBtn.addEventListener('click', async function() {
-                const email = userEmailInput.value.trim().toLowerCase();
+            // Configurar el input
+            userEmailInput.setAttribute('autocomplete', 'email');
+            userEmailInput.setAttribute('name', 'email');
+            userEmailInput.setAttribute('inputmode', 'email');
+
+            // Función para extraer nombre y apellido del email
+            function extractNameFromEmail(email) {
+                let username = email.split('@')[0];
+                username = username.replace(/[0-9._-]/g, ' ');
                 
+                let nameParts = username.split(/[.-\s]+/).filter(part => part.length > 0);
+                
+                if (nameParts.length >= 2) {
+                    return {
+                        nombre: capitalizeFirst(nameParts[0]),
+                        apellido: capitalizeFirst(nameParts.slice(1).join(' '))
+                    };
+                } else if (nameParts.length === 1) {
+                    return {
+                        nombre: capitalizeFirst(nameParts[0]),
+                        apellido: 'Usuario'
+                    };
+                } else {
+                    return {
+                        nombre: 'Cliente',
+                        apellido: 'Barbería'
+                    };
+                }
+            }
+
+            function capitalizeFirst(str) {
+                return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+            }
+
+            // Función para guardar usuario en la tabla clientes
+            async function saveUserToClients(userData) {
+                try {
+                    const { data: existingUser } = await supabase
+                        .from('clientes')
+                        .select('id')
+                        .eq('email', userData.email)
+                        .single();
+
+                    if (!existingUser) {
+                        const { error: insertError } = await supabase
+                            .from('clientes')
+                            .insert([{
+                                id: userData.id,
+                                nombre: userData.nombre,
+                                apellido: userData.apellido,
+                                email: userData.email,
+                                rol: 'cliente',
+                                creado_en: new Date().toISOString()
+                            }]);
+
+                        if (insertError && insertError.code !== '23505') {
+                            console.error('Error insertando cliente:', insertError);
+                            return false;
+                        } else {
+                            console.log('✅ Usuario guardado en clientes:', userData.email);
+                            return true;
+                        }
+                    } else {
+                        console.log('✅ Usuario ya existe en clientes:', userData.email);
+                        return true;
+                    }
+                } catch (error) {
+                    console.error('Error guardando usuario:', error);
+                    return false;
+                }
+            }
+
+            // Función para mostrar alertas
+            function showAlert(message, type = 'error') {
+                alertDiv.textContent = message;
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.style.display = 'block';
+                
+                setTimeout(() => {
+                    alertDiv.style.display = 'none';
+                }, 5000);
+            }
+
+            // Verificar si ya está autenticado
+            async function checkAuth() {
+                try {
+                    loadingDiv.style.display = 'block';
+                    
+                    const { data: { session }, error } = await supabase.auth.getSession();
+                    
+                    if (error) throw error;
+                    
+                    if (session && session.user) {
+                        console.log('✅ Usuario autenticado:', session.user.email);
+                        
+                        // Guardar usuario en la base de datos
+                        const userData = {
+                            id: session.user.id,
+                            nombre: session.user.user_metadata?.nombre || extractNameFromEmail(session.user.email).nombre,
+                            apellido: session.user.user_metadata?.apellido || extractNameFromEmail(session.user.email).apellido,
+                            email: session.user.email
+                        };
+                        
+                        const saved = await saveUserToClients(userData);
+                        
+                        if (saved) {
+                            // Redirigir a la página principal
+                            window.location.href = 'cliente.html';
+                        } else {
+                            showAlert('❌ Error al guardar usuario en la base de datos');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error en checkAuth:', error);
+                } finally {
+                    loadingDiv.style.display = 'none';
+                }
+            }
+
+            // Manejar envío del formulario
+            emailForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const email = userEmailInput.value.trim().toLowerCase();
+
                 if (!email) {
                     showAlert('Por favor ingresa tu correo electrónico');
                     return;
                 }
 
                 try {
-                    loadingDiv.style.display = 'block';
-                    
-                    // Verificar si el email ya está confirmado
-                    const emailConfirmed = await checkIfEmailConfirmed(email);
-                    
-                    if (emailConfirmed) {
-                        showAlert('✅ Tu email ya está confirmado. Usa tu contraseña para iniciar sesión.', 'success');
-                        return;
-                    }
-
                     // Extraer nombre y apellido del email
                     const { nombre, apellido } = extractNameFromEmail(email);
 
-                    // Enviar Magic Link solo si no está confirmado
-                    const { data, error } = await supabaseClient.auth.signInWithOtp({
+                    showAlert('⏳ Enviando enlace de confirmación...', 'success');
+
+                    // Enviar Magic Link con la URL CORREGIDA
+                    const { data, error } = await supabase.auth.signInWithOtp({
                         email: email,
                         options: {
                             data: {
@@ -584,135 +417,28 @@
                                 apellido: apellido,
                                 rol: 'cliente'
                             },
-                            emailRedirectTo: 'https://carlosfc123.github.io/barber/'
+                            emailRedirectTo: REDIRECT_URL
                         }
                     });
 
                     if (error) throw error;
 
-                    showAlert('✅ ¡Revisa tu correo! Te hemos enviado un enlace de confirmación.', 'success');
+                    showAlert('✅ ¡Revisa tu correo! Te hemos enviado un enlace de confirmación. Haz clic en "Log In" para iniciar sesión.', 'success');
+                    
+                    // Limpiar formulario
+                    emailForm.reset();
 
                 } catch (error) {
                     console.error('Error en Magic Link:', error);
                     showAlert('❌ Error: ' + error.message);
-                } finally {
-                    loadingDiv.style.display = 'none';
                 }
             });
 
-            // Manejar envío del formulario
-            authForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const email = userEmailInput.value.trim().toLowerCase();
-                const password = userPasswordInput.value;
-                const confirmPassword = confirmPasswordInput.value;
-
-                if (!email) {
-                    showAlert('Por favor ingresa tu correo electrónico');
-                    return;
-                }
-
-                if (!password) {
-                    showAlert('Por favor ingresa tu contraseña');
-                    return;
-                }
-
-                if (!isLoginMode && password !== confirmPassword) {
-                    showAlert('Las contraseñas no coinciden');
-                    return;
-                }
-
-                if (password.length < 6) {
-                    showAlert('La contraseña debe tener al menos 6 caracteres');
-                    return;
-                }
-
-                try {
-                    loadingDiv.style.display = 'block';
-
-                    if (isLoginMode) {
-                        // INICIAR SESIÓN
-                        const { data, error } = await supabaseClient.auth.signInWithPassword({
-                            email: email,
-                            password: password
-                        });
-
-                        if (error) throw error;
-
-                        // Marcar email como confirmado al iniciar sesión exitosamente
-                        await markEmailAsConfirmed(email);
-                        
-                        showAlert('✅ ¡Inicio de sesión exitoso!', 'success');
-                        
-                        // Redirigir después de login exitoso
-                        setTimeout(() => {
-                            window.location.href = 'cliente.html';
-                        }, 1000);
-
-                    } else {
-                        // REGISTRARSE
-                        // Extraer nombre y apellido del email
-                        const { nombre, apellido } = extractNameFromEmail(email);
-
-                        // Registrar usuario en Auth
-                        const { data, error } = await supabaseClient.auth.signUp({
-                            email: email,
-                            password: password,
-                            options: {
-                                data: {
-                                    nombre: nombre,
-                                    apellido: apellido,
-                                    rol: 'cliente'
-                                },
-                                emailRedirectTo: 'https://carlosfc123.github.io/barber/'
-                            }
-                        });
-
-                        if (error) throw error;
-
-                        // Guardar usuario en la tabla clientes
-                        if (data.user) {
-                            const userData = {
-                                id: data.user.id,
-                                nombre: nombre,
-                                apellido: apellido,
-                                email: email
-                            };
-                            
-                            const saved = await saveUserToClients(userData, password);
-                            
-                            if (saved) {
-                                showAlert('✅ ¡Cuenta creada! Revisa tu correo para confirmar tu email.', 'success');
-                                authForm.reset();
-                                // Cambiar a modo login
-                                isLoginMode = true;
-                                formTitle.textContent = 'Iniciar Sesión';
-                                submitBtn.innerHTML = '🔑 Iniciar Sesión';
-                                toggleFormBtn.textContent = '¿No tienes cuenta? Regístrate aquí';
-                                confirmPasswordGroup.style.display = 'none';
-                                magicLinkBtn.style.display = 'block';
-                            }
-                        }
-                    }
-
-                } catch (error) {
-                    console.error('Error:', error);
-                    
-                    if (error.message.includes('Invalid login credentials')) {
-                        showAlert('❌ Correo o contraseña incorrectos');
-                    } else if (error.message.includes('Email not confirmed')) {
-                        showAlert('❌ Por favor confirma tu email primero. Revisa tu bandeja de entrada.');
-                    } else {
-                        showAlert('❌ Error: ' + error.message);
-                    }
-                } finally {
-                    loadingDiv.style.display = 'none';
-                }
-            });
-
-            // Verificar si ya está autenticado al cargar
+            // Verificar autenticación al cargar
             checkAuth();
+
+            // También verificar cada 3 segundos
+            
 
             // Activar el selector nativo automáticamente al cargar
             setTimeout(() => {
@@ -720,34 +446,6 @@
                 activateNativePicker();
             }, 1000);
         }
-
-        async function checkAuth() {
-            try {
-                const { data: { session }, error } = await supabaseClient.auth.getSession();
-                
-                if (error) throw error;
-                
-                if (session && session.user) {
-                    console.log('✅ Usuario ya autenticado:', session.user.email);
-                    
-                    // Marcar email como confirmado
-                    await markEmailAsConfirmed(session.user.email);
-                    
-                    // Redirigir directamente
-                    window.location.href = 'cliente.html';
-                }
-            } catch (error) {
-                console.error('Error en checkAuth:', error);
-            }
-        }
-
-        // PARA CERRAR SESIÓN (agrega esto en cliente.html):
-        // async function cerrarSesion() {
-        //     const { error } = await supabaseClient.auth.signOut();
-        //     if (!error) {
-        //         window.location.href = 'index.html';
-        //     }
-        // }
     </script>
 </body>
 </html>
