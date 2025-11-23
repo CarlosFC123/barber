@@ -1872,8 +1872,10 @@ function programarEliminacionesAutomaticas(citas) {
     });
 }
 
+
 // Función para eliminar automáticamente sin confirmación
-async function eliminarCitasAutomaticamente() {
+// FUNCIÓN MEJORADA - Eliminar citas automáticamente
+async function eliminarCitaAutomaticamente() {
     try {
         console.log('🔄 Verificando citas para eliminación automática...');
         
@@ -1884,17 +1886,17 @@ async function eliminarCitasAutomaticamente() {
         const fechaLimite = limiteTiempo.toISOString().split('T')[0];
         const horaLimite = `${String(limiteTiempo.getHours()).padStart(2, '0')}:${String(limiteTiempo.getMinutes()).padStart(2, '0')}`;
         
-        console.log('🗑️ Buscando citas para eliminar:', {
+        console.log('🗑️ Buscando citas para eliminar automáticamente:', {
+            ahora: ahora.toLocaleString('es-MX'),
             limite_tiempo: limiteTiempo.toLocaleString('es-MX'),
             fecha_limite: fechaLimite,
             hora_limite: horaLimite
         });
 
-        // Buscar citas completadas o canceladas que tengan más de 2 horas
+        // Buscar TODAS las citas completadas o canceladas que tengan más de 2 horas
         const { data: citasParaEliminar, error } = await supabase
             .from('citas')
-            .select('id, fecha, hora, estado, creado_en')
-            .eq('cliente_id', usuarioActual.id)
+            .select('id, fecha, hora, estado, cliente_id')
             .in('estado', ['completada', 'cancelada'])
             .or(`fecha.lt.${fechaLimite},and(fecha.eq.${fechaLimite},hora.lt.${horaLimite})`);
 
@@ -1903,26 +1905,42 @@ async function eliminarCitasAutomaticamente() {
         if (citasParaEliminar && citasParaEliminar.length > 0) {
             console.log(`🗑️ Encontradas ${citasParaEliminar.length} citas para eliminar automáticamente`);
             
-            const citasIdsParaEliminar = citasParaEliminar.map(cita => cita.id);
+            // Filtrar solo las citas del usuario actual
+            const citasUsuarioActual = citasParaEliminar.filter(cita => 
+                cita.cliente_id === usuarioActual.id
+            );
             
-            // Log detallado
-            citasParaEliminar.forEach(cita => {
-                console.log(`   🗑️ Eliminando cita ${cita.id}: ${cita.fecha} ${cita.hora} | Estado: ${cita.estado}`);
-            });
+            console.log(`🗑️ ${citasUsuarioActual.length} citas del usuario actual para eliminar`);
             
-            // Eliminar las citas
-            const { error: deleteError } = await supabase
-                .from('citas')
-                .delete()
-                .in('id', citasIdsParaEliminar);
+            if (citasUsuarioActual.length > 0) {
+                const citasIdsParaEliminar = citasUsuarioActual.map(cita => cita.id);
+                
+                // Log detallado
+                citasUsuarioActual.forEach(cita => {
+                    console.log(`   🗑️ Eliminando cita ${cita.id}: ${cita.fecha} ${cita.hora} | Estado: ${cita.estado}`);
+                });
+                
+                // Eliminar las citas
+                const { error: deleteError } = await supabase
+                    .from('citas')
+                    .delete()
+                    .in('id', citasIdsParaEliminar);
 
-            if (deleteError) throw deleteError;
+                if (deleteError) throw deleteError;
 
-            console.log(`✅ ${citasParaEliminar.length} citas eliminadas automáticamente`);
-            
-            // Recargar la lista si estamos en esa pestaña
-            if (document.getElementById('mis-citas').classList.contains('active')) {
-                await cargarMisCitas();
+                console.log(`✅ ${citasUsuarioActual.length} citas eliminadas automáticamente`);
+                
+                // Mostrar alerta si estamos en la pestaña de citas
+                if (document.getElementById('mis-citas').classList.contains('active')) {
+                    showAlert(`✅ ${citasUsuarioActual.length} citas antiguas eliminadas automáticamente`, 'success');
+                }
+                
+                // Recargar la lista si estamos en esa pestaña
+                if (document.getElementById('mis-citas').classList.contains('active')) {
+                    await cargarMisCitas();
+                }
+            } else {
+                console.log('✅ No hay citas del usuario actual para eliminar');
             }
         } else {
             console.log('✅ No hay citas para eliminar automáticamente');
@@ -1932,7 +1950,6 @@ async function eliminarCitasAutomaticamente() {
         console.error('❌ Error eliminando citas automáticamente:', error);
     }
 }
-
 // Agregar estas funciones al objeto global app
 
 
