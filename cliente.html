@@ -1481,9 +1481,8 @@ async function verificarYActualizarEstadosCitas() {
 }
 
 
-      async function cargarMisCitas() {
+async function cargarMisCitas() {
     try {
-            
         const { data: citas, error } = await supabase
             .from('citas')
             .select(`
@@ -1508,7 +1507,16 @@ async function verificarYActualizarEstadosCitas() {
                 </div>
             `;
         } else {
-            listaCitas.innerHTML = citas.map(cita => {
+            // AGREGAR BOTÓN DE AGENDAR NUEVA CITA AQUÍ
+            listaCitas.innerHTML = `
+                <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
+                    <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
+                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 24px;">
+                        📅 Agendar Nueva Cita
+                    </button>
+                </div>
+            ` + citas.map(cita => {
+                // ... (el resto del código de mapeo de citas permanece igual)
                 const fechaCreado = new Date(cita.creado_en);
                 const fechaLocal = fechaCreado.toLocaleString('es-MX');
                 
@@ -1571,32 +1579,32 @@ async function verificarYActualizarEstadosCitas() {
                     }
                     
                 } else if ((cita.estado === 'cancelada' || cita.estado === 'completada')) {
-    // CONTADOR 2: Tiempo para eliminación automática (2 horas después del estado)
-    const fechaActualizacion = new Date(cita.actualizado_en || cita.creado_en);
-    const tiempoEliminacion = new Date(fechaActualizacion.getTime() + (2 * 60 * 60 * 1000));
-    const tiempoRestanteEliminacion = tiempoEliminacion - ahora;
-    
-    if (tiempoRestanteEliminacion > 0) {
-        const horas = Math.floor(tiempoRestanteEliminacion / (1000 * 60 * 60));
-        const minutos = Math.floor((tiempoRestanteEliminacion % (1000 * 60 * 60)) / (1000 * 60));
-        
-        contadorHTML = `
-            <p class="contador-eliminacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center;">
-                <strong>✅ Cita ${cita.estado} - Se eliminará en:</strong> ${horas}h ${minutos}m
-            </p>
-        `;
-        
-        // Programar eliminación automática individual
-        actualizarContadorEliminacion(cita.id, fechaCita, cita.estado, cita.actualizado_en || cita.creado_en);
-    } else {
-        // Ya pasaron 2 horas, mostrar que se eliminará pronto
-        contadorHTML = `
-            <p class="contador-eliminacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center;">
-                <strong>🗑️ Esta cita se eliminará pronto</strong>
-            </p>
-        `;
-    }
-}
+                    // CONTADOR 2: Tiempo para eliminación automática (2 horas después del estado)
+                    const fechaActualizacion = new Date(cita.actualizado_en || cita.creado_en);
+                    const tiempoEliminacion = new Date(fechaActualizacion.getTime() + (2 * 60 * 60 * 1000));
+                    const tiempoRestanteEliminacion = tiempoEliminacion - ahora;
+                    
+                    if (tiempoRestanteEliminacion > 0) {
+                        const horas = Math.floor(tiempoRestanteEliminacion / (1000 * 60 * 60));
+                        const minutos = Math.floor((tiempoRestanteEliminacion % (1000 * 60 * 60)) / (1000 * 60));
+                        
+                        contadorHTML = `
+                            <p class="contador-eliminacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center;">
+                                <strong>✅ Cita ${cita.estado} - Se eliminará en:</strong> ${horas}h ${minutos}m
+                            </p>
+                        `;
+                        
+                        // Programar eliminación automática individual
+                        actualizarContadorEliminacion(cita.id, fechaCita, cita.estado, cita.actualizado_en || cita.creado_en);
+                    } else {
+                        // Ya pasaron 2 horas, mostrar que se eliminará pronto
+                        contadorHTML = `
+                            <p class="contador-eliminacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center;">
+                                <strong>🗑️ Esta cita se eliminará pronto</strong>
+                            </p>
+                        `;
+                    }
+                }
                 
                 return `
                     <div class="cita-card ${cita.estado}" id="cita-${cita.id}">
