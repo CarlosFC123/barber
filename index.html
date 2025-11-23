@@ -399,51 +399,51 @@
 
             // Inicio de sesión con Google
             googleBtn.addEventListener('click', async function() {
-                try {
-                    loadingDiv.style.display = 'block';
-                    loadingDiv.textContent = '⏳ Redirigiendo a Google...';
-                    googleBtn.disabled = true;
+            try {
+                loadingDiv.style.display = 'block';
+                loadingDiv.textContent = '⏳ Redirigiendo a Google...';
+                googleBtn.disabled = true;
 
-                    // TIMEOUT DE SEGURIDAD: Si después de 10 segundos no hay redirección, limpiar estado
-                    const safetyTimeout = setTimeout(() => {
-                        console.log('⚠️ Timeout de seguridad: Limpiando estado de carga');
-                        loadingDiv.style.display = 'none';
-                        googleBtn.disabled = false;
-                    }, 3000); // 10 segundos
-
-                    const { data, error } = await supabaseClient.auth.signInWithOAuth({
-                        provider: 'google',
-                        options: {
-                            redirectTo: 'https://carlosfc123.github.io/barber/',
-                            queryParams: {
-                                access_type: 'offline',
-                                prompt: 'consent'
-                            }
-                        }
-                    });
-
-                    // Limpiar timeout si la función retornó (usuario canceló)
-                    clearTimeout(safetyTimeout);
-
-                    if (error) throw error;
-
-                    // Si no hay error pero tampoco hay redirección (usuario canceló en el popup)
-                    // El intervalo de checkAuth se encargará de limpiar eventualmente
-
-                } catch (error) {
-                    console.error('Error con Google OAuth:', error);
-                    
-                    // LIMPIAR ESTADO EN CASO DE ERROR
+                // TIMEOUT DE SEGURIDAD: Si después de 10 segundos no hay redirección, limpiar estado
+                const safetyTimeout = setTimeout(() => {
+                    console.log('⚠️ Timeout de seguridad: Limpiando estado de carga');
                     loadingDiv.style.display = 'none';
                     googleBtn.disabled = false;
-                    
-                    if (error.message.includes('provider is not enabled')) {
-                        showAlert('❌ Google OAuth no está configurado. Contacta al administrador.');
-                    } else {
-                        showAlert('❌ Error al iniciar sesión con Google: ' + error.message);
+                }, 10000); // 10 segundos
+
+                const { data, error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: 'https://carlosfc123.github.io/barber/',
+                        queryParams: {
+                            access_type: 'offline',
+                            prompt: 'consent'
+                        }
                     }
+                });
+
+                // Limpiar timeout si la función retornó (usuario canceló)
+                clearTimeout(safetyTimeout);
+
+                if (error) throw error;
+
+                // Si no hay error pero tampoco hay redirección (usuario canceló en el popup)
+                // El intervalo de checkAuth se encargará de limpiar eventualmente
+
+            } catch (error) {
+                console.error('Error con Google OAuth:', error);
+                
+                // LIMPIAR ESTADO EN CASO DE ERROR
+                loadingDiv.style.display = 'none';
+                googleBtn.disabled = false;
+                
+                if (error.message.includes('provider is not enabled')) {
+                    showAlert('❌ Google OAuth no está configurado. Contacta al administrador.');
+                } else {
+                    showAlert('❌ Error al iniciar sesión con Google: ' + error.message);
                 }
-            });
+            }
+        });
 
 
             // Manejar envío del formulario de magic link
@@ -494,73 +494,46 @@
             checkAuthAndProcessUser();
         }
 
-       async function checkAuthAndProcessUser() {
-    try {
-        const { data: { session }, error } = await supabaseClient.auth.getSession();
-        
-        if (error) throw error;
-        
-        if (session && session.user) {
-            console.log('✅ Usuario autenticado:', session.user);
-            
-            // Preparar datos del usuario para guardar en la base de datos
-            const userData = {
-                id: session.user.id,
-                nombre: session.user.user_metadata?.nombre || 
-                       session.user.user_metadata?.full_name?.split(' ')[0] || 
-                       session.user.user_metadata?.given_name ||
-                       'Usuario',
-                apellido: session.user.user_metadata?.apellido || 
-                        session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
-                        session.user.user_metadata?.family_name ||
-                        'Google',
-                email: session.user.email,
-                proveedor: session.user.app_metadata?.provider || 'google',
-                avatar_url: session.user.user_metadata?.avatar_url || 
-                          session.user.user_metadata?.picture
-            };
-
-            // Guardar usuario en la base de datos
-            const saved = await saveUserToClients(userData);
-            
-            if (saved) {
-                // LIMPIAR ESTADO ANTES DE REDIRIGIR
-                loadingDiv.style.display = 'none';
-                googleBtn.disabled = false;
+        async function checkAuthAndProcessUser() {
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
                 
-                // Redirigir a la página principal
-                window.location.href = 'cliente.html';
-            } else {
-                showAlert('❌ Error al guardar usuario en la base de datos');
-                loadingDiv.style.display = 'none';
-                googleBtn.disabled = false;
+                if (error) throw error;
+                
+                if (session && session.user) {
+                    console.log('✅ Usuario autenticado:', session.user);
+                    
+                    // Preparar datos del usuario para guardar en la base de datos
+                    const userData = {
+                        id: session.user.id,
+                        nombre: session.user.user_metadata?.nombre || 
+                               session.user.user_metadata?.full_name?.split(' ')[0] || 
+                               session.user.user_metadata?.given_name ||
+                               'Usuario',
+                        apellido: session.user.user_metadata?.apellido || 
+                                session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+                                session.user.user_metadata?.family_name ||
+                                'Google',
+                        email: session.user.email,
+                        proveedor: session.user.app_metadata?.provider || 'google',
+                        avatar_url: session.user.user_metadata?.avatar_url || 
+                                  session.user.user_metadata?.picture
+                    };
+
+                    // Guardar usuario en la base de datos
+                    const saved = await saveUserToClients(userData);
+                    
+                    if (saved) {
+                        // Redirigir a la página principal
+                        window.location.href = 'cliente.html';
+                    } else {
+                        showAlert('❌ Error al guardar usuario en la base de datos');
+                    }
+                }
+            } catch (error) {
+                console.error('Error en checkAuth:', error);
             }
-        } else {
-            // LIMPIAR ESTADO SI NO HAY SESIÓN (usuario canceló)
-            loadingDiv.style.display = 'none';
-            googleBtn.disabled = false;
         }
-    } catch (error) {
-        console.error('Error en checkAuth:', error);
-        // LIMPIAR ESTADO EN CASO DE ERROR
-        loadingDiv.style.display = 'none';
-        googleBtn.disabled = false;
-    }
-}
-
-function clearLoadingState() {
-    const loadingDiv = document.getElementById('loading');
-    const googleBtn = document.getElementById('googleBtn');
-    
-    loadingDiv.style.display = 'none';
-    googleBtn.disabled = false;
-}
-
-document.addEventListener('click', function(event) {
-    if (!event.target.closest('#googleBtn') && !event.target.closest('.loading')) {
-        clearLoadingState();
-    }
-});
 
         // Verificar autenticación cada 2 segundos (por si acaso)
         setInterval(checkAuthAndProcessUser, 2000);
