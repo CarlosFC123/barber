@@ -534,6 +534,21 @@
                 console.error('Error en checkAuth:', error);
             }
         }
+        function clearLoadingState() {
+    const loadingDiv = document.getElementById('loading');
+    const googleBtn = document.getElementById('googleBtn');
+    
+    loadingDiv.style.display = 'none';
+    googleBtn.disabled = false;
+}
+
+// Limpiar estado si el usuario hace clic fuera del botón
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('#googleBtn') && !event.target.closest('.loading')) {
+        clearLoadingState();
+    }
+});
+
 
         // Verificar autenticación cada 2 segundos (por si acaso)
         setInterval(checkAuthAndProcessUser, 2000);
