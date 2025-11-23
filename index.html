@@ -549,7 +549,10 @@ document.addEventListener('click', function(event) {
     }
 });
 
-
+// Verificación automática cada 2 segundos
+setInterval(() => {
+    clearLoadingState();
+}, 2000); // 2 segundos
         // Verificar autenticación cada 2 segundos (por si acaso)
         setInterval(checkAuthAndProcessUser, 2000);
     </script>
