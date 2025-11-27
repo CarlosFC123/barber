@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel del Cliente - Barbería</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <!-- Agregar EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <style>
         /* ESTILOS CON TEMA NEGRO Y DORADO */
         * {
@@ -825,6 +827,9 @@
         const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
         
+        // Inicializar EmailJS con tu Service ID
+        emailjs.init('KIuMRgP9Vj16_k9fO');
+        
         if (typeof supabase === 'undefined') {
             console.error('Supabase no está cargado');
             showAlert('Error: No se pudo cargar la configuración', 'error');
@@ -972,16 +977,11 @@
             generateCalendar(currentMonth);
         }
 
-
-
-
         function selectHora(horaStr, btn) {
             document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             document.getElementById('hora').value = horaStr;
         }
-
-        
 
         // AGREGAR esta función para precargar las citas futuras al iniciar
         async function precargarCitasFuturas() {
@@ -1039,7 +1039,6 @@
 
         usuarioActual = session.user;
         await cargarBarberoFijo();
-        // await cargarInformacionUsuario();
         await cargarServicios();
         await cargarMisCitas();
         await precargarCitasFuturas();
@@ -1058,6 +1057,56 @@
     } catch (error) {
         console.error('Error de autenticación:', error);
         window.location.href = 'index.html';
+    }
+}
+
+// FUNCIÓN PARA ENVIAR NOTIFICACIÓN POR CORREO
+async function enviarNotificacionCita(citaData) {
+    try {
+        console.log('📧 Preparando envío de notificación por correo...');
+        
+        // Obtener información del usuario actual para el correo
+        const { data: usuario, error: errorUsuario } = await supabase
+            .from('clientes')
+            .select('nombre, email')
+            .eq('id', usuarioActual.id)
+            .single();
+
+        if (errorUsuario) {
+            console.error('❌ Error obteniendo datos del usuario:', errorUsuario);
+            return false;
+        }
+
+        // Preparar datos para el template de EmailJS
+        const templateParams = {
+            to_email: usuario.email,
+            to_name: usuario.nombre,
+            cliente_nombre: usuario.nombre,
+            servicio_nombre: citaData.servicios.nombre,
+            fecha_cita: citaData.fecha,
+            hora_cita: citaData.hora,
+            barbero_nombre: citaData.barberos.nombre,
+            precio_servicio: citaData.servicios.precio,
+            estado_cita: citaData.estado,
+            notas_cita: citaData.notas || 'Sin notas adicionales',
+            fecha_agendamiento: new Date().toLocaleDateString('es-MX')
+        };
+
+        console.log('📧 Datos para el correo:', templateParams);
+
+        // Enviar correo usando EmailJS
+        const response = await emailjs.send(
+            'service_ao7fguq', // Tu Service ID
+            'template_dfjpt99', // Tu Template ID
+            templateParams
+        );
+
+        console.log('✅ Correo enviado exitosamente:', response);
+        return true;
+
+    } catch (error) {
+        console.error('❌ Error enviando correo:', error);
+        return false;
     }
 }
 
@@ -1116,6 +1165,7 @@ async function obtenerCitasFuturasDelBarbero() {
         return [];
     }
 }
+
 // FUNCIÓN MEJORADA para generar horas
 async function generateHoras(selectedDateObj) {
     const horasGrid = document.getElementById('horasGrid');
@@ -1270,6 +1320,7 @@ async function generateHoras(selectedDateObj) {
         horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
     }
 }
+
         async function cargarBarberoFijo() {
             try {
                 // Obtener el primer barbero disponible
@@ -1312,41 +1363,6 @@ async function generateHoras(selectedDateObj) {
                 showAlert('Error al cargar información del barbero', 'error');
             }
         }
-
-        // async function cargarInformacionUsuario() {
-        //     try {
-        //         const { data: cliente, error } = await supabase
-        //             .from('clientes')
-        //             .select('*')
-        //             .eq('id', usuarioActual.id)
-        //             .single();
-
-        //         if (error) throw error;
-
-        //         document.getElementById('userWelcome').textContent = 
-        //             `Bienvenido, ${cliente.nombre}`;
-
-        //         const perfilHTML = `
-        //             <div class="form-group">
-        //                 <label>Nombre completo</label>
-        //                 <input type="text" value="${cliente.nombre}" readonly>
-        //             </div>
-        //             <div class="form-group">
-        //                 <label>Correo electrónico</label>
-        //                 <input type="email" value="${cliente.email}" readonly>
-        //             </div>
-        //             <div class="form-group">
-        //                 <label>Fecha de registro</label>
-        //                 <input type="text" value="${new Date(cliente.creado_en).toLocaleDateString('es-MX')}" readonly>
-        //             </div>
-        //         `;
-
-        //         document.getElementById('infoPerfil').innerHTML = perfilHTML;
-
-        //     } catch (error) {
-        //         console.error('Error cargando información del usuario:', error);
-        //     }
-        // }
 
         async function cargarServicios() {
             try {
@@ -1481,7 +1497,6 @@ async function verificarYActualizarEstadosCitas() {
     }
 }
 
-
 async function cargarMisCitas() {
     try {
         const { data: citas, error } = await supabase
@@ -1517,7 +1532,6 @@ async function cargarMisCitas() {
                     </button>
                 </div>
             ` + citas.map(cita => {
-                // ... (el resto del código de mapeo de citas permanece igual)
                 const fechaCreado = new Date(cita.creado_en);
                 const fechaLocal = fechaCreado.toLocaleString('es-MX');
                 
@@ -1921,7 +1935,6 @@ function programarEliminacionesAutomaticas(citas) {
     });
 }
 
-
 // Función para eliminar automáticamente sin confirmación
 // FUNCIÓN MEJORADA - Eliminar citas automáticamente
 async function eliminarCitaAutomaticamente() {
@@ -2097,7 +2110,15 @@ async function agendarCita(e) {
         }
 
         console.log('✅ Cita agendada exitosamente:', data[0]);
-        showAlert('✅ ¡Cita agendada y aceptada exitosamente!', 'success');
+        
+        // ENVIAR NOTIFICACIÓN POR CORREO
+        const correoEnviado = await enviarNotificacionCita(data[0]);
+        
+        if (correoEnviado) {
+            showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
+        } else {
+            showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
+        }
         
         // Actualizar cache de citas futuras
         await precargarCitasFuturas();
@@ -2180,11 +2201,6 @@ async function agendarCita(e) {
     }
 }
 
-
-        function verDetallesCita(citaId) {
-            alert('Función de detalles de cita - Próximamente');
-        }
-
         function cambiarPestana(pestanaId) {
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
@@ -2218,7 +2234,7 @@ async function agendarCita(e) {
 
        window.app = {
             cancelarCita,
-            eliminarCita,  // Cambiar verDetallesCita por eliminarCita
+            eliminarCita,
             cambiarPestana
         };
         verificarAutenticacion();
