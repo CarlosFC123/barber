@@ -850,6 +850,7 @@
             {
                 serviceId: 'service_ao7fguq',
                 templateId: 'template_dfjpt99',
+                templateRecordatorio: 'template_recordatorio',
                 publicKey: 'KIuMRgP9Vj16_k9fO',
                 nombre: 'Cuenta 1',
                 emailsEnviados: 0,
@@ -858,6 +859,7 @@
             {
                 serviceId: 'service_5mi5a07',
                 templateId: 'template_q8j6mu7', 
+                templateRecordatorio: 'template_recordatorio2',
                 publicKey: 'bg-7SCSktqD_9iOFD',
                 nombre: 'Cuenta 2',
                 emailsEnviados: 0,
@@ -866,6 +868,7 @@
             {
                 serviceId: 'service_wlw2gvp',
                 templateId: 'template_mnvu8ol',
+                templateRecordatorio: 'template_recordatorio3',
                 publicKey: 'DKOAjXyI-XNAOaWC4',
                 nombre: 'Cuenta 3',
                 emailsEnviados: 0,
@@ -874,6 +877,7 @@
             {
                 serviceId: 'service_1adxg18',
                 templateId: 'template_p7gwp5i',
+                templateRecordatorio: 'template_recordatorio4',
                 publicKey: '-E-CEpLzv_tqLjcv_',
                 nombre: 'Cuenta 4',
                 emailsEnviados: 0,
@@ -882,6 +886,7 @@
             {
                 serviceId: 'service_rptmo0d',
                 templateId: 'template_cwke83g',
+                templateRecordatorio: 'template_recordatorio5',
                 publicKey: 'YHV2nGkTbpUWHnAQ4',
                 nombre: 'Cuenta 5',
                 emailsEnviados: 0,
@@ -890,6 +895,7 @@
             {
                 serviceId: 'service_fhueg8f',
                 templateId: 'template_3ry8rgo',
+                templateRecordatorio: 'template_recordatorio6',
                 publicKey: 'f9JxFXrO-ubzgTyzd',
                 nombre: 'Cuenta 6',
                 emailsEnviados: 0,
@@ -914,6 +920,214 @@
             }
             console.log(`📧 EmailJS inicializado con: ${cuentasEmailJS[cuentaActualIndex].nombre}`);
         }
+
+       // FUNCIÓN PARA ENVIAR RECORDATORIO DE CITA
+async function enviarRecordatorioCita(citaData) {
+    try {
+        console.log('🔔 Preparando envío de recordatorio...');
+        
+        // Obtener información del cliente
+        const { data: usuario, error: errorUsuario } = await supabase
+            .from('clientes')
+            .select('nombre, email')
+            .eq('id', citaData.cliente_id)
+            .single();
+
+        if (errorUsuario) {
+            console.error('❌ Error obteniendo datos del usuario:', errorUsuario);
+            return false;
+        }
+
+        // Obtener la duración real del servicio
+        let duracionServicio = '40 minutos';
+        
+        if (citaData.servicios && citaData.servicios.duracion) {
+            duracionServicio = citaData.servicios.duracion;
+        } else {
+            const { data: servicio, error: errorServicio } = await supabase
+                .from('servicios')
+                .select('duracion')
+                .eq('id', citaData.servicio_id)
+                .single();
+                
+            if (!errorServicio && servicio && servicio.duracion) {
+                duracionServicio = servicio.duracion;
+            }
+        }
+
+        // Formatear la fecha
+        const fechaCita = new Date(citaData.fecha);
+        const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const fechaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
+
+        // Obtener la cuenta actual y su template de recordatorio
+        const cuentaActual = cuentasEmailJS[cuentaActualIndex];
+        const templateRecordatorio = cuentaActual.templateRecordatorio;
+        
+        console.log(`📧 Usando template de recordatorio: ${templateRecordatorio} de ${cuentaActual.nombre}`);
+
+        // Preparar datos para el template de recordatorio
+        const templateParams = {
+            to_email: usuario.email,
+            to_name: usuario.nombre,
+            cliente_nombre: usuario.nombre,
+            servicio_nombre: citaData.servicios.nombre,
+            fecha_cita: fechaFormateada,
+            hora_cita: citaData.hora,
+            barbero_nombre: citaData.barberos.nombre,
+            duracion_servicio: duracionServicio,
+            direccion_barberia: 'Calle 24-A, Tzucacab, Yucatán',
+            google_maps_link: 'https://www.google.com/maps?q=20.063818,-89.0476701'
+        };
+
+        console.log('🔔 Enviando recordatorio a:', usuario.email, 'con cuenta:', cuentaActual.nombre);
+
+        // Usar template de recordatorio específico de la cuenta actual
+        const resultado = await enviarEmailConRotacion({
+            ...templateParams,
+            templateId: templateRecordatorio // ✅ Template específico por cuenta
+        });
+
+        if (resultado.success) {
+            console.log('✅ Recordatorio enviado exitosamente con:', cuentaActual.nombre);
+            
+            // Marcar que ya se envió el recordatorio para esta cita
+            await supabase
+                .from('citas')
+                .update({ recordatorio_enviado: true })
+                .eq('id', citaData.id);
+                
+            return true;
+        } else {
+            console.error('❌ Error enviando recordatorio:', resultado.error);
+            return false;
+        }
+
+    } catch (error) {
+        console.error('❌ Error en proceso de envío de recordatorio:', error);
+        return false;
+    }
+}
+// FUNCIÓN PARA VERIFICAR Y PROGRAMAR RECORDATORIOS
+async function verificarYProgramarRecordatorios() {
+    try {
+        console.log('🔄 Verificando citas para recordatorios...');
+        
+        const ahora = new Date();
+        const unaHoraDespues = new Date(ahora.getTime() + (60 * 60 * 1000));
+        
+        // Formatear fechas para consulta
+        const fechaHoy = ahora.toISOString().split('T')[0];
+        const fechaManana = unaHoraDespues.toISOString().split('T')[0];
+        
+        console.log('📅 Buscando citas para recordatorios:', {
+            ahora: ahora.toLocaleString('es-MX'),
+            una_hora_despues: unaHoraDespues.toLocaleString('es-MX'),
+            fecha_hoy: fechaHoy,
+            fecha_manana: fechaManana
+        });
+
+        // Buscar citas que están programadas para dentro de 1 hora
+        const { data: citasParaRecordatorio, error } = await supabase
+            .from('citas')
+            .select(`
+                *,
+                servicios(nombre, precio, duracion),
+                barberos(nombre),
+                clientes(nombre, email)
+            `)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .or(`and(fecha.eq.${fechaHoy},hora.gte.${ahora.getHours()}:${ahora.getMinutes().toString().padStart(2, '0')},hora.lte.${unaHoraDespues.getHours()}:${unaHoraDespues.getMinutes().toString().padStart(2, '0')}),and(fecha.eq.${fechaManana},hora.lte.${unaHoraDespues.getHours()}:${unaHoraDespues.getMinutes().toString().padStart(2, '0')})`)
+            .eq('recordatorio_enviado', false);
+
+        if (error) {
+            console.error('❌ Error buscando citas para recordatorio:', error);
+            return;
+        }
+
+        if (citasParaRecordatorio && citasParaRecordatorio.length > 0) {
+            console.log(`🔔 Encontradas ${citasParaRecordatorio.length} citas para enviar recordatorio`);
+            
+            for (const cita of citasParaRecordatorio) {
+                console.log(`   📧 Enviando recordatorio para cita: ${cita.fecha} ${cita.hora} - ${cita.clientes.nombre}`);
+                
+                // Calcular el tiempo exacto para enviar el recordatorio (1 hora antes)
+                const [horaCita, minutoCita] = cita.hora.split(':');
+                const fechaHoraCita = new Date(cita.fecha);
+                fechaHoraCita.setHours(parseInt(horaCita), parseInt(minutoCita), 0, 0);
+                
+                const tiempoParaRecordatorio = fechaHoraCita.getTime() - ahora.getTime();
+                
+                if (tiempoParaRecordatorio <= (60 * 60 * 1000) && tiempoParaRecordatorio > 0) {
+                    // Programar envío exacto 1 hora antes
+                    setTimeout(async () => {
+                        console.log(`⏰ Ejecutando recordatorio para cita ${cita.id}`);
+                        await enviarRecordatorioCita(cita);
+                    }, tiempoParaRecordatorio - (60 * 60 * 1000));
+                    
+                    console.log(`   ⏰ Recordatorio programado para: ${new Date(ahora.getTime() + (tiempoParaRecordatorio - (60 * 60 * 1000))).toLocaleString('es-MX')}`);
+                } else {
+                    // Enviar inmediatamente si ya está dentro de la ventana de 1 hora
+                    console.log(`   🔔 Enviando recordatorio inmediatamente para cita ${cita.id}`);
+                    await enviarRecordatorioCita(cita);
+                }
+            }
+        } else {
+            console.log('✅ No hay citas que requieran recordatorio en este momento');
+        }
+
+    } catch (error) {
+        console.error('❌ Error en verificación de recordatorios:', error);
+    }
+}
+
+// FUNCIÓN SIMPLIFICADA PARA VERIFICACIÓN RÁPIDA
+async function verificarRecordatoriosPendientes() {
+    try {
+        console.log('🔍 Verificación rápida de recordatorios...');
+        
+        const ahora = new Date();
+        const unaHoraDespues = new Date(ahora.getTime() + (60 * 60 * 1000));
+        
+        // Buscar citas que están dentro de la próxima hora y no han recibido recordatorio
+        const { data: citasPendientes, error } = await supabase
+            .from('citas')
+            .select(`
+                *,
+                servicios(nombre, precio, duracion),
+                barberos(nombre),
+                clientes(nombre, email)
+            `)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .gte('fecha', ahora.toISOString().split('T')[0])
+            .lte('fecha', unaHoraDespues.toISOString().split('T')[0])
+            .eq('recordatorio_enviado', false)
+            .not('hora', 'is', null);
+
+        if (error) throw error;
+
+        if (citasPendientes && citasPendientes.length > 0) {
+            console.log(`📧 Enviando ${citasPendientes.length} recordatorios inmediatos`);
+            
+            for (const cita of citasPendientes) {
+                // Verificar si la cita está dentro de 1 hora
+                const [horaCita, minutoCita] = cita.hora.split(':');
+                const fechaHoraCita = new Date(cita.fecha);
+                fechaHoraCita.setHours(parseInt(horaCita), parseInt(minutoCita), 0, 0);
+                
+                const diferencia = fechaHoraCita.getTime() - ahora.getTime();
+                
+                if (diferencia <= (60 * 60 * 1000) && diferencia > 0) {
+                    console.log(`   🔔 Enviando recordatorio para: ${cita.clientes.nombre} - ${cita.fecha} ${cita.hora}`);
+                    await enviarRecordatorioCita(cita);
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('❌ Error en verificación rápida:', error);
+    }
+}
 
         // Función para obtener la siguiente cuenta disponible
         function obtenerSiguienteCuenta() {
@@ -1244,9 +1458,13 @@
                 // Programar verificaciones periódicas
                 setInterval(verificarYActualizarEstadosCitas, 5 * 60 * 1000); // Cada 5 minutos
                 setInterval(eliminarCitaAutomaticamente, 10 * 60 * 1000); // Cada 10 minutos
+                setInterval(verificarRecordatoriosPendientes, 2 * 60 * 1000); // ✅ NUEVO: Cada 2 minutos
+                setInterval(verificarYProgramarRecordatorios, 10 * 60 * 1000); // ✅ NUEVO: Cada 10 minutos
 
                 // Ejecutar una vez al cargar
                 setTimeout(eliminarCitaAutomaticamente, 2000);
+                setTimeout(verificarRecordatoriosPendientes, 3000); // ✅ NUEVO
+                setTimeout(verificarYProgramarRecordatorios, 5000); // ✅ NUEVO
 
             } catch (error) {
                 console.error('Error de autenticación:', error);
