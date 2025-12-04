@@ -1572,7 +1572,7 @@ async function verificarYProgramarRecordatorios() {
             precio_servicio: `$${citaData.servicios.precio} MXN`,
             estado_cita: citaData.estado.charAt(0).toUpperCase() + citaData.estado.slice(1),
             notas_cita: citaData.notas || 'Sin notas adicionales',
-            fecha_agendamiento: new Date().toLocaleDateString('es-MX'),
+            fecha_agendamiento: fechaCitaFormateada,
             direccion_barberia: 'Calle 24-A, Tzucacab, Yucatán',
             google_maps_link: 'https://www.google.com/maps?q=20.063818,-89.0476701'
         };
