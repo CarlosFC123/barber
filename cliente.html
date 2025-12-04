@@ -1538,9 +1538,34 @@ async function verificarYProgramarRecordatorios() {
         }
 
         // FUNCIÓN PARA ENVIAR NOTIFICACIÓN POR CORREO CON ROTACIÓN
-        async function enviarNotificacionCita(citaData) {
+      async function enviarNotificacionCita(citaData) {
     try {
         console.log('📧 Preparando envío de notificación por correo...');
+        
+        // ===== LOGGING EXTENDIDO =====
+        console.log('🔍 ===== DEBUG COMPLETO DE citaData =====');
+        console.log('citaData completo:', citaData);
+        console.log('citaData.fecha:', citaData.fecha);
+        console.log('citaData.hora:', citaData.hora);
+        console.log('Tipo de citaData.fecha:', typeof citaData.fecha);
+        
+        // Verificar si viene directamente de Supabase o si hay algún procesamiento
+        const hoyDebug = new Date();
+        const hoyFormateadoDebug = `${hoyDebug.getFullYear()}-${String(hoyDebug.getMonth() + 1).padStart(2, '0')}-${String(hoyDebug.getDate()).padStart(2, '0')}`;
+        
+        console.log('📊 COMPARACIÓN:');
+        console.log('   Fecha en citaData.fecha:', citaData.fecha);
+        console.log('   Fecha de HOY:', hoyFormateadoDebug);
+        console.log('   ¿Son iguales?:', citaData.fecha === hoyFormateadoDebug);
+        
+        if (citaData.fecha === hoyFormateadoDebug) {
+            console.error('❌ ERROR CRÍTICO: citaData.fecha es la fecha de HOY, no la fecha de la cita!');
+            console.log('   Esto significa que la cita se guardó con la fecha incorrecta en la base de datos.');
+        } else {
+            console.log('✅ OK: citaData.fecha es diferente a la fecha de hoy');
+        }
+        console.log('🔍 ===== FIN DEBUG =====');
+        // ===== FIN LOGGING =====
         
         // Obtener información del usuario actual para el correo
         const { data: usuario, error: errorUsuario } = await supabase
@@ -1629,7 +1654,6 @@ async function verificarYProgramarRecordatorios() {
         return false;
     }
 }
-
 
         async function obtenerCitasFuturasDelBarbero() {
             try {
