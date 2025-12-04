@@ -1554,11 +1554,38 @@ async function verificarYProgramarRecordatorios() {
             return false;
         }
 
+        // ===== DEBUG CRÍTICO =====
+        console.log('🔍 DEBUG - DATOS DE LA CITA:');
+        console.log('   fecha_cita (raw):', citaData.fecha); // Debería ser "2025-12-04"
+        console.log('   hora_cita:', citaData.hora);
+        console.log('   fecha_actual:', new Date().toLocaleDateString('es-MX'));
+        console.log('=============================');
+        
+        // Verificar si la fecha viene mal desde la base de datos
+        const hoy = new Date();
+        const fechaCitaDB = new Date(citaData.fecha);
+        
+        console.log('📊 COMPARACIÓN DE FECHAS:');
+        console.log('   Hoy:', {
+            fecha: hoy.toISOString().split('T')[0],
+            formateada: hoy.toLocaleDateString('es-MX')
+        });
+        console.log('   Fecha cita en DB:', {
+            fecha: fechaCitaDB.toISOString().split('T')[0],
+            formateada: fechaCitaDB.toLocaleDateString('es-MX')
+        });
+        
+        // ===== FIN DEBUG =====
+
         // Formatear la fecha para mejor presentación
         const fechaCita = new Date(citaData.fecha);
         const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         const fechaCitaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
         const fechaAgendamiento = new Date().toLocaleDateString('es-MX', opcionesFecha);
+
+        console.log('✅ FECHAS PROCESADAS:');
+        console.log('   Fecha de la cita:', fechaCitaFormateada); // Debería ser mañana
+        console.log('   Fecha de agendamiento:', fechaAgendamiento); // Debería ser hoy
 
         // Preparar datos para el template de EmailJS
         const templateParams = {
@@ -1566,32 +1593,34 @@ async function verificarYProgramarRecordatorios() {
             to_name: usuario.nombre,
             cliente_nombre: usuario.nombre,
             servicio_nombre: citaData.servicios.nombre,
-            fecha_cita: fechaCitaFormateada,
+            fecha_cita: fechaCitaFormateada,  // Fecha de la cita (mañana)
             hora_cita: citaData.hora,
             barbero_nombre: citaData.barberos.nombre,
             precio_servicio: `$${citaData.servicios.precio} MXN`,
             estado_cita: citaData.estado.charAt(0).toUpperCase() + citaData.estado.slice(1),
             notas_cita: citaData.notas || 'Sin notas adicionales',
-            fecha_agendamiento: fechaCitaFormateada,
+            fecha_agendamiento: fechaAgendamiento,  // CORREGIDO: fecha de hoy
             direccion_barberia: 'Calle 24-A, Tzucacab, Yucatán',
             google_maps_link: 'https://www.google.com/maps?q=20.063818,-89.0476701'
         };
 
-        console.log('📧 Datos para el correo:', templateParams);
+        console.log('📤 Enviando con datos:', {
+            fecha_cita_en_template: templateParams.fecha_cita,
+            fecha_agendamiento_en_template: templateParams.fecha_agendamiento
+        });
 
         // Enviar correo usando el sistema de rotación
         const resultado = await enviarEmailConRotacion(templateParams);
 
         if (resultado.success) {
-            console.log('✅ Correo enviado exitosamente con:', resultado.cuentaUtilizada);
-            
-            // Mostrar estadísticas en consola
-            const estadisticas = obtenerEstadisticasCuentas();
-            console.log('📊 Estadísticas de cuentas:', estadisticas);
+            console.log('✅ Correo enviado exitosamente');
+            console.log('📅 Verificación final:');
+            console.log('   - Fecha que debería mostrar:', fechaCitaFormateada);
+            console.log('   - ¿Es diferente a hoy?', fechaCitaFormateada !== fechaAgendamiento);
             
             return true;
         } else {
-            console.error('❌ Error enviando correo después de varios intentos:', resultado.error);
+            console.error('❌ Error enviando correo:', resultado.error);
             return false;
         }
 
