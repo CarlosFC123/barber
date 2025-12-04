@@ -956,7 +956,8 @@ async function enviarRecordatorioCita(citaData) {
         }
 
         // Formatear la fecha
-        const fechaCita = new Date(citaData.fecha);
+        const [year, month, day] = citaData.fecha.split('-');
+        const fechaCita = new Date(year, month - 1, day, 12, 0, 0);
         const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         const fechaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
 
@@ -1491,21 +1492,17 @@ async function verificarYProgramarRecordatorios() {
             }
         }
 
-        // FUNCIÓN PARA ENVIAR NOTIFICACIÓN POR CORREO CON ROTACIÓN
-      // FUNCIÓN CORREGIDA PARA ENVIAR NOTIFICACIÓN POR CORREO CON ROTACIÓN
+ // FUNCIÓN CORREGIDA - MANEJO CORRECTO DE FECHAS CON ZONA HORARIA
 async function enviarNotificacionCita(citaData) {
     try {
         console.log('📧 Preparando envío de notificación por correo...');
         
         // DEBUG: Verificar qué fecha viene en citaData
         console.log('🔍 Datos de la cita recibidos:', {
-            fecha_cita_en_data: citaData.fecha,      // Esta debe ser la fecha de la cita (ej: 2025-12-05)
-            creado_en: citaData.creado_en,           // Esta es la fecha de creación
+            fecha_cita_en_data: citaData.fecha,      // Debería ser "2025-12-04"
+            creado_en: citaData.creado_en,           // Debería ser "2025-12-03T23:34:20"
             hora_cita: citaData.hora
         });
-        
-        // IMPORTANTE: Asegurarnos de usar la columna CORRECTA para la fecha
-        // La fecha de la cita debe venir en citaData.fecha (no en creado_en)
         
         // Obtener información del usuario actual para el correo
         const { data: usuario, error: errorUsuario } = await supabase
@@ -1519,33 +1516,52 @@ async function enviarNotificacionCita(citaData) {
             return false;
         }
 
-        // CORRECCIÓN: Verificar si la fecha es válida
-        const fechaCitaDB = citaData.fecha; // Esta es la fecha REAL de la cita
+        // ===== SOLUCIÓN: MANEJO CORRECTO DE FECHA CON ZONA HORARIA =====
+        const fechaCitaDB = citaData.fecha; // "2025-12-04"
         
-        console.log('📊 COMPARACIÓN CRÍTICA DE FECHAS:');
-        console.log('   Fecha REAL de la cita (debería ser FUTURA):', fechaCitaDB);
-        console.log('   Fecha de CREACIÓN (creado_en):', citaData.creado_en);
-        console.log('   Fecha de HOY:', new Date().toISOString().split('T')[0]);
+        console.log('📊 FECHA CRUCIAL:');
+        console.log('   Fecha de DB (string):', fechaCitaDB);
+        console.log('   Fecha de HOY:', new Date().toLocaleDateString('es-MX'));
         
-        // Validar que la fecha de la cita sea diferente a hoy
-        const hoy = new Date().toISOString().split('T')[0];
-        if (fechaCitaDB === hoy) {
-            console.error('⚠️ ADVERTENCIA: La fecha de la cita es igual a hoy!');
-            console.error('   Esto puede causar problemas en los recordatorios.');
-        }
+        // IMPORTANTE: Crear la fecha correctamente, sumando 12 horas para evitar problemas de zona horaria
+        // Cuando creas new Date('2025-12-04'), se interpreta como 00:00:00 UTC
+        // Lo que puede mostrarse como 3 de diciembre en tu zona horaria
+        const [year, month, day] = fechaCitaDB.split('-');
         
-        // Formatear la fecha de la cita (NO la fecha de creación)
-        const fechaCita = new Date(fechaCitaDB);
-        const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        // Crear fecha en zona horaria local, a mediodía para evitar problemas
+        const fechaCita = new Date(year, month - 1, day, 12, 0, 0);
+        
+        const opcionesFecha = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            timeZone: 'America/Mexico_City' // Especificar zona horaria
+        };
+        
+        // Fecha de la cita (debe ser futura - 4 de diciembre)
         const fechaCitaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
         
-        // Formatear la fecha de agendamiento (HOY)
+        // Fecha de hoy (agendamiento - 3 de diciembre)
         const fechaAgendamiento = new Date().toLocaleDateString('es-MX', opcionesFecha);
 
-        console.log('✅ FECHAS PROCESADAS CORRECTAMENTE:');
-        console.log('   Fecha de la CITA (mañana/futura):', fechaCitaFormateada);
-        console.log('   Fecha de AGENDAMIENTO (hoy):', fechaAgendamiento);
+        console.log('✅ FECHAS PROCESADAS CON ZONA HORARIA:');
+        console.log('   Fecha de la CITA (debería ser 4 diciembre):', fechaCitaFormateada);
+        console.log('   Fecha de AGENDAMIENTO (debería ser 3 diciembre):', fechaAgendamiento);
         console.log('   ¿Son diferentes?', fechaCitaFormateada !== fechaAgendamiento);
+        
+        // Validación extra
+        const hoy = new Date();
+        const esMismaFecha = fechaCita.getDate() === hoy.getDate() && 
+                            fechaCita.getMonth() === hoy.getMonth() && 
+                            fechaCita.getFullYear() === hoy.getFullYear();
+        
+        if (esMismaFecha) {
+            console.error('❌ ERROR: La fecha de la cita es igual a hoy después de formatear');
+            console.error('   Esto hará que los recordatorios no funcionen');
+        } else {
+            console.log('✅ OK: La fecha de la cita es diferente a hoy');
+        }
 
         // Preparar datos para el template de EmailJS
         const templateParams = {
@@ -1553,30 +1569,30 @@ async function enviarNotificacionCita(citaData) {
             to_name: usuario.nombre,
             cliente_nombre: usuario.nombre,
             servicio_nombre: citaData.servicios.nombre,
-            fecha_cita: fechaCitaFormateada,      // ✅ Fecha de la cita (mañana/futura)
+            fecha_cita: fechaCitaFormateada,      // ✅ Debe mostrar "jueves, 4 de diciembre de 2025"
             hora_cita: citaData.hora,
             barbero_nombre: citaData.barberos.nombre,
             precio_servicio: `$${citaData.servicios.precio} MXN`,
             estado_cita: citaData.estado.charAt(0).toUpperCase() + citaData.estado.slice(1),
             notas_cita: citaData.notas || 'Sin notas adicionales',
-            fecha_agendamiento: fechaAgendamiento,  // ✅ Fecha de hoy
+            fecha_agendamiento: fechaAgendamiento,  // ✅ Debe mostrar "miércoles, 3 de diciembre de 2025"
             direccion_barberia: 'Calle 24-A, Tzucacab, Yucatán',
             google_maps_link: 'https://www.google.com/maps?q=20.063818,-89.0476701'
         };
 
-        console.log('📤 Enviando correo con datos CORREGIDOS:');
-        console.log('   fecha_cita_en_template:', templateParams.fecha_cita);
-        console.log('   fecha_agendamiento_en_template:', templateParams.fecha_agendamiento);
-        console.log('   ¿Fecha cita = mañana/futura?', new Date(fechaCitaDB) > new Date());
+        console.log('📤 Datos finales para el email:');
+        console.log('   - fecha_cita (para mostrar):', templateParams.fecha_cita);
+        console.log('   - fecha_agendamiento:', templateParams.fecha_agendamiento);
+        console.log('   - ¿La cita es mañana?', new Date(fechaCita) > new Date());
 
         // Enviar correo usando el sistema de rotación
         const resultado = await enviarEmailConRotacion(templateParams);
 
         if (resultado.success) {
-            console.log('✅ Correo enviado exitosamente con fecha CORRECTA');
-            console.log('📅 Verificación final exitosa:');
-            console.log('   - Fecha de cita mostrada:', fechaCitaFormateada);
-            console.log('   - Fecha de agendamiento mostrada:', fechaAgendamiento);
+            console.log('✅ Correo enviado exitosamente');
+            console.log('📅 Fechas mostradas en el email:');
+            console.log('   - Cita:', fechaCitaFormateada);
+            console.log('   - Agendamiento:', fechaAgendamiento);
             
             return true;
         } else {
