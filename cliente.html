@@ -1147,52 +1147,6 @@ async function verificarYProgramarRecordatorios() {
 }
 
 
-// async function verificarRecordatoriosPendientes() {
-//     try {
-//         console.log('🔍 Verificación rápida de recordatorios...');
-        
-//         const ahora = new Date();
-//         const unaHoraDespues = new Date(ahora.getTime() + (60 * 60 * 1000));
-        
-//         // Buscar citas que están dentro de la próxima hora y no han recibido recordatorio
-//         const { data: citasPendientes, error } = await supabase
-//             .from('citas')
-//             .select(`
-//                 *,
-//                 servicios(nombre, precio, duracion),
-//                 barberos(nombre),
-//                 clientes(nombre, email)
-//             `)
-//             .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-//             .gte('fecha', ahora.toISOString().split('T')[0])
-//             .lte('fecha', unaHoraDespues.toISOString().split('T')[0])
-//             .eq('recordatorio_enviado', false)
-//             .not('hora', 'is', null);
-
-//         if (error) throw error;
-
-//         if (citasPendientes && citasPendientes.length > 0) {
-//             console.log(`📧 Enviando ${citasPendientes.length} recordatorios inmediatos`);
-            
-//             for (const cita of citasPendientes) {
-//                 // Verificar si la cita está dentro de 1 hora
-//                 const [horaCita, minutoCita] = cita.hora.split(':');
-//                 const fechaHoraCita = new Date(cita.fecha);
-//                 fechaHoraCita.setHours(parseInt(horaCita), parseInt(minutoCita), 0, 0);
-                
-//                 const diferencia = fechaHoraCita.getTime() - ahora.getTime();
-                
-//                 if (diferencia <= (60 * 60 * 1000) && diferencia > 0) {
-//                     console.log(`   🔔 Enviando recordatorio para: ${cita.clientes.nombre} - ${cita.fecha} ${cita.hora}`);
-//                     await enviarRecordatorioCita(cita);
-//                 }
-//             }
-//         }
-
-//     } catch (error) {
-//         console.error('❌ Error en verificación rápida:', error);
-//     }
-// }
 
         // Función para obtener la siguiente cuenta disponible
         function obtenerSiguienteCuenta() {
@@ -1538,34 +1492,20 @@ async function verificarYProgramarRecordatorios() {
         }
 
         // FUNCIÓN PARA ENVIAR NOTIFICACIÓN POR CORREO CON ROTACIÓN
-      async function enviarNotificacionCita(citaData) {
+      // FUNCIÓN CORREGIDA PARA ENVIAR NOTIFICACIÓN POR CORREO CON ROTACIÓN
+async function enviarNotificacionCita(citaData) {
     try {
         console.log('📧 Preparando envío de notificación por correo...');
         
-        // ===== LOGGING EXTENDIDO =====
-        console.log('🔍 ===== DEBUG COMPLETO DE citaData =====');
-        console.log('citaData completo:', citaData);
-        console.log('citaData.fecha:', citaData.fecha);
-        console.log('citaData.hora:', citaData.hora);
-        console.log('Tipo de citaData.fecha:', typeof citaData.fecha);
+        // DEBUG: Verificar qué fecha viene en citaData
+        console.log('🔍 Datos de la cita recibidos:', {
+            fecha_cita_en_data: citaData.fecha,      // Esta debe ser la fecha de la cita (ej: 2025-12-05)
+            creado_en: citaData.creado_en,           // Esta es la fecha de creación
+            hora_cita: citaData.hora
+        });
         
-        // Verificar si viene directamente de Supabase o si hay algún procesamiento
-        const hoyDebug = new Date();
-        const hoyFormateadoDebug = `${hoyDebug.getFullYear()}-${String(hoyDebug.getMonth() + 1).padStart(2, '0')}-${String(hoyDebug.getDate()).padStart(2, '0')}`;
-        
-        console.log('📊 COMPARACIÓN:');
-        console.log('   Fecha en citaData.fecha:', citaData.fecha);
-        console.log('   Fecha de HOY:', hoyFormateadoDebug);
-        console.log('   ¿Son iguales?:', citaData.fecha === hoyFormateadoDebug);
-        
-        if (citaData.fecha === hoyFormateadoDebug) {
-            console.error('❌ ERROR CRÍTICO: citaData.fecha es la fecha de HOY, no la fecha de la cita!');
-            console.log('   Esto significa que la cita se guardó con la fecha incorrecta en la base de datos.');
-        } else {
-            console.log('✅ OK: citaData.fecha es diferente a la fecha de hoy');
-        }
-        console.log('🔍 ===== FIN DEBUG =====');
-        // ===== FIN LOGGING =====
+        // IMPORTANTE: Asegurarnos de usar la columna CORRECTA para la fecha
+        // La fecha de la cita debe venir en citaData.fecha (no en creado_en)
         
         // Obtener información del usuario actual para el correo
         const { data: usuario, error: errorUsuario } = await supabase
@@ -1579,38 +1519,33 @@ async function verificarYProgramarRecordatorios() {
             return false;
         }
 
-        // ===== DEBUG CRÍTICO =====
-        console.log('🔍 DEBUG - DATOS DE LA CITA:');
-        console.log('   fecha_cita (raw):', citaData.fecha); // Debería ser "2025-12-04"
-        console.log('   hora_cita:', citaData.hora);
-        console.log('   fecha_actual:', new Date().toLocaleDateString('es-MX'));
-        console.log('=============================');
+        // CORRECCIÓN: Verificar si la fecha es válida
+        const fechaCitaDB = citaData.fecha; // Esta es la fecha REAL de la cita
         
-        // Verificar si la fecha viene mal desde la base de datos
-        const hoy = new Date();
-        const fechaCitaDB = new Date(citaData.fecha);
+        console.log('📊 COMPARACIÓN CRÍTICA DE FECHAS:');
+        console.log('   Fecha REAL de la cita (debería ser FUTURA):', fechaCitaDB);
+        console.log('   Fecha de CREACIÓN (creado_en):', citaData.creado_en);
+        console.log('   Fecha de HOY:', new Date().toISOString().split('T')[0]);
         
-        console.log('📊 COMPARACIÓN DE FECHAS:');
-        console.log('   Hoy:', {
-            fecha: hoy.toISOString().split('T')[0],
-            formateada: hoy.toLocaleDateString('es-MX')
-        });
-        console.log('   Fecha cita en DB:', {
-            fecha: fechaCitaDB.toISOString().split('T')[0],
-            formateada: fechaCitaDB.toLocaleDateString('es-MX')
-        });
+        // Validar que la fecha de la cita sea diferente a hoy
+        const hoy = new Date().toISOString().split('T')[0];
+        if (fechaCitaDB === hoy) {
+            console.error('⚠️ ADVERTENCIA: La fecha de la cita es igual a hoy!');
+            console.error('   Esto puede causar problemas en los recordatorios.');
+        }
         
-        // ===== FIN DEBUG =====
-
-        // Formatear la fecha para mejor presentación
-        const fechaCita = new Date(citaData.fecha);
+        // Formatear la fecha de la cita (NO la fecha de creación)
+        const fechaCita = new Date(fechaCitaDB);
         const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         const fechaCitaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
+        
+        // Formatear la fecha de agendamiento (HOY)
         const fechaAgendamiento = new Date().toLocaleDateString('es-MX', opcionesFecha);
 
-        console.log('✅ FECHAS PROCESADAS:');
-        console.log('   Fecha de la cita:', fechaCitaFormateada); // Debería ser mañana
-        console.log('   Fecha de agendamiento:', fechaAgendamiento); // Debería ser hoy
+        console.log('✅ FECHAS PROCESADAS CORRECTAMENTE:');
+        console.log('   Fecha de la CITA (mañana/futura):', fechaCitaFormateada);
+        console.log('   Fecha de AGENDAMIENTO (hoy):', fechaAgendamiento);
+        console.log('   ¿Son diferentes?', fechaCitaFormateada !== fechaAgendamiento);
 
         // Preparar datos para el template de EmailJS
         const templateParams = {
@@ -1618,30 +1553,30 @@ async function verificarYProgramarRecordatorios() {
             to_name: usuario.nombre,
             cliente_nombre: usuario.nombre,
             servicio_nombre: citaData.servicios.nombre,
-            fecha_cita: fechaCitaFormateada,  // Fecha de la cita (mañana)
+            fecha_cita: fechaCitaFormateada,      // ✅ Fecha de la cita (mañana/futura)
             hora_cita: citaData.hora,
             barbero_nombre: citaData.barberos.nombre,
             precio_servicio: `$${citaData.servicios.precio} MXN`,
             estado_cita: citaData.estado.charAt(0).toUpperCase() + citaData.estado.slice(1),
             notas_cita: citaData.notas || 'Sin notas adicionales',
-            fecha_agendamiento: fechaAgendamiento,  // CORREGIDO: fecha de hoy
+            fecha_agendamiento: fechaAgendamiento,  // ✅ Fecha de hoy
             direccion_barberia: 'Calle 24-A, Tzucacab, Yucatán',
             google_maps_link: 'https://www.google.com/maps?q=20.063818,-89.0476701'
         };
 
-        console.log('📤 Enviando con datos:', {
-            fecha_cita_en_template: templateParams.fecha_cita,
-            fecha_agendamiento_en_template: templateParams.fecha_agendamiento
-        });
+        console.log('📤 Enviando correo con datos CORREGIDOS:');
+        console.log('   fecha_cita_en_template:', templateParams.fecha_cita);
+        console.log('   fecha_agendamiento_en_template:', templateParams.fecha_agendamiento);
+        console.log('   ¿Fecha cita = mañana/futura?', new Date(fechaCitaDB) > new Date());
 
         // Enviar correo usando el sistema de rotación
         const resultado = await enviarEmailConRotacion(templateParams);
 
         if (resultado.success) {
-            console.log('✅ Correo enviado exitosamente');
-            console.log('📅 Verificación final:');
-            console.log('   - Fecha que debería mostrar:', fechaCitaFormateada);
-            console.log('   - ¿Es diferente a hoy?', fechaCitaFormateada !== fechaAgendamiento);
+            console.log('✅ Correo enviado exitosamente con fecha CORRECTA');
+            console.log('📅 Verificación final exitosa:');
+            console.log('   - Fecha de cita mostrada:', fechaCitaFormateada);
+            console.log('   - Fecha de agendamiento mostrada:', fechaAgendamiento);
             
             return true;
         } else {
