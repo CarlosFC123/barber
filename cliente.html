@@ -964,6 +964,7 @@ async function enviarRecordatorioCita(citaData) {
         const cuentaActual = cuentasEmailJS[cuentaActualIndex];
         
         console.log(`📧 Usando template de recordatorio: ${cuentaActual.templateRecordatorio} de ${cuentaActual.nombre}`);
+        console.log(`📅 Fecha de cita para recordatorio: ${fechaFormateada} ${citaData.hora}`);
 
         // Preparar datos para el template de recordatorio
         const templateParams = {
@@ -988,6 +989,7 @@ async function enviarRecordatorioCita(citaData) {
         if (resultado.success) {
             console.log('✅ Recordatorio enviado exitosamente con:', resultado.cuentaUtilizada);
             console.log('📧 Template usado:', resultado.template);
+            console.log('📅 Fecha enviada:', fechaFormateada);
             
             // Marcar que ya se envió el recordatorio para esta cita
             await supabase
@@ -1555,7 +1557,8 @@ async function verificarYProgramarRecordatorios() {
         // Formatear la fecha para mejor presentación
         const fechaCita = new Date(citaData.fecha);
         const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        const fechaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
+        const fechaCitaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
+        const fechaAgendamiento = new Date().toLocaleDateString('es-MX', opcionesFecha);
 
         // Preparar datos para el template de EmailJS
         const templateParams = {
@@ -1563,7 +1566,7 @@ async function verificarYProgramarRecordatorios() {
             to_name: usuario.nombre,
             cliente_nombre: usuario.nombre,
             servicio_nombre: citaData.servicios.nombre,
-            fecha_cita: fechaFormateada,
+            fecha_cita: fechaCitaFormateada,
             hora_cita: citaData.hora,
             barbero_nombre: citaData.barberos.nombre,
             precio_servicio: `$${citaData.servicios.precio} MXN`,
