@@ -1065,7 +1065,7 @@ async function enviarEmailRecordatorio(templateParams) {
     }
 }
 
-// FUNCIÓN MEJORADA PARA VERIFICAR Y PROGRAMAR RECORDATORIOS
+// FUNCIÓN CORREGIDA PARA VERIFICAR Y PROGRAMAR RECORDATORIOS
 async function verificarYProgramarRecordatorios() {
     try {
         console.log('🔄 Verificando citas para recordatorios...');
@@ -1107,10 +1107,15 @@ async function verificarYProgramarRecordatorios() {
             console.log(`🔔 Encontradas ${citasParaRecordatorio.length} citas para evaluar recordatorio`);
             
             for (const cita of citasParaRecordatorio) {
-                // Calcular el tiempo exacto para enviar el recordatorio (1 hora antes)
+                // ===== CORRECCIÓN: CREAR FECHA/HORA CORRECTAMENTE =====
                 const [horaCita, minutoCita] = cita.hora.split(':');
-                const fechaHoraCita = new Date(cita.fecha);
-                fechaHoraCita.setHours(parseInt(horaCita), parseInt(minutoCita), 0, 0);
+                const [year, month, day] = cita.fecha.split('-');
+                
+                // Crear fecha LOCAL, igual que en las otras funciones
+                const fechaHoraCita = new Date(year, month - 1, day, 
+                                                parseInt(horaCita), 
+                                                parseInt(minutoCita), 
+                                                0, 0);
                 
                 const tiempoParaCita = fechaHoraCita.getTime() - ahora.getTime();
                 const tiempoParaRecordatorio = tiempoParaCita - (60 * 60 * 1000); // 1 hora antes
@@ -1118,6 +1123,8 @@ async function verificarYProgramarRecordatorios() {
                 console.log(`   📅 Cita: ${cita.fecha} ${cita.hora} - ${cita.clientes.nombre}`);
                 console.log(`   ⏰ Tiempo para cita: ${Math.floor(tiempoParaCita / 60000)} minutos`);
                 console.log(`   ⏰ Tiempo para recordatorio: ${Math.floor(tiempoParaRecordatorio / 60000)} minutos`);
+                console.log(`   ⏰ Hora actual: ${ahora.toLocaleString('es-MX')}`);
+                console.log(`   ⏰ Hora cita: ${fechaHoraCita.toLocaleString('es-MX')}`);
                 
                 if (tiempoParaCita <= (60 * 60 * 1000) && tiempoParaCita > 0) {
                     // La cita está dentro de 1 hora, enviar recordatorio INMEDIATAMENTE
@@ -1126,16 +1133,20 @@ async function verificarYProgramarRecordatorios() {
                     
                 } else if (tiempoParaCita > (60 * 60 * 1000)) {
                     // La cita es en más de 1 hora, programar recordatorio
-                    console.log(`   ⏰ Programando recordatorio para: ${new Date(ahora.getTime() + tiempoParaRecordatorio).toLocaleString('es-MX')}`);
+                    const fechaRecordatorio = new Date(ahora.getTime() + tiempoParaRecordatorio);
+                    console.log(`   ⏰ Programando recordatorio para: ${fechaRecordatorio.toLocaleString('es-MX')}`);
+                    console.log(`   ⏰ Se ejecutará en ${Math.floor(tiempoParaRecordatorio / 60000)} minutos`);
                     
                     setTimeout(async () => {
-                        console.log(`⏰ Ejecutando recordatorio programado para cita ${cita.id}`);
+                        console.log(`⏰ EJECUTANDO recordatorio programado para cita ${cita.id}`);
+                        console.log(`⏰ Hora actual: ${new Date().toLocaleString('es-MX')}`);
                         await enviarRecordatorioCita(cita);
                     }, tiempoParaRecordatorio);
                     
                 } else {
                     // La cita ya pasó o está en este momento
                     console.log(`   ⏰ Cita ya pasó o está ocurriendo ahora, no se envía recordatorio`);
+                    console.log(`   ⏰ Detalle: ${fechaHoraCita.toLocaleString('es-MX')} vs ${ahora.toLocaleString('es-MX')}`);
                 }
             }
         } else {
@@ -2032,7 +2043,9 @@ async function enviarNotificacionCita(citaData) {
                         const fechaLocal = fechaCreado.toLocaleString('es-MX');
                         
                         const ahora = new Date();
-                        const fechaCita = new Date(`${cita.fecha}T${cita.hora}`);
+                        const [year, month, day] = cita.fecha.split('-');
+                        const [hour, minute] = cita.hora.split(':');
+                        const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
                         
                         // VERIFICACIÓN CORREGIDA: Comparar fecha y hora completas
                         const citaPasada = fechaCita < ahora;
@@ -2161,7 +2174,9 @@ async function enviarNotificacionCita(citaData) {
             console.log('🔄 Iniciando actualizaciones de contadores...');
             
             citas.forEach(cita => {
-                const fechaCita = new Date(`${cita.fecha}T${cita.hora}`);
+                const [year, month, day] = cita.fecha.split('-');
+                const [hour, minute] = cita.hora.split(':');
+                const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
                 const ahora = new Date();
                 
                 // VERIFICACIÓN CORREGIDA: Considerar tanto fecha como hora
