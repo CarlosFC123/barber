@@ -1998,226 +1998,190 @@ async function enviarNotificacionCita(citaData) {
         }
 
         async function cargarMisCitas() {
-    try {
-        const { data: citas, error } = await supabase
-            .from('citas')
-            .select(`
-                *,
-                servicios(nombre, precio),
-                barberos(nombre)
-            `)
-            .eq('cliente_id', usuarioActual.id)
-            .order('fecha', { ascending: false });
+            try {
+                const { data: citas, error } = await supabase
+                    .from('citas')
+                    .select(`
+                        *,
+                        servicios(nombre, precio),
+                        barberos(nombre)
+                    `)
+                    .eq('cliente_id', usuarioActual.id)
+                    .order('fecha', { ascending: false });
 
-        if (error) throw error;
+                if (error) throw error;
 
-        const listaCitas = document.getElementById('listaCitas');
-        
-        if (!citas || citas.length === 0) {
-            listaCitas.innerHTML = `
-                <div class="empty-state">
-                    <div>📅</div>
-                    <h3>No tienes citas agendadas</h3>
-                    <p>¡Agenda tu primera cita ahora!</p>
-                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
-                </div>
-            `;
-        } else {
-            // AGREGAR BOTÓN DE AGENDAR NUEVA CITA AQUÍ
-            listaCitas.innerHTML = `
-                <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
-                    <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
-                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 24px;">
-                        📅 Agendar Nueva Cita
-                    </button>
-                </div>
-            ` + citas.map(cita => {
-                const fechaCreado = new Date(cita.creado_en);
-                const fechaLocal = fechaCreado.toLocaleString('es-MX');
+                const listaCitas = document.getElementById('listaCitas');
                 
-                const ahora = new Date();
-                const [year, month, day] = cita.fecha.split('-');
-                const [hour, minute] = cita.hora.split(':');
-                const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
-                
-                // VERIFICACIÓN CORREGIDA: Comparar fecha y hora completas
-                const citaPasada = fechaCita < ahora;
-                const citaEnCurso = !citaPasada;
-                
-                // Calcular tiempo para la cita (si aún no pasa)
-                const tiempoParaCita = fechaCita - ahora;
-                
-                // VERIFICAR si falta menos de 1 hora para la cita
-                const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000); // 1 hora en milisegundos
-                const puedeCancelar = citaEnCurso && !faltaMenosDeUnaHora && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
-                
-                const mostrarEliminar = cita.estado === 'cancelada' || cita.estado === 'completada' || citaPasada;
-                
-                let contadorHTML = '';
-                let mensajeCancelacionHTML = '';
-                
-                if (citaEnCurso && tiempoParaCita > 0 && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada')) {
-                    // CONTADOR 1: Tiempo faltante para la cita
-                    const dias = Math.floor(tiempoParaCita / (1000 * 60 * 60 * 24));
-                    const horas = Math.floor((tiempoParaCita % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                    const minutos = Math.floor((tiempoParaCita % (1000 * 60 * 60)) / (1000 * 60));
-                    
-                    if (dias > 0) {
-                        contadorHTML = `
-                            <p class="contador-cita" style="color: #28a745; font-weight: bold; background: #d4edda; padding: 8px; border-radius: 6px; text-align: center;">
-                                <strong>⏳ Tu cita es en:</strong> ${dias}d ${horas}h ${minutos}m
-                            </p>
-                        `;
-                    } else if (horas > 0) {
-                        contadorHTML = `
-                            <p class="contador-cita" style="color: #28a745; font-weight: bold; background: #d4edda; padding: 8px; border-radius: 6px; text-align: center;">
-                                <strong>⏳ Tu cita es en:</strong> ${horas}h ${minutos}m
-                            </p>
-                        `;
-                    } else {
-                        contadorHTML = `
-                            <p class="contador-cita" style="color: #28a745; font-weight: bold; background: #d4edda; padding: 8px; border-radius: 6px; text-align: center;">
-                                <strong>⏳ Tu cita es en:</strong> ${minutos}m
-                            </p>
-                        `;
-                    }
-                    
-                    // Mensaje de restricción de cancelación
-                    if (faltaMenosDeUnaHora) {
-                        mensajeCancelacionHTML = `
-                            <p style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                                ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
-                            </p>
-                        `;
-                    }
-                    
-                } else if ((cita.estado === 'cancelada' || cita.estado === 'completada')) {
-                    // ✅ CORRECCIÓN: Para canceladas usar actualizado_en, para completadas usar fecha/hora cita
-                    let fechaReferencia;
-                    
-                    if (cita.estado === 'cancelada') {
-                        // ✅ CORRECCIÓN MEJORADA: Para CANCELADAS - verificar y usar el campo correcto
-                        let fechaActualizacion;
+                if (!citas || citas.length === 0) {
+                    listaCitas.innerHTML = `
+                        <div class="empty-state">
+                            <div>📅</div>
+                            <h3>No tienes citas agendadas</h3>
+                            <p>¡Agenda tu primera cita ahora!</p>
+                            <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
+                        </div>
+                    `;
+                } else {
+                    // AGREGAR BOTÓN DE AGENDAR NUEVA CITA AQUÍ
+                    listaCitas.innerHTML = `
+                        <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
+                            <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
+                            <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 24px;">
+                                📅 Agendar Nueva Cita
+                            </button>
+                        </div>
+                    ` + citas.map(cita => {
+                        const fechaCreado = new Date(cita.creado_en);
+                        const fechaLocal = fechaCreado.toLocaleString('es-MX');
                         
-                        if (cita.actualizado_en) {
-                            fechaActualizacion = cita.actualizado_en;
-                            console.log(`⏰ Cita ${cita.id} CANCELADA - Usando actualizado_en:`, {
-                                actualizado_en_original: cita.actualizado_en,
-                                fecha_referencia: new Date(fechaActualizacion).toLocaleString('es-MX')
-                            });
-                        } else {
-                            // Si no hay actualizado_en, usar creado_en como fallback
-                            fechaActualizacion = cita.creado_en;
-                            console.log(`⚠️ Cita ${cita.id} CANCELADA - actualizado_en no existe, usando creado_en:`, {
-                                creado_en: cita.creado_en,
-                                fecha_referencia: new Date(fechaActualizacion).toLocaleString('es-MX')
-                            });
-                        }
-                        
-                        fechaReferencia = new Date(fechaActualizacion);
-                        
-                    } else {
-                        // Para COMPLETADAS: 2 horas después de la fecha/hora de la cita
+                        const ahora = new Date();
                         const [year, month, day] = cita.fecha.split('-');
                         const [hour, minute] = cita.hora.split(':');
-                        fechaReferencia = new Date(year, month - 1, day, hour, minute, 0, 0);
-                        console.log(`⏰ Cita ${cita.id} COMPLETADA - Referencia: fecha cita = ${fechaReferencia.toLocaleString('es-MX')}`);
-                    }
-                    
-                    const tiempoEliminacion = new Date(fechaReferencia.getTime() + 7200000); // 2 horas exactas
-                    const tiempoRestanteEliminacion = tiempoEliminacion - ahora;
-                    
-                    console.log(`⏰ Cita ${cita.id} (${cita.estado}):`, {
-                        fecha_referencia: fechaReferencia.toLocaleString('es-MX'),
-                        fecha_referencia_ISO: fechaReferencia.toISOString(),
-                        eliminacion_programada: tiempoEliminacion.toLocaleString('es-MX'),
-                        tiempo_restante_horas: (tiempoRestanteEliminacion / (1000 * 60 * 60)).toFixed(2)
-                    });
-                    
-                    // ✅ NUEVA VERIFICACIÓN: Detectar problemas de zona horaria
-                    if (cita.estado === 'cancelada' && (tiempoRestanteEliminacion / 3600000) > 6) {
-                        console.log(`⚠️ Cita ${cita.id} - Posible problema de zona horaria UTC detectado`);
-                        console.log(`   📊 Tiempo restante: ${(tiempoRestanteEliminacion / 3600000).toFixed(2)} horas`);
+                        const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
                         
-                        // Intentar corregir interpretando como hora local
-                        const fechaString = fechaReferencia.toISOString().replace('Z', '');
-                        const fechaLocalCorregida = new Date(fechaString);
-                        const tiempoEliminacionCorregido = new Date(fechaLocalCorregida.getTime() + 7200000);
-                        const tiempoRestanteCorregido = tiempoEliminacionCorregido - ahora;
+                        // VERIFICACIÓN CORREGIDA: Comparar fecha y hora completas
+                        const citaPasada = fechaCita < ahora;
+                        const citaEnCurso = !citaPasada;
                         
-                        if (Math.abs(tiempoRestanteEliminacion - tiempoRestanteCorregido) > 3600000) {
-                            console.log(`✅ Aplicando corrección de zona horaria`);
-                            tiempoEliminacion = tiempoEliminacionCorregido;
-                            tiempoRestanteEliminacion = tiempoRestanteCorregido;
+                        // Calcular tiempo para la cita (si aún no pasa)
+                        const tiempoParaCita = fechaCita - ahora;
+                        
+                        // VERIFICAR si falta menos de 1 hora para la cita
+                        const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000); // 1 hora en milisegundos
+                        const puedeCancelar = citaEnCurso && !faltaMenosDeUnaHora && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
+                        
+                        // Calcular tiempo para eliminación (2 horas después de la cita)
+                        const tiempoEliminacion = new Date(fechaCita.getTime() + (2 * 60 * 60 * 1000));
+                        const tiempoRestanteEliminacion = tiempoEliminacion - ahora;
+                        
+                        const mostrarEliminar = cita.estado === 'cancelada' || cita.estado === 'completada' || citaPasada;
+                        
+                        let contadorHTML = '';
+                        let mensajeCancelacionHTML = '';
+                        
+                        if (citaEnCurso && tiempoParaCita > 0 && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada')) {
+                            // CONTADOR 1: Tiempo faltante para la cita
+                            const dias = Math.floor(tiempoParaCita / (1000 * 60 * 60 * 24));
+                            const horas = Math.floor((tiempoParaCita % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                            const minutos = Math.floor((tiempoParaCita % (1000 * 60 * 60)) / (1000 * 60));
+                            
+                            if (dias > 0) {
+                                contadorHTML = `
+                                    <p class="contador-cita" style="color: #28a745; font-weight: bold; background: #d4edda; padding: 8px; border-radius: 6px; text-align: center;">
+                                        <strong>⏳ Tu cita es en:</strong> ${dias}d ${horas}h ${minutos}m
+                                    </p>
+                                `;
+                            } else if (horas > 0) {
+                                contadorHTML = `
+                                    <p class="contador-cita" style="color: #28a745; font-weight: bold; background: #d4edda; padding: 8px; border-radius: 6px; text-align: center;">
+                                        <strong>⏳ Tu cita es en:</strong> ${horas}h ${minutos}m
+                                    </p>
+                                `;
+                            } else {
+                                contadorHTML = `
+                                    <p class="contador-cita" style="color: #28a745; font-weight: bold; background: #d4edda; padding: 8px; border-radius: 6px; text-align: center;">
+                                        <strong>⏳ Tu cita es en:</strong> ${minutos}m
+                                    </p>
+                                `;
+                            }
+                            
+                            // Mensaje de restricción de cancelación
+                            if (faltaMenosDeUnaHora) {
+                                mensajeCancelacionHTML = `
+                                    <p style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
+                                        ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
+                                    </p>
+                                `;
+                            }
+                            
+                        } else if ((cita.estado === 'cancelada' || cita.estado === 'completada')) {
+                            // ✅ CORRECCIÓN: Para canceladas usar actualizado_en, para completadas usar fecha/hora cita
+                            let fechaReferencia;
+                            
+                            if (cita.estado === 'cancelada') {
+                                // Para CANCELADAS: 2 horas después de cuando se canceló (actualizado_en)
+                                fechaReferencia = new Date(cita.actualizado_en || cita.creado_en);
+                                console.log(`⏰ Cita ${cita.id} CANCELADA - Referencia: actualizado_en = ${fechaReferencia.toLocaleString('es-MX')}`);
+                            } else {
+                                // Para COMPLETADAS: 2 horas después de la fecha/hora de la cita
+                                const [year, month, day] = cita.fecha.split('-');
+                                const [hour, minute] = cita.hora.split(':');
+                                fechaReferencia = new Date(year, month - 1, day, hour, minute, 0, 0);
+                                console.log(`⏰ Cita ${cita.id} COMPLETADA - Referencia: fecha cita = ${fechaReferencia.toLocaleString('es-MX')}`);
+                            }
+                            
+                            const tiempoEliminacion = new Date(fechaReferencia.getTime() + (2 * 60 * 60 * 1000));
+                            const tiempoRestanteEliminacion = tiempoEliminacion - ahora;
+                            
+                            console.log(`⏰ Cita ${cita.id} (${cita.estado}):`, {
+                                fecha_referencia: fechaReferencia.toLocaleString('es-MX'),
+                                eliminacion_programada: tiempoEliminacion.toLocaleString('es-MX'),
+                                tiempo_restante_horas: (tiempoRestanteEliminacion / (1000 * 60 * 60)).toFixed(2)
+                            });
+                            
+                            if (tiempoRestanteEliminacion > 0) {
+                                const horas = Math.floor(tiempoRestanteEliminacion / (1000 * 60 * 60));
+                                const minutos = Math.floor((tiempoRestanteEliminacion % (1000 * 60 * 60)) / (1000 * 60));
+                                
+                                contadorHTML = `
+                                    <p class="contador-eliminacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center;">
+                                        <strong>✅ Cita ${cita.estado} - Se eliminará en:</strong> ${horas}h ${minutos}m
+                                    </p>
+                                `;
+                                
+                                // Programar eliminación automática individual
+                                actualizarContadorEliminacion(cita.id, fechaReferencia, cita.estado, cita.actualizado_en || cita.creado_en);
+                            } else {
+                                // Ya pasaron 2 horas, mostrar que se eliminará pronto
+                                contadorHTML = `
+                                    <p class="contador-eliminacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center;">
+                                        <strong>🗑️ Esta cita se eliminará pronto (Edge Function la eliminará automáticamente)</strong>
+                                    </p>
+                                `;
+                            }
                         }
-                    }
+                        
+                        return `
+                            <div class="cita-card ${cita.estado}" id="cita-${cita.id}">
+                                <div class="cita-header">
+                                    <h3>${cita.servicios.nombre}</h3>
+                                    <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
+                                </div>
+                                <div class="cita-detalles">
+                                    <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
+                                    <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
+                                    <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
+                                    ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                                    <p><strong>📅 Solicitado:</strong> ${fechaLocal}</p>
+                                    ${contadorHTML}
+                                    ${mensajeCancelacionHTML}
+                                </div>
+                                <div class="cita-acciones">
+                                    ${puedeCancelar ? `
+                                        <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
+                                    ` : ''}
+                                    ${!puedeCancelar && citaEnCurso && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
+                                        <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
+                                    ` : ''}
+                                    ${mostrarEliminar ? `
+                                        <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar</button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
                     
-                    if (tiempoRestanteEliminacion > 0) {
-                        const horas = Math.floor(tiempoRestanteEliminacion / (1000 * 60 * 60));
-                        const minutos = Math.floor((tiempoRestanteEliminacion % (1000 * 60 * 60)) / (1000 * 60));
-                        
-                        contadorHTML = `
-                            <p class="contador-eliminacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center;">
-                                <strong>✅ Cita ${cita.estado} - Se eliminará en:</strong> ${horas}h ${minutos}m
-                            </p>
-                        `;
-                        
-                        // Programar eliminación automática individual
-                        actualizarContadorEliminacion(
-                            cita.id, 
-                            fechaReferencia, 
-                            cita.estado, 
-                            cita.actualizado_en || cita.creado_en
-                        );
-                    } else {
-                        // Ya pasaron 2 horas, mostrar que se eliminará pronto
-                        contadorHTML = `
-                            <p class="contador-eliminacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center;">
-                                <strong>🗑️ Esta cita se eliminará pronto (Edge Function la eliminará automáticamente)</strong>
-                            </p>
-                        `;
-                    }
+                    // Programar actualizaciones de contadores y eliminaciones automáticas
+                    programarActualizacionesContadores(citas);
                 }
-                
-                return `
-                    <div class="cita-card ${cita.estado}" id="cita-${cita.id}">
-                        <div class="cita-header">
-                            <h3>${cita.servicios.nombre}</h3>
-                            <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
-                        </div>
-                        <div class="cita-detalles">
-                            <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
-                            <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
-                            <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
-                            ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                            <p><strong>📅 Solicitado:</strong> ${fechaLocal}</p>
-                            ${contadorHTML}
-                            ${mensajeCancelacionHTML}
-                        </div>
-                        <div class="cita-acciones">
-                            ${puedeCancelar ? `
-                                <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
-                            ` : ''}
-                            ${!puedeCancelar && citaEnCurso && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
-                                <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
-                            ` : ''}
-                            ${mostrarEliminar ? `
-                                <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar</button>
-                            ` : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            // Programar actualizaciones de contadores y eliminaciones automáticas
-            programarActualizacionesContadores(citas);
+
+            } catch (error) {
+                console.error('Error cargando citas:', error);
+                showAlert('Error al cargar tus citas', 'error');
+            }
         }
 
-    } catch (error) {
-        console.error('Error cargando citas:', error);
-        showAlert('Error al cargar tus citas', 'error');
-    }
-}
         function programarActualizacionesContadores(citas) {
             console.log('🔄 Iniciando actualizaciones de contadores...');
             
@@ -2355,120 +2319,55 @@ async function enviarNotificacionCita(citaData) {
 
         // FUNCIÓN AUXILIAR para el contador de eliminación
         function actualizarContadorEliminacion(citaId, fechaCita, estadoCita, actualizadoEn) {
-    console.log(`📅 DEBUG Cita ${citaId} - estado: ${estadoCita}`);
-    console.log(`   actualizadoEn recibido: ${actualizadoEn}`);
-    console.log(`   fechaCita recibida: ${fechaCita ? fechaCita.toLocaleString('es-MX') : 'N/A'}`);
-    
-    // IMPORTANTE: Usar la fecha de CANCELACIÓN (actualizado_en) para citas canceladas
-    let fechaReferencia;
-    
-    if (estadoCita === 'cancelada') {
-        // Para CANCELADAS: usar actualizado_en si existe, si no usar creado_en
-        if (actualizadoEn) {
-            fechaReferencia = new Date(actualizadoEn);
-            console.log(`   ✅ Usando actualizado_en: ${fechaReferencia.toLocaleString('es-MX')}`);
-        } else {
-            console.log(`   ⚠️ actualizadoEn es null/undefined, usando fecha actual`);
-            fechaReferencia = new Date(); // Usar ahora como fallback
-        }
-    } else {
-        // Para COMPLETADAS: usar la fecha/hora de la cita
-        fechaReferencia = fechaCita;
-        console.log(`   ✅ Usando fecha cita: ${fechaReferencia.toLocaleString('es-MX')}`);
-    }
-    
-    // ✅ CORRECCIÓN: Usar 2 horas exactamente (2 * 60 * 60 * 1000 = 7,200,000 ms)
-    const tiempoEliminacion = new Date(fechaReferencia.getTime() + 7200000);
-    const ahora = new Date();
-    const tiempoRestante = tiempoEliminacion - ahora;
-    
-    console.log(`⏰ Cita ${citaId} (${estadoCita}):`, {
-        fecha_referencia: fechaReferencia.toLocaleString('es-MX'),
-        fecha_referencia_ISO: fechaReferencia.toISOString(),
-        eliminacion_programada: tiempoEliminacion.toLocaleString('es-MX'),
-        ahora: ahora.toLocaleString('es-MX'),
-        tiempo_restante_minutos: Math.floor(tiempoRestante / 1000 / 60),
-        tiempo_restante_horas: (tiempoRestante / (1000 * 60 * 60)).toFixed(2)
-    });
-    
-    // DEBUG: Verificar diferencia horaria para problemas de zona horaria
-    const offsetHoras = fechaReferencia.getTimezoneOffset() / 60;
-    console.log(`   🕐 Offset de zona horaria: ${offsetHoras} horas`);
-    
-    // Si el tiempo restante es aproximadamente 6 horas más de lo esperado (problema común de UTC)
-    if (estadoCita === 'cancelada' && (tiempoRestante / 3600000) > 6) {
-        console.log(`   ⚠️ Posible problema de zona horaria UTC detectado`);
-        console.log(`   📊 Tiempo restante actual: ${(tiempoRestante / 3600000).toFixed(2)} horas`);
-        
-        // Intentar corregir interpretando la fecha como local
-        const fechaString = fechaReferencia.toISOString().replace('Z', '');
-        const fechaLocalCorregida = new Date(fechaString);
-        const tiempoEliminacionCorregido = new Date(fechaLocalCorregida.getTime() + 7200000);
-        const tiempoRestanteCorregido = tiempoEliminacionCorregido - ahora;
-        
-        console.log(`   🔧 Corrección aplicada:`, {
-            fecha_original_ISO: fechaReferencia.toISOString(),
-            fecha_corregida: fechaLocalCorregida.toLocaleString('es-MX'),
-            tiempo_restante_corregido: (tiempoRestanteCorregido / 3600000).toFixed(2) + ' horas'
-        });
-        
-        // Usar valores corregidos si la diferencia es significativa
-        if (Math.abs(tiempoRestante - tiempoRestanteCorregido) > 3600000) {
-            console.log(`   ✅ Usando valores corregidos (diferencia > 1 hora)`);
-            tiempoEliminacion = tiempoEliminacionCorregido;
-            tiempoRestante = tiempoRestanteCorregido;
-        }
-    }
-    
-    if (tiempoRestante <= 0) {
-        // Eliminar inmediatamente
-        console.log(`🗑️ Eliminando cita ${citaId} inmediatamente (pasaron 2 horas desde ${estadoCita})`);
-        eliminarCitaIndividualAutomaticamente(citaId);
-    } else {
-        // Programar eliminación exacta
-        console.log(`⏰ Programando eliminación de cita ${citaId} en ${Math.floor(tiempoRestante/1000/60)} minutos`);
-        
-        setTimeout(() => {
-            console.log(`⏰⏰ EJECUTANDO eliminación automática de cita ${citaId}`);
-            eliminarCitaIndividualAutomaticamente(citaId);
-        }, tiempoRestante);
-        
-        // Actualizar contador de eliminación en la interfaz
-        const intervaloEliminacion = setInterval(() => {
-            const citaElement = document.getElementById(`cita-${citaId}`);
-            if (citaElement) {
-                const nuevoTiempoRestante = tiempoEliminacion - new Date();
-                
-                if (nuevoTiempoRestante <= 0) {
-                    clearInterval(intervaloEliminacion);
-                    // Actualizar UI para mostrar que se eliminará pronto
-                    const contadorElement = citaElement.querySelector('.contador-eliminacion');
-                    if (contadorElement) {
-                        contadorElement.innerHTML = `<strong>🗑️ Esta cita se eliminará pronto...</strong>`;
-                    }
-                } else {
-                    const horas = Math.floor(nuevoTiempoRestante / (1000 * 60 * 60));
-                    const minutos = Math.floor((nuevoTiempoRestante % (1000 * 60 * 60)) / (1000 * 60));
-                    const segundos = Math.floor((nuevoTiempoRestante % (1000 * 60)) / 1000);
-                    
-                    const contadorElement = citaElement.querySelector('.contador-eliminacion');
-                    if (contadorElement) {
-                        // ✅ Asegurar que muestra 2 horas máximo para canceladas
-                        const textoEstado = estadoCita === 'cancelada' ? 'cancelada' : estadoCita;
-                        contadorElement.innerHTML = `<strong>✅ Cita ${textoEstado} - Se eliminará en:</strong> ${horas}h ${minutos}m ${segundos}s`;
-                        
-                        // Log para debugging si muestra tiempos incorrectos
-                        if (estadoCita === 'cancelada' && horas >= 6) {
-                            console.warn(`⚠️ Cita ${citaId} muestra ${horas}h - posible error de zona horaria`);
-                        }
-                    }
-                }
+            // Calcular el momento exacto de eliminación (2 horas después de la ACTUALIZACIÓN del estado)
+            const fechaActualizacion = actualizadoEn ? new Date(actualizadoEn) : new Date();
+            const tiempoEliminacion = new Date(fechaActualizacion.getTime() + (2 * 60 * 60 * 1000));
+            const tiempoRestante = tiempoEliminacion - new Date();
+            
+            console.log(`⏰ Contador eliminación cita ${citaId}:`, {
+                estado: estadoCita,
+                fecha_actualizacion: fechaActualizacion.toLocaleString('es-MX'),
+                eliminacion: tiempoEliminacion.toLocaleString('es-MX'),
+                tiempo_restante_minutos: Math.floor(tiempoRestante / 1000 / 60)
+            });
+            
+            if (tiempoRestante <= 0) {
+                // Eliminar inmediatamente
+                console.log(`🗑️ Eliminando cita ${citaId} inmediatamente (pasaron 2 horas desde ${estadoCita})`);
+                eliminarCitaIndividualAutomaticamente(citaId);
             } else {
-                clearInterval(intervaloEliminacion);
+                // Programar eliminación exacta
+                console.log(`⏰ Programando eliminación de cita ${citaId} en ${Math.floor(tiempoRestante/1000/60)} minutos`);
+                
+                setTimeout(() => {
+                    console.log(`⏰⏰ EJECUTANDO eliminación automática de cita ${citaId}`);
+                    eliminarCitaIndividualAutomaticamente(citaId);
+                }, tiempoRestante);
+                
+                // Actualizar contador de eliminación en la interfaz
+                const intervaloEliminacion = setInterval(() => {
+                    const citaElement = document.getElementById(`cita-${citaId}`);
+                    if (citaElement) {
+                        const nuevoTiempoRestante = tiempoEliminacion - new Date();
+                        
+                        if (nuevoTiempoRestante <= 0) {
+                            clearInterval(intervaloEliminacion);
+                        } else {
+                            const horas = Math.floor(nuevoTiempoRestante / (1000 * 60 * 60));
+                            const minutos = Math.floor((nuevoTiempoRestante % (1000 * 60 * 60)) / (1000 * 60));
+                            const segundos = Math.floor((nuevoTiempoRestante % (1000 * 60)) / 1000);
+                            
+                            const contadorElement = citaElement.querySelector('.contador-eliminacion');
+                            if (contadorElement) {
+                                contadorElement.innerHTML = `<strong>✅ Cita ${estadoCita} - Se eliminará en:</strong> ${horas}h ${minutos}m ${segundos}s`;
+                            }
+                        }
+                    } else {
+                        clearInterval(intervaloEliminacion);
+                    }
+                }, 1000);
             }
-        }, 1000);
-    }
-}
+        }
 
         async function eliminarCitaIndividualAutomaticamente(citaId) {
             try {
