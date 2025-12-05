@@ -1488,14 +1488,7 @@ async function verificarYProgramarRecordatorios() {
 
                 // Programar verificaciones periódicas
                 setInterval(verificarYActualizarEstadosCitas, 5 * 60 * 1000); // Cada 5 minutos
-                setInterval(eliminarCitaAutomaticamente, 10 * 60 * 1000); // Cada 10 minutos
-                // setInterval(verificarRecordatoriosPendientes, 2 * 60 * 1000); // ✅ NUEVO: Cada 2 minutos
-                setInterval(verificarYProgramarRecordatorios, 5 * 60 * 1000); // ✅ NUEVO: Cada 5 minutos
-
-                // Ejecutar una vez al cargar
-                setTimeout(eliminarCitaAutomaticamente, 2000);
-                // setTimeout(verificarRecordatoriosPendientes, 3000); // ✅ NUEVO
-                setTimeout(verificarYProgramarRecordatorios, 5000); // ✅ NUEVO
+                
 
             } catch (error) {
                 console.error('Error de autenticación:', error);
