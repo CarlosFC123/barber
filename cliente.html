@@ -2096,29 +2096,10 @@ async function enviarNotificacionCita(citaData) {
                             }
                             
                         } else if ((cita.estado === 'cancelada' || cita.estado === 'completada')) {
-                            // ✅ CORRECCIÓN: Para canceladas usar actualizado_en, para completadas usar fecha/hora cita
-                            let fechaReferencia;
-                            
-                            if (cita.estado === 'cancelada') {
-                                // Para CANCELADAS: 2 horas después de cuando se canceló (actualizado_en)
-                                fechaReferencia = new Date(cita.actualizado_en || cita.creado_en);
-                                console.log(`⏰ Cita ${cita.id} CANCELADA - Referencia: actualizado_en = ${fechaReferencia.toLocaleString('es-MX')}`);
-                            } else {
-                                // Para COMPLETADAS: 2 horas después de la fecha/hora de la cita
-                                const [year, month, day] = cita.fecha.split('-');
-                                const [hour, minute] = cita.hora.split(':');
-                                fechaReferencia = new Date(year, month - 1, day, hour, minute, 0, 0);
-                                console.log(`⏰ Cita ${cita.id} COMPLETADA - Referencia: fecha cita = ${fechaReferencia.toLocaleString('es-MX')}`);
-                            }
-                            
-                            const tiempoEliminacion = new Date(fechaReferencia.getTime() + (2 * 60 * 60 * 1000));
+                            // CONTADOR 2: Tiempo para eliminación automática (2 horas después del estado)
+                            const fechaActualizacion = new Date(cita.actualizado_en || cita.creado_en);
+                            const tiempoEliminacion = new Date(fechaActualizacion.getTime() + (2 * 60 * 60 * 1000));
                             const tiempoRestanteEliminacion = tiempoEliminacion - ahora;
-                            
-                            console.log(`⏰ Cita ${cita.id} (${cita.estado}):`, {
-                                fecha_referencia: fechaReferencia.toLocaleString('es-MX'),
-                                eliminacion_programada: tiempoEliminacion.toLocaleString('es-MX'),
-                                tiempo_restante_horas: (tiempoRestanteEliminacion / (1000 * 60 * 60)).toFixed(2)
-                            });
                             
                             if (tiempoRestanteEliminacion > 0) {
                                 const horas = Math.floor(tiempoRestanteEliminacion / (1000 * 60 * 60));
@@ -2131,12 +2112,12 @@ async function enviarNotificacionCita(citaData) {
                                 `;
                                 
                                 // Programar eliminación automática individual
-                                actualizarContadorEliminacion(cita.id, fechaReferencia, cita.estado, cita.actualizado_en || cita.creado_en);
+                                actualizarContadorEliminacion(cita.id, fechaCita, cita.estado, cita.actualizado_en || cita.creado_en);
                             } else {
                                 // Ya pasaron 2 horas, mostrar que se eliminará pronto
                                 contadorHTML = `
                                     <p class="contador-eliminacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center;">
-                                        <strong>🗑️ Esta cita se eliminará pronto (Edge Function la eliminará automáticamente)</strong>
+                                        <strong>🗑️ Esta cita se eliminará pronto</strong>
                                     </p>
                                 `;
                             }
@@ -2700,7 +2681,7 @@ async function enviarNotificacionCita(citaData) {
 
                 const { error } = await supabase
                     .from('citas')
-                    .update({ estado: 'cancelada',  actualizado_en: new Date().toISOString() })
+                    .update({ estado: 'cancelada' })
                     .eq('id', citaId);
 
                 if (error) throw error;
