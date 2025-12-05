@@ -2681,7 +2681,7 @@ async function enviarNotificacionCita(citaData) {
 
                 const { error } = await supabase
                     .from('citas')
-                    .update({ estado: 'cancelada' })
+                    .update({ estado: 'cancelada',  actualizado_en: new Date().toISOString() })
                     .eq('id', citaId);
 
                 if (error) throw error;
