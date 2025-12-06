@@ -1,0 +1,70 @@
+name: 📧 Envío Automático de Recordatorios
+
+on:
+  schedule:
+    # Ejecutar cada 5 minutos
+    - cron: '*/5 * * * *'
+  
+  # Permitir ejecución manual
+  workflow_dispatch:
+
+jobs:
+  enviar-recordatorios:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🔍 Verificar hora
+      run: |
+        echo "🕐 Iniciando envío de recordatorios"
+        echo "📅 Fecha: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "📍 Zona horaria: $(date +%Z)"
+    
+    - name: 📞 Llamar a función de recordatorios
+      id: recordatorios
+      env:
+        SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
+        SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4'
+      run: |
+        echo "📞 Llamando a función de recordatorios..."
+        
+        response=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+          -X POST "$SUPABASE_URL/functions/v1/recordatorios-automaticos" \
+          -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+          -H "Content-Type: application/json" \
+          -H "User-Agent: GitHub-Actions-Recordatorios/1.0" \
+          --max-time 120 \  # 2 minutos de timeout
+          --retry 2 \
+          -d '{"source": "github-actions", "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}')
+        
+        # Separar respuesta
+        http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+        body=$(echo "$response" | grep -v "HTTP_CODE:")
+        
+        echo "📊 Código HTTP: $http_code"
+        echo "📦 Respuesta: $body"
+        
+        # Guardar resultados
+        echo "http_code=$http_code" >> $GITHUB_OUTPUT
+        echo "response_body=$body" >> $GITHUB_OUTPUT
+        
+        if [ "$http_code" = "200" ]; then
+          echo "✅ Éxito - Recordatorios procesados"
+          exit 0
+        else
+          echo "❌ Error - Revisar logs de la función"
+          exit 1
+        fi
+    
+    - name: 📊 Reporte de ejecución
+      if: always()
+      run: |
+        echo "=========================================="
+        echo "     REPORTE DE RECORDATORIOS"
+        echo "=========================================="
+        echo "🕐 Hora ejecución: $(date '+%H:%M:%S')"
+        echo "📅 Fecha: $(date '+%Y-%m-%d')"
+        echo "🔧 Workflow: ${{ github.workflow }}"
+        echo "🎯 Trigger: ${{ github.event_name }}"
+        echo "📤 Status: ${{ steps.recordatorios.outputs.http_code || 'N/A' }}"
+        echo "⏰ Próxima ejecución: En 5 minutos"
+        echo "=========================================="
