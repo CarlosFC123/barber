@@ -10,13 +10,13 @@ on:
 
 env:
   SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
-  TZ: 'America/Merida'  # Yucatán usa America/Merida
+  TZ: 'America/Mexico_City'  # México (Yucatán usa esta zona)
 
 jobs:
   enviar-recordatorios:
     runs-on: ubuntu-latest
     env:
-      TZ: 'America/Merida'  # Zona horaria de Yucatán
+      TZ: 'America/Mexico_City'
     
     steps:
     - name: 🔍 Verificar configuración y hora
@@ -25,21 +25,19 @@ jobs:
         echo "📍 UBICACIÓN: Yucatán, México"
         echo "⏰ Zona horaria: $TZ"
         echo "📅 Fecha UTC: $(date -u '+%Y-%m-%d %H:%M:%S')"
-        echo "📅 Fecha Yucatán: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "📅 Fecha México: $(date '+%Y-%m-%d %H:%M:%S')"
         echo "🔗 Supabase URL: ${{ env.SUPABASE_URL }}"
         
-        # Calcular ventana de recordatorios
-        HORA_ACTUAL=$(date '+%H:%M')
-        HORA_55_MIN=$(date -d '55 minutes' '+%H:%M')
-        HORA_65_MIN=$(date -d '65 minutes' '+%H:%M')
-        
-        echo "⏰ Hora actual (Yucatán): $HORA_ACTUAL"
-        echo "🎯 Ventana de recordatorios (55-65 min antes):"
-        echo "   - Hora +55 min: $HORA_55_MIN"
-        echo "   - Hora +65 min: $HORA_65_MIN"
+        # Mostrar información importante
         echo ""
-        echo "📝 EJEMPLO: Si una cita es a las 15:00"
-        echo "   Se enviará recordatorio entre 14:55 y 14:05"
+        echo "🎯 VENTANA DE RECORDATORIOS:"
+        echo "Se envían 55-65 minutos antes de la cita"
+        echo ""
+        echo "⏰ HORA ACTUAL: $(date '+%H:%M:%S')"
+        echo "📅 FECHA HOY: $(date '+%Y-%m-%d')"
+        echo ""
+        echo "📝 EJEMPLO:"
+        echo "Cita a las 15:00 → Recordatorio entre 14:55 y 14:05"
     
     - name: 📞 Llamar a función de recordatorios
       id: ejecutar-recordatorios
@@ -51,7 +49,6 @@ jobs:
         # Verificar que la key está configurada
         if [ -z "$SUPABASE_KEY" ]; then
           echo "❌ ERROR: SUPABASE_SERVICE_ROLE_KEY no está configurada"
-          echo "🔍 Verifica que el secret existe en Settings > Secrets"
           exit 1
         fi
         
@@ -61,67 +58,53 @@ jobs:
         FUNCTION_URL="${{ env.SUPABASE_URL }}/functions/v1/recordatorios-automaticos"
         echo "🌐 URL de función: $FUNCTION_URL"
         
-        # Crear timestamp en hora de Yucatán
-        TIMESTAMP_YUCATAN=$(date '+%Y-%m-%dT%H:%M:%S')
+        # Crear timestamp en hora de México
+        TIMESTAMP_MX=$(date '+%Y-%m-%dT%H:%M:%S')
         HORA_ACTUAL=$(date '+%H:%M:%S')
         FECHA_HOY=$(date '+%Y-%m-%d')
         
-        echo "🕐 Timestamp Yucatán: $TIMESTAMP_YUCATAN"
+        echo "🕐 Timestamp México: $TIMESTAMP_MX"
         echo "⏰ Hora actual: $HORA_ACTUAL"
         echo "📅 Fecha hoy: $FECHA_HOY"
         
+        # Calcular ventana de recordatorios
+        HORA_INICIO=$(date -d '55 minutes' '+%H:%M')
+        HORA_FIN=$(date -d '65 minutes' '+%H:%M')
+        echo "📊 Ventana de envío (55-65 min): $HORA_INICIO a $HORA_FIN"
+        
         # Hacer la petición
-        echo "🔄 Llamando a Edge Function..."
         response=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
           -X POST "$FUNCTION_URL" \
           -H "Authorization: Bearer $SUPABASE_KEY" \
           -H "Content-Type: application/json" \
           -H "User-Agent: GitHub-Actions-Recordatorios/1.0" \
-          --max-time 120 \
+          --max-time 180 \
           --retry 2 \
           --retry-delay 5 \
           -d "{
             \"source\": \"github-actions\",
-            \"timestamp_yucatan\": \"$TIMESTAMP_YUCATAN\",
+            \"timestamp_mx\": \"$TIMESTAMP_MX\",
             \"hora_actual\": \"$HORA_ACTUAL\",
             \"fecha_hoy\": \"$FECHA_HOY\",
             \"ejecucion_automatica\": true
-          }" 2>&1)
+          }")
         
         # Extraer código HTTP
-        http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2 || echo "0")
-        body=$(echo "$response" | sed '/HTTP_CODE:/d' || echo "No response body")
+        http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+        body=$(echo "$response" | sed '/HTTP_CODE:/d')
         
         echo "📊 Código HTTP: $http_code"
-        echo "📦 Respuesta completa:"
-        
-        # Intentar formatear JSON si es posible
-        if command -v jq &> /dev/null; then
-          echo "$body" | jq . 2>/dev/null || echo "$body"
-        else
-          echo "$body"
-        fi
+        echo "📦 Respuesta:"
+        echo "$body"
         
         # Guardar salidas
         echo "http_code=$http_code" >> $GITHUB_OUTPUT
         
-        # Para body multilínea usar delimiter
-        cat << 'EOF' >> $GITHUB_OUTPUT
-response_body<<RESPONSE_EOF
-$(echo "$body")
-RESPONSE_EOF
-EOF
-        
         # Extraer datos de la respuesta
         if [ ! -z "$body" ]; then
-          total_citas=$(echo "$body" | grep -o '"total_citas":[0-9]*' | head -1 | cut -d: -f2 || echo "0")
-          enviados=$(echo "$body" | grep -o '"recordatorios_enviados":[0-9]*' | head -1 | cut -d: -f2 || echo "0")
-          errores=$(echo "$body" | grep -o '"errores":[0-9]*' | head -1 | cut -d: -f2 || echo "0")
-          
-          echo "📊 Datos extraídos:"
-          echo "   Total citas: $total_citas"
-          echo "   Enviados: $enviados"
-          echo "   Errores: $errores"
+          total_citas=$(echo "$body" | grep -o '"total_citas":[0-9]*' | cut -d: -f2 || echo "0")
+          enviados=$(echo "$body" | grep -o '"recordatorios_enviados":[0-9]*' | cut -d: -f2 || echo "0")
+          errores=$(echo "$body" | grep -o '"errores":[0-9]*' | cut -d: -f2 || echo "0")
           
           echo "total_citas=$total_citas" >> $GITHUB_OUTPUT
           echo "enviados=$enviados" >> $GITHUB_OUTPUT
@@ -142,11 +125,11 @@ EOF
       run: |
         echo ""
         echo "=========================================="
-        echo "     📋 REPORTE DETALLADO - YUCATÁN"
+        echo "     📋 REPORTE DETALLADO - MÉXICO"
         echo "=========================================="
         echo "📍 UBICACIÓN: Yucatán, México"
-        echo "⏰ Zona horaria: America/Merida (UTC-6)"
-        echo "📅 Fecha (Yucatán): $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "⏰ Zona horaria: America/Mexico_City"
+        echo "📅 Fecha: $(date '+%Y-%m-%d %H:%M:%S')"
         echo "📅 Día: $(date '+%A, %d de %B de %Y')"
         echo "🔧 Workflow: ${{ github.workflow }}"
         echo "🎯 Trigger: ${{ github.event_name }}"
@@ -157,39 +140,35 @@ EOF
         echo "❌ Errores: ${{ steps.ejecutar-recordatorios.outputs.errores || '0' }}"
         echo ""
         
-        # Mostrar información de tiempo
-        HORA_ACTUAL=$(date '+%H:%M:%S')
-        echo "⏰ HORA ACTUAL: $HORA_ACTUAL"
+        # Mostrar hora actual y ventana
+        echo "⏰ HORA ACTUAL: $(date '+%H:%M:%S')"
         echo ""
         echo "🎯 VENTANA DE RECORDATORIOS:"
-        echo "   - Se envían entre 55-65 minutos antes de la cita"
-        echo "   - Ejemplo: Cita a las 15:00 → Recordatorio 14:55 a 14:05"
+        echo "Se envían 55-65 minutos antes de cada cita"
+        echo ""
+        echo "📝 EJEMPLOS:"
+        echo "• Cita 09:00 → Recordatorio 08:55 a 08:05"
+        echo "• Cita 14:00 → Recordatorio 13:55 a 13:05"
+        echo "• Cita 18:00 → Recordatorio 17:55 a 17:05"
         echo ""
         echo "⏰ PRÓXIMA EJECUCIÓN: $(date -d '+5 minutes' '+%H:%M:%S')"
         echo "=========================================="
         
-        # Crear archivo de log - VERSIÓN CORREGIDA
+        # Crear archivo de log
         LOG_FILE="recordatorios-$(date '+%Y%m%d-%H%M%S').log"
         
-        cat > "$LOG_FILE" << 'LOGFILE_EOF'
-# Reporte de Recordatorios Automáticos - Yucatán
-# =============================================
-Fecha ejecución (Yucatán): $(date '+%Y-%m-%d %H:%M:%S')
-Zona horaria: America/Merida (UTC-6)
-Workflow: ${{ github.workflow }}
-Run ID: ${{ github.run_id }}
-Trigger: ${{ github.event_name }}
-Hora actual: $(date '+%H:%M:%S')
-Status HTTP: ${{ steps.ejecutar-recordatorios.outputs.http_code || 'N/A' }}
-Citas evaluadas: ${{ steps.ejecutar-recordatorios.outputs.total_citas || '0' }}
-Recordatorios enviados: ${{ steps.ejecutar-recordatorios.outputs.enviados || '0' }}
-Errores: ${{ steps.ejecutar-recordatorios.outputs.errores || '0' }}
-Proxima ejecucion: $(date -d '+5 minutes' '+%H:%M:%S')
-
-VENTANA DE ENVÍO:
-- Recordatorios se envían 55-65 minutos antes de la cita
-- Ejemplo: Cita a las 15:00 → Recordatorio entre 14:55 y 14:05
-LOGFILE_EOF
+        echo "# Reporte de Recordatorios Automáticos" > $LOG_FILE
+        echo "# ====================================" >> $LOG_FILE
+        echo "Fecha ejecución: $(date '+%Y-%m-%d %H:%M:%S')" >> $LOG_FILE
+        echo "Zona horaria: America/Mexico_City" >> $LOG_FILE
+        echo "Workflow: ${{ github.workflow }}" >> $LOG_FILE
+        echo "Run ID: ${{ github.run_id }}" >> $LOG_FILE
+        echo "Trigger: ${{ github.event_name }}" >> $LOG_FILE
+        echo "Status HTTP: ${{ steps.ejecutar-recordatorios.outputs.http_code || 'N/A' }}" >> $LOG_FILE
+        echo "Citas evaluadas: ${{ steps.ejecutar-recordatorios.outputs.total_citas || '0' }}" >> $LOG_FILE
+        echo "Recordatorios enviados: ${{ steps.ejecutar-recordatorios.outputs.enviados || '0' }}" >> $LOG_FILE
+        echo "Errores: ${{ steps.ejecutar-recordatorios.outputs.errores || '0' }}" >> $LOG_FILE
+        echo "Proxima ejecucion: $(date -d '+5 minutes' '+%H:%M:%S')" >> $LOG_FILE
         
         echo "📄 Log guardado en: $LOG_FILE"
     
@@ -197,15 +176,15 @@ LOGFILE_EOF
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: recordatorios-logs-${{ github.run_id }}
+        name: recordatorios-logs
         path: recordatorios-*.log
-        retention-days: 30
+        retention-days: 7
     
     - name: 🚨 Notificar en caso de error
       if: failure()
       run: |
         echo "🚨 ===== ERROR EN RECORDATORIOS ====="
-        echo "📍 UBICACIÓN: Yucatán"
+        echo "📍 UBICACIÓN: Yucatán, México"
         echo "🕐 Hora del error: $(date '+%H:%M:%S')"
         echo "📤 Status HTTP: ${{ steps.ejecutar-recordatorios.outputs.http_code || 'Desconocido' }}"
         echo "🔍 Workflow: ${{ github.workflow }}"
