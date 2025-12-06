@@ -1774,14 +1774,14 @@ async function verificarYEliminarCitasExpiradas() {
                     tiempoParaEliminar = fechaExpira - ahora;
                     
                     if (tiempoParaEliminar > 0 && puedeEliminar) {
-                        const horas = Math.floor(tiempoParaEliminar / (1000 * 60 * 60));
-                        const minutos = Math.floor((tiempoParaEliminar % (1000 * 60 * 60)) / (1000 * 60));
+                        // const horas = Math.floor(tiempoParaEliminar / (1000 * 60 * 60));
+                        // const minutos = Math.floor((tiempoParaEliminar % (1000 * 60 * 60)) / (1000 * 60));
                         
-                        mensajeEliminacionHTML = `
-                            <p style="color: #ffc107; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                                🗑️ Esta cita se eliminará automáticamente en ${horas}h ${minutos}m
-                            </p>
-                        `;
+                        // mensajeEliminacionHTML = `
+                        //     <p style="color: #ffc107; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
+                        //         🗑️ Esta cita se eliminará automáticamente en ${horas}h ${minutos}m
+                        //     </p>
+                        // `;
                     } else if (tiempoParaEliminar <= 0 && puedeEliminar) {
                         mensajeEliminacionHTML = `
                             <p style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
