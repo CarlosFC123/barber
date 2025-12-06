@@ -1,38 +1,114 @@
-# Versión CON Service Role Key (más seguro)
 name: 📧 Recordatorios Automáticos
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Cada 5 minutos
+    # Ejecutar cada 5 minutos
+    - cron: '*/5 * * * *'
+  
+  # Permitir ejecución manual desde GitHub
   workflow_dispatch:
 
 jobs:
-  recordatorios:
+  enviar-recordatorios:
     runs-on: ubuntu-latest
-    env:
-      SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
-      SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}  # ← Cambia a Service Role
+    
     steps:
-    - name: 🚀 Ejecutar recordatorios
+    - name: 🔍 Verificar configuración
+      run: |
+        echo "🕐 Iniciando envío de recordatorios"
+        echo "📅 Fecha: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "📍 Zona horaria: America/Mexico_City"
+        echo "🔗 Supabase URL: https://nllllvztipbrhryzxamm.supabase.co"
+    
+    - name: 📞 Llamar a función de recordatorios
+      id: ejecutar-recordatorios
+      env:
+        SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
+        SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       run: |
         echo "📧 Ejecutando función de recordatorios..."
+        echo "🔑 Key (primeros 10 chars): ${SUPABASE_KEY:0:10}..."
         
-        response=$(curl -s -w "\n%{http_code}" \
+        # Verificar que curl está disponible
+        which curl || echo "⚠️ curl no encontrado"
+        
+        # Hacer la petición con timeout extendido (puede tardar si hay muchos emails)
+        set +e  # No salir en error inmediatamente
+        
+        response=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
           -X POST "$SUPABASE_URL/functions/v1/recordatorios-automaticos" \
           -H "Authorization: Bearer $SUPABASE_KEY" \
           -H "Content-Type: application/json" \
-          -d '{}')
+          -H "User-Agent: GitHub-Actions-Recordatorios/1.0" \
+          --max-time 180 \  # 3 minutos de timeout (envío de emails puede tardar)
+          --retry 2 \
+          --retry-delay 5 \
+          -d '{"source": "github-actions", "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}')
         
-        http_code=$(echo "$response" | tail -n1)
-        body=$(echo "$response" | sed '$d')
+        # Extraer código HTTP
+        http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+        body=$(echo "$response" | grep -v "HTTP_CODE:")
         
-        echo "📊 Status: $http_code"
+        echo "📊 Código HTTP: $http_code"
         echo "📦 Respuesta: $body"
         
+        # Extraer datos de la respuesta para reporte
+        if [ ! -z "$body" ]; then
+          total_citas=$(echo "$body" | grep -o '"total_citas":[0-9]*' | cut -d: -f2 || echo "0")
+          enviados=$(echo "$body" | grep -o '"recordatorios_enviados":[0-9]*' | cut -d: -f2 || echo "0")
+          errores=$(echo "$body" | grep -o '"errores":[0-9]*' | cut -d: -f2 || echo "0")
+          
+          echo "total_citas=$total_citas" >> $GITHUB_OUTPUT
+          echo "enviados=$enviados" >> $GITHUB_OUTPUT
+          echo "errores=$errores" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "http_code=$http_code" >> $GITHUB_OUTPUT
+        echo "response_body=$body" >> $GITHUB_OUTPUT
+        
+        # Verificar éxito
         if [ "$http_code" = "200" ]; then
-          echo "✅ Recordatorios procesados"
+          echo "✅ Éxito - Recordatorios procesados"
           exit 0
         else
-          echo "❌ Error en función"
+          echo "❌ Error HTTP: $http_code"
+          echo "🔍 Error details: $body"
           exit 1
         fi
+    
+    - name: 📊 Generar reporte
+      if: always()
+      run: |
+        echo "=========================================="
+        echo "     REPORTE DE RECORDATORIOS"
+        echo "=========================================="
+        echo "🕐 Hora ejecución: $(date '+%H:%M:%S')"
+        echo "📅 Fecha: $(date '+%Y-%m-%d')"
+        echo "🔧 Workflow: ${{ github.workflow }}"
+        echo "🎯 Trigger: ${{ github.event_name }}"
+        echo "📤 Status HTTP: ${{ steps.ejecutar-recordatorios.outputs.http_code || 'N/A' }}"
+        echo "📊 Citas evaluadas: ${{ steps.ejecutar-recordatorios.outputs.total_citas || '0' }}"
+        echo "✅ Emails enviados: ${{ steps.ejecutar-recordatorios.outputs.enviados || '0' }}"
+        echo "❌ Errores: ${{ steps.ejecutar-recordatorios.outputs.errores || '0' }}"
+        echo "⏰ Próxima ejecución: En 5 minutos"
+        echo "=========================================="
+        
+        # Crear archivo de log
+        echo "# Reporte de Recordatorios - $(date)" > recordatorios.log
+        echo "Fecha: $(date '+%Y-%m-%d %H:%M:%S')" >> recordatorios.log
+        echo "Workflow: ${{ github.workflow }}" >> recordatorios.log
+        echo "Run ID: ${{ github.run_id }}" >> recordatorios.log
+        echo "Status: ${{ steps.ejecutar-recordatorios.outputs.http_code }}" >> recordatorios.log
+        echo "Citas evaluadas: ${{ steps.ejecutar-recordatorios.outputs.total_citas || '0' }}" >> recordatorios.log
+        echo "Emails enviados: ${{ steps.ejecutar-recordatorios.outputs.enviados || '0' }}" >> recordatorios.log
+        echo "Errores: ${{ steps.ejecutar-recordatorios.outputs.errores || '0' }}" >> recordatorios.log
+        
+        cat recordatorios.log
+    
+    - name: 🚨 Notificar en caso de error crítico
+      if: failure()
+      run: |
+        echo "🚨 ATENCIÓN: El proceso de recordatorios falló"
+        echo "🔍 Revisar los logs de la Edge Function en Supabase"
+        echo "📧 Verificar que la Service Role Key sea correcta"
+        echo "🔄 Comprobar que la función 'recordatorios-automaticos' existe y está desplegada"
