@@ -1659,7 +1659,7 @@
             }
         }
 
-       async function cargarMisCitas() {
+      async function cargarMisCitas() {
     try {
         const { data: citas, error } = await supabase
             .from('citas')
@@ -1709,6 +1709,9 @@
                 const puedeCancelar = citaEnCurso && !faltaMenosDeUnaHora && 
                                     (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
                 
+                // Determinar si la cita puede ser eliminada
+                const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
+                
                 let mensajeCancelacionHTML = '';
                 let mensajeEliminacionHTML = '';
                 
@@ -1724,7 +1727,7 @@
                     }
                 }
                 
-                if (cita.estado === 'completada' || cita.estado === 'cancelada') {
+                if (puedeEliminar) {
                     mensajeEliminacionHTML = `
                         <p style="color: #ffc107; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
                             🗑️ Esta cita se eliminará pronto automáticamente
@@ -1755,7 +1758,9 @@
                             ${!puedeCancelar && citaEnCurso && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
                                 <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
                             ` : ''}
-                            <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar</button>
+                            ${puedeEliminar ? `
+                                <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar</button>
+                            ` : ''}
                         </div>
                     </div>
                 `;
@@ -1769,8 +1774,7 @@
         console.error('Error cargando citas:', error);
         showAlert('Error al cargar tus citas', 'error');
     }
-}
-
+} 
 // Función para actualizar todos los contadores
 function actualizarContadoresCitas() {
     const ahora = new Date();
