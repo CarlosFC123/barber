@@ -104,9 +104,13 @@ jobs:
         
         # Guardar salidas
         echo "http_code=$http_code" >> $GITHUB_OUTPUT
-        echo "response_body<<EOF" >> $GITHUB_OUTPUT
-        echo "$body" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Para body multilínea usar delimiter
+        cat << 'EOF' >> $GITHUB_OUTPUT
+response_body<<RESPONSE_EOF
+$(echo "$body")
+RESPONSE_EOF
+EOF
         
         # Extraer datos de la respuesta
         if [ ! -z "$body" ]; then
@@ -164,10 +168,10 @@ jobs:
         echo "⏰ PRÓXIMA EJECUCIÓN: $(date -d '+5 minutes' '+%H:%M:%S')"
         echo "=========================================="
         
-        # Crear archivo de log
+        # Crear archivo de log - VERSIÓN CORREGIDA
         LOG_FILE="recordatorios-$(date '+%Y%m%d-%H%M%S').log"
         
-        cat > "$LOG_FILE" << EOF
+        cat > "$LOG_FILE" << 'LOGFILE_EOF'
 # Reporte de Recordatorios Automáticos - Yucatán
 # =============================================
 Fecha ejecución (Yucatán): $(date '+%Y-%m-%d %H:%M:%S')
@@ -185,7 +189,7 @@ Proxima ejecucion: $(date -d '+5 minutes' '+%H:%M:%S')
 VENTANA DE ENVÍO:
 - Recordatorios se envían 55-65 minutos antes de la cita
 - Ejemplo: Cita a las 15:00 → Recordatorio entre 14:55 y 14:05
-EOF
+LOGFILE_EOF
         
         echo "📄 Log guardado en: $LOG_FILE"
     
