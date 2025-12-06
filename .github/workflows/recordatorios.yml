@@ -22,17 +22,22 @@ jobs:
         echo "🆔 Run ID: ${{ github.run_id }}"
         echo "🔄 Run Number: ${{ github.run_number }}"
         echo "⚡ Trigger: ${{ github.event_name }}"
-        echo "📅 Hora del sistema: $(date)"
+        echo "📅 Hora sistema: $(date)"
         echo "🌎 Zona horaria: $TZ"
         echo "🕐 Hora Mexico: $(TZ='America/Mexico_City' date '+%Y-%m-%d %H:%M:%S')"
-        echo "========================================"
+        echo "🔗 Supabase URL: ${{ env.SUPABASE_URL }}"
         
-        # Verificar que las secrets existen
+        # Verificar secret configurada
         if [ -n "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
           echo "✅ SUPABASE_SERVICE_ROLE_KEY: CONFIGURADA"
-          echo "   Longitud: ${#SUPABASE_SERVICE_ROLE_KEY} caracteres"
+          # Mostrar primeros y últimos caracteres para verificación
+          KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          echo "📎 Key preview: ${KEY:0:20}...${KEY: -20}"
+          echo "📏 Longitud: ${#KEY} caracteres"
         else
-          echo "❌ SUPABASE_SERVICE_ROLE_KEY: NO CONFIGURADA"
+          echo "❌ ERROR: SUPABASE_SERVICE_ROLE_KEY NO CONFIGURADA"
+          echo "ℹ️  Ve a: Settings → Secrets and variables → Actions"
+          echo "ℹ️  Agrega secret: SUPABASE_SERVICE_ROLE_KEY"
           exit 1
         fi
 
@@ -42,129 +47,185 @@ jobs:
         SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       run: |
         echo "📞 LLAMANDO A EDGE FUNCTION..."
-        echo "URL: ${{ env.SUPABASE_URL }}/functions/v1/recordatorios-automaticos"
+        FUNCTION_URL="${{ env.SUPABASE_URL }}/functions/v1/recordatorios-automaticos"
+        echo "🌐 URL: $FUNCTION_URL"
         
-        # Crear timestamp
-        TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%S')
-        echo "Timestamp: $TIMESTAMP"
+        # Crear timestamp en hora Mexico
+        TIMESTAMP_MX=$(TZ='America/Mexico_City' date '+%Y-%m-%dT%H:%M:%S')
+        echo "🕐 Timestamp (MX): $TIMESTAMP_MX"
         
-        # Hacer la petición con verbose
-        response=$(curl -v \
-          -X POST "${{ env.SUPABASE_URL }}/functions/v1/recordatorios-automaticos" \
+        # Verificar que la key tiene formato JWT
+        echo "🔑 Verificando Service Role Key..."
+        if [[ $SUPABASE_KEY == eyJ* ]]; then
+          echo "✅ Formato JWT detectado"
+        else
+          echo "❌ Formato inesperado - ¿es la Service Role Key correcta?"
+        fi
+        
+        echo "📤 Enviando petición a Edge Function..."
+        
+        # Usar curl con mejor manejo de errores
+        response=$(curl -s -w "\nHTTP_CODE:%{http_code}\nTIME:%{time_total}" \
+          -X POST "$FUNCTION_URL" \
           -H "Authorization: Bearer $SUPABASE_KEY" \
           -H "Content-Type: application/json" \
-          -H "X-Debug-Mode: true" \
-          -H "User-Agent: GitHub-Actions-Debug/1.0" \
-          --max-time 30 \
-          -d "{\"debug\": true, \"timestamp\": \"$TIMESTAMP\"}" \
-          2>&1)
+          -H "X-GitHub-Action: true" \
+          -H "X-Trigger-Source: github-actions" \
+          --max-time 60 \
+          --retry 2 \
+          --retry-delay 5 \
+          -d "{\"debug\": true, \"timestamp_mx\": \"$TIMESTAMP_MX\", \"source\": \"github-actions\"}")
         
-        # Extraer información
+        # Separar partes de la respuesta
+        http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+        response_time=$(echo "$response" | grep "TIME:" | cut -d: -f2)
+        body=$(echo "$response" | sed '/HTTP_CODE:/d' | sed '/TIME:/d')
+        
         echo "========================================"
-        echo "RAW RESPONSE:"
-        echo "$response"
-        echo "========================================"
+        echo "📊 RESPUESTA DE EDGE FUNCTION:"
+        echo "🕐 Tiempo de respuesta: ${response_time}s"
+        echo "📤 Status HTTP: $http_code"
         
-        # Extraer HTTP code
-        http_code=$(echo "$response" | grep -o "HTTP/.*" | tail -1 | awk '{print $2}')
-        body=$(echo "$response" | sed -n '/^{/,/^}/p')
-        
-        echo "HTTP CODE: $http_code"
-        echo "BODY: $body"
-        
-        # Guardar outputs
-        echo "http_code=$http_code" >> $GITHUB_OUTPUT
-        
-        # Procesar respuesta JSON
         if [ ! -z "$body" ]; then
+          echo "📦 Body (raw):"
+          echo "$body"
+          
+          # Guardar para procesamiento JSON
           echo "$body" > response.json
           
-          total_citas=$(jq -r '.total_citas // 0' response.json)
-          enviados=$(jq -r '.recordatorios_enviados // 0' response.json)
-          errores=$(jq -r '.errores // 0' response.json)
-          success=$(jq -r '.success // false' response.json)
-          
-          echo "total_citas=$total_citas" >> $GITHUB_OUTPUT
-          echo "enviados=$enviados" >> $GITHUB_OUTPUT
-          echo "errores=$errores" >> $GITHUB_OUTPUT
-          echo "success=$success" >> $GITHUB_OUTPUT
-          
-          # Mostrar detalles
-          echo "========================================"
-          echo "RESUMEN:"
-          echo "  Success: $success"
-          echo "  Total citas: $total_citas"
-          echo "  Enviados: $enviados"
-          echo "  Errores: $errores"
-          
-          # Si hay error, mostrar detalles
-          if [ "$success" = "false" ]; then
-            error_msg=$(jq -r '.error // "Sin mensaje"' response.json)
-            echo "❌ ERROR: $error_msg"
+          # Extraer datos con jq
+          if command -v jq &> /dev/null; then
+            echo "📋 Body (formateado):"
+            jq . response.json
+            
+            success=$(jq -r '.success // false' response.json 2>/dev/null || echo "false")
+            total_citas=$(jq -r '.total_citas // 0' response.json 2>/dev/null || echo "0")
+            enviados=$(jq -r '.recordatorios_enviados // 0' response.json 2>/dev/null || echo "0")
+            errores=$(jq -r '.errores // 0' response.json 2>/dev/null || echo "0")
+            error_msg=$(jq -r '.error // empty' response.json 2>/dev/null)
+            
+            echo "✅ Success: $success"
+            echo "📅 Citas evaluadas: $total_citas"
+            echo "📧 Emails enviados: $enviados"
+            echo "❌ Errores: $errores"
+            
+            if [ ! -z "$error_msg" ]; then
+              echo "⚠️ Error message: $error_msg"
+            fi
+            
+            # Guardar outputs
+            echo "http_code=$http_code" >> $GITHUB_OUTPUT
+            echo "success=$success" >> $GITHUB_OUTPUT
+            echo "total_citas=$total_citas" >> $GITHUB_OUTPUT
+            echo "enviados=$enviados" >> $GITHUB_OUTPUT
+            echo "errores=$errores" >> $GITHUB_OUTPUT
+            
+          else
+            echo "⚠️ jq no disponible, usando extracción básica"
+            echo "http_code=$http_code" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
           fi
+        else
+          echo "❌ Respuesta vacía o error de conexión"
+          echo "http_code=$http_code" >> $GITHUB_OUTPUT
+          echo "success=false" >> $GITHUB_OUTPUT
+        fi
+        
+        # Determinar éxito basado en HTTP code
+        if [ "$http_code" = "200" ]; then
+          echo "✅ Petición exitosa (HTTP 200)"
+        else
+          echo "❌ Error HTTP: $http_code"
+          exit 1
         fi
 
     - name: 📊 GENERAR REPORTE DETALLADO
       if: always()
       run: |
         echo "========================================"
-        echo "📋 REPORTE COMPLETO"
+        echo "📋 REPORTE FINAL DE EJECUCIÓN"
         echo "========================================"
         echo "🏷️ Workflow: ${{ github.workflow }}"
         echo "🆔 Run ID: ${{ github.run_id }}"
+        echo "🔗 Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         echo "🎯 Trigger: ${{ github.event_name }}"
-        echo "🕐 Inicio (UTC): ${{ github.event.created_at }}"
-        echo "📍 Repository: ${{ github.repository }}"
+        echo ""
+        echo "⏰ INFORMACIÓN TEMPORAL:"
+        echo "  Hora ejecución (UTC): $(date -u '+%Y-%m-%d %H:%M:%S')"
+        echo "  Hora ejecución (MX): $(TZ='America/Mexico_City' date '+%Y-%m-%d %H:%M:%S')"
+        echo "  Zona horaria: ${{ env.TZ }}"
         echo ""
         echo "📊 RESULTADOS:"
-        echo "  Status HTTP: ${{ steps.ejecutar.outputs.http_code }}"
-        echo "  Éxito: ${{ steps.ejecutar.outputs.success }}"
-        echo "  Citas evaluadas: ${{ steps.ejecutar.outputs.total_citas }}"
-        echo "  Emails enviados: ${{ steps.ejecutar.outputs.enviados }}"
-        echo "  Errores: ${{ steps.ejecutar.outputs.errores }}"
+        echo "  Status HTTP: ${{ steps.ejecutar.outputs.http_code || 'N/A' }}"
+        echo "  Éxito: ${{ steps.ejecutar.outputs.success || 'false' }}"
+        echo "  Citas evaluadas: ${{ steps.ejecutar.outputs.total_citas || '0' }}"
+        echo "  Emails enviados: ${{ steps.ejecutar.outputs.enviados || '0' }}"
+        echo "  Errores: ${{ steps.ejecutar.outputs.errores || '0' }}"
         echo ""
         echo "⏰ PRÓXIMA EJECUCIÓN:"
-        echo "  En 5 minutos según cron"
-        echo "  $(TZ='America/Mexico_City' date -d '+5 minutes' '+%H:%M:%S') hora Mexico"
+        echo "  Cron: '*/5 * * * *' (cada 5 minutos)"
+        echo "  Hora MX: $(TZ='America/Mexico_City' date -d '+5 minutes' '+%H:%M:%S')"
         echo "========================================"
         
-        # Crear archivo de log
-        LOG_FILE="recordatorios-debug-$(date '+%Y%m%d-%H%M%S').log"
-        echo "# Reporte de Depuración" > $LOG_FILE
-        echo "Fecha: $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $LOG_FILE
-        echo "Fecha Mexico: $(TZ='America/Mexico_City' date '+%Y-%m-%d %H:%M:%S')" >> $LOG_FILE
-        echo "Workflow: ${{ github.workflow }}" >> $LOG_FILE
-        echo "Run ID: ${{ github.run_id }}" >> $LOG_FILE
-        echo "Status HTTP: ${{ steps.ejecutar.outputs.http_code }}" >> $LOG_FILE
-        echo "Success: ${{ steps.ejecutar.outputs.success }}" >> $LOG_FILE
-        echo "Citas: ${{ steps.ejecutar.outputs.total_citas }}" >> $LOG_FILE
-        echo "Enviados: ${{ steps.ejecutar.outputs.enviados }}" >> $LOG_FILE
-        echo "Errores: ${{ steps.ejecutar.outputs.errores }}" >> $LOG_FILE
+        # Crear log detallado
+        LOG_FILE="recordatorios-$(date '+%Y%m%d-%H%M%S').log"
         
-        echo "📄 Log guardado: $LOG_FILE"
+        cat > "$LOG_FILE" << EOF
+# REPORTE DE RECORDATORIOS
+Fecha UTC: $(date -u '+%Y-%m-%d %H:%M:%S')
+Fecha Mexico: $(TZ='America/Mexico_City' date '+%Y-%m-%d %H:%M:%S')
+Workflow: ${{ github.workflow }}
+Run ID: ${{ github.run_id }}
+Trigger: ${{ github.event_name }}
+Repository: ${{ github.repository }}
 
-    - name: 📤 SUBIR LOGS
+## RESULTADOS
+Status HTTP: ${{ steps.ejecutar.outputs.http_code || 'N/A' }}
+Success: ${{ steps.ejecutar.outputs.success || 'false' }}
+Citas evaluadas: ${{ steps.ejecutar.outputs.total_citas || '0' }}
+Emails enviados: ${{ steps.ejecutar.outputs.enviados || '0' }}
+Errores: ${{ steps.ejecutar.outputs.errores || '0' }}
+
+## CONFIGURACIÓN
+Supabase URL: ${{ env.SUPABASE_URL }}
+Zona horaria: ${{ env.TZ }}
+Service Role Key: $(if [ -n "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then echo "CONFIGURADA"; else echo "NO CONFIGURADA"; fi)
+
+## PRÓXIMA EJECUCIÓN
+Programación: Cada 5 minutos
+Siguiente (MX): $(TZ='America/Mexico_City' date -d '+5 minutes' '+%H:%M:%S')
+EOF
+        
+        echo "📄 Log guardado en: $LOG_FILE"
+
+    - name: 📤 SUBIR LOGS COMO ARTEFACTO
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: recordatorios-debug-logs
+        name: recordatorios-logs
         path: recordatorios-*.log
-        retention-days: 30
+        retention-days: 7
+        if-no-files-found: warn
 
-    - name: 🚨 NOTIFICAR ERRORES
+    - name: 🚨 NOTIFICAR ERROR CRÍTICO
       if: failure()
       run: |
-        echo "🚨🚨🚨 ERROR CRÍTICO 🚨🚨🚨"
-        echo "================================"
-        echo "El workflow ha fallado!"
+        echo "🚨🚨🚨 ERROR EN WORKFLOW 🚨🚨🚨"
+        echo "===================================="
+        echo "ATENCIÓN: El proceso de recordatorios ha fallado"
         echo ""
-        echo "PASOS PARA DEPURAR:"
-        echo "1. Verificar que SUPABASE_SERVICE_ROLE_KEY sea correcta"
-        echo "2. Comprobar que la Edge Function está desplegada"
-        echo "3. Revisar logs de Supabase Functions"
-        echo "4. Verificar zona horaria en citas"
-        echo "5. Comprobar emails de clientes en BD"
+        echo "🔍 POSIBLES CAUSAS:"
+        echo "1. Service Role Key incorrecta o expirada"
+        echo "2. Edge Function no desplegada"
+        echo "3. Permisos insuficientes en la BD"
+        echo "4. Error en la función edge"
         echo ""
-        echo "📊 Datos del error:"
-        echo "HTTP Code: ${{ steps.ejecutar.outputs.http_code }}"
-        echo "Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        echo "🛠️  SOLUCIONES:"
+        echo "• Verificar SUPABASE_SERVICE_ROLE_KEY en GitHub Secrets"
+        echo "• Usar la Service Role Key (no la anon key)"
+        echo "• Desplegar función: supabase functions deploy recordatorios-automaticos"
+        echo "• Revisar logs en Supabase Dashboard → Edge Functions"
+        echo ""
+        echo "📊 DATOS DEL ERROR:"
+        echo "HTTP Code: ${{ steps.ejecutar.outputs.http_code || 'N/A' }}"
+        echo "Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
