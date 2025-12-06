@@ -3,7 +3,7 @@ name: 📧 Recordatorios Automáticos
 on:
   schedule:
     # Ejecutar cada 5 minutos (según UTC)
-    - cron: '*/5 * * * *'
+    - cron: '*/1 * * * *'
   
   # Permitir ejecución manual desde GitHub
   workflow_dispatch:
