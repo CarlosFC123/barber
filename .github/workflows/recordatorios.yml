@@ -3,7 +3,7 @@ name: 📧 Recordatorios Automáticos - DEPURACIÓN
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Cada 5 minutos
+    - cron: '*/1 * * * *'  # Cada 5 minutos
   workflow_dispatch:  # Permite ejecución manual
 
 env:
