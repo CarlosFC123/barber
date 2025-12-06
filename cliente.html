@@ -844,7 +844,8 @@
         let barberoFijo = null;
         let calendarioHabilitado = false;
         let todasLasCitasFuturasCache = [];
-        
+        let intervalosContador = {};
+
         // Variables de control para evitar ejecuciones múltiples
         let enviandoRecordatorios = false;
         let ultimaEjecucionRecordatorios = 0;
@@ -1652,139 +1653,118 @@
             }
         }
 
-        async function cargarMisCitas() {
-            try {
-                const { data: citas, error } = await supabase
-                    .from('citas')
-                    .select(`
-                        *,
-                        servicios(nombre, precio),
-                        barberos(nombre)
-                    `)
-                    .eq('cliente_id', usuarioActual.id)
-                    .order('fecha', { ascending: false });
+       async function cargarMisCitas() {
+    try {
+        const { data: citas, error } = await supabase
+            .from('citas')
+            .select(`
+                *,
+                servicios(nombre, precio),
+                barberos(nombre)
+            `)
+            .eq('cliente_id', usuarioActual.id)
+            .order('fecha', { ascending: false });
 
-                if (error) throw error;
+        if (error) throw error;
 
-                const listaCitas = document.getElementById('listaCitas');
+        const listaCitas = document.getElementById('listaCitas');
+        
+        if (!citas || citas.length === 0) {
+            listaCitas.innerHTML = `
+                <div class="empty-state">
+                    <div>📅</div>
+                    <h3>No tienes citas agendadas</h3>
+                    <p>¡Agenda tu primera cita ahora!</p>
+                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
+                </div>
+            `;
+        } else {
+            listaCitas.innerHTML = `
+                <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
+                    <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
+                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 24px;">
+                        📅 Agendar Nueva Cita
+                    </button>
+                </div>
+            ` + citas.map(cita => {
+                const fechaCreado = new Date(cita.creado_en);
+                const fechaLocal = fechaCreado.toLocaleString('es-MX');
                 
-                if (!citas || citas.length === 0) {
-                    listaCitas.innerHTML = `
-                        <div class="empty-state">
-                            <div>📅</div>
-                            <h3>No tienes citas agendadas</h3>
-                            <p>¡Agenda tu primera cita ahora!</p>
-                            <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
-                        </div>
-                    `;
-                } else {
-                    listaCitas.innerHTML = `
-                        <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
-                            <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
-                            <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 24px;">
-                                📅 Agendar Nueva Cita
-                            </button>
-                        </div>
-                    ` + citas.map(cita => {
-                        const fechaCreado = new Date(cita.creado_en);
-                        const fechaLocal = fechaCreado.toLocaleString('es-MX');
-                        
-                        const ahora = new Date();
-                        const [year, month, day] = cita.fecha.split('-');
-                        const [hour, minute] = cita.hora.split(':');
-                        const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
-                        
-                        const citaPasada = fechaCita < ahora;
-                        const citaEnCurso = !citaPasada;
-                        
-                        const tiempoParaCita = fechaCita - ahora;
-                        const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
-                        const puedeCancelar = citaEnCurso && !faltaMenosDeUnaHora && 
-                                            (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
-                        
-                        let contadorHTML = '';
-                        let mensajeCancelacionHTML = '';
-                        let mensajeEliminacionHTML = '';
-                        
-                        if (citaEnCurso && tiempoParaCita > 0 && 
-                            (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada')) {
-                            
-                            const dias = Math.floor(tiempoParaCita / (1000 * 60 * 60 * 24));
-                            const horas = Math.floor((tiempoParaCita % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                            const minutos = Math.floor((tiempoParaCita % (1000 * 60 * 60)) / (1000 * 60));
-                            
-                            if (dias > 0) {
-                                contadorHTML = `
-                                    <p class="contador-cita" style="color: #28a745; font-weight: bold; background: #d4edda; padding: 8px; border-radius: 6px; text-align: center;">
-                                        <strong>⏳ Tu cita es en:</strong> ${dias}d ${horas}h ${minutos}m
-                                    </p>
-                                `;
-                            } else if (horas > 0) {
-                                contadorHTML = `
-                                    <p class="contador-cita" style="color: #28a745; font-weight: bold; background: #d4edda; padding: 8px; border-radius: 6px; text-align: center;">
-                                        <strong>⏳ Tu cita es en:</strong> ${horas}h ${minutos}m
-                                    </p>
-                                `;
-                            } else {
-                                contadorHTML = `
-                                    <p class="contador-cita" style="color: #28a745; font-weight: bold; background: #d4edda; padding: 8px; border-radius: 6px; text-align: center;">
-                                        <strong>⏳ Tu cita es en:</strong> ${minutos}m
-                                    </p>
-                                `;
-                            }
-                            
-                            if (faltaMenosDeUnaHora) {
-                                mensajeCancelacionHTML = `
-                                    <p style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                                        ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
-                                    </p>
-                                `;
-                            }
-                        }
-                        
-                        if (cita.estado === 'completada' || cita.estado === 'cancelada') {
-                            mensajeEliminacionHTML = `
-                                <p style="color: #ffc107; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                                    🗑️ Esta cita se eliminará pronto automáticamente
-                                </p>
-                            `;
-                        }
-                        
-                        return `
-                            <div class="cita-card ${cita.estado}" id="cita-${cita.id}">
-                                <div class="cita-header">
-                                    <h3>${cita.servicios.nombre}</h3>
-                                    <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
-                                </div>
-                                <div class="cita-detalles">
-                                    <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
-                                    <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
-                                    <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
-                                    ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                                    <p><strong>📅 Solicitado:</strong> ${fechaLocal}</p>
-                                    ${contadorHTML}
-                                    ${mensajeCancelacionHTML}
-                                    ${mensajeEliminacionHTML}
-                                </div>
-                                <div class="cita-acciones">
-                                    ${puedeCancelar ? `
-                                        <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
-                                    ` : ''}
-                                    ${!puedeCancelar && citaEnCurso && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
-                                        <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
-                                    ` : ''}
-                                    <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar</button>
-                                </div>
-                            </div>
+                const ahora = new Date();
+                const [year, month, day] = cita.fecha.split('-');
+                const [hour, minute] = cita.hora.split(':');
+                const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
+                
+                const citaPasada = fechaCita < ahora;
+                const citaEnCurso = !citaPasada;
+                
+                const tiempoParaCita = fechaCita - ahora;
+                const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+                const puedeCancelar = citaEnCurso && !faltaMenosDeUnaHora && 
+                                    (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
+                
+                let mensajeCancelacionHTML = '';
+                let mensajeEliminacionHTML = '';
+                
+                if (citaEnCurso && tiempoParaCita > 0 && 
+                    (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada')) {
+                    
+                    if (faltaMenosDeUnaHora) {
+                        mensajeCancelacionHTML = `
+                            <p class="mensaje-cancelacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
+                                ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
+                            </p>
                         `;
-                    }).join('');
+                    }
                 }
-
-            } catch (error) {
-                console.error('Error cargando citas:', error);
-                showAlert('Error al cargar tus citas', 'error');
-            }
+                
+                if (cita.estado === 'completada' || cita.estado === 'cancelada') {
+                    mensajeEliminacionHTML = `
+                        <p style="color: #ffc107; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
+                            🗑️ Esta cita se eliminará pronto automáticamente
+                        </p>
+                    `;
+                }
+                
+                return `
+                    <div class="cita-card ${cita.estado}" id="cita-${cita.id}" data-cita-id="${cita.id}" data-fecha="${cita.fecha}" data-hora="${cita.hora}">
+                        <div class="cita-header">
+                            <h3>${cita.servicios.nombre}</h3>
+                            <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
+                        </div>
+                        <div class="cita-detalles">
+                            <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
+                            <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
+                            <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
+                            ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                            <p><strong>📅 Solicitado:</strong> ${fechaLocal}</p>
+                            <div id="contador-${cita.id}" class="contador-cita"></div>
+                            ${mensajeCancelacionHTML}
+                            ${mensajeEliminacionHTML}
+                        </div>
+                        <div class="cita-acciones">
+                            ${puedeCancelar ? `
+                                <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
+                            ` : ''}
+                            ${!puedeCancelar && citaEnCurso && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
+                                <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
+                            ` : ''}
+                            <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Iniciar actualizaciones de contadores para cada cita activa
+            iniciarContadoresCitas();
         }
+
+    } catch (error) {
+        console.error('Error cargando citas:', error);
+        showAlert('Error al cargar tus citas', 'error');
+    }
+}
+
 
         async function actualizarEstadoCita(citaId, nuevoEstado) {
             try {
