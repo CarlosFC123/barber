@@ -2,7 +2,7 @@ name: 📧 Recordatorios Automáticos
 
 on:
   schedule:
-    # Ejecutar cada 5 minutos (formato corregido)
+    # Ejecutar cada 5 minutos
     - cron: '*/5 * * * *'
   
   # Permitir ejecución manual desde GitHub
@@ -20,7 +20,7 @@ jobs:
       run: |
         echo "🕐 Iniciando envío de recordatorios"
         echo "📅 Fecha: $(date '+%Y-%m-%d %H:%M:%S')"
-        echo "📍 Zona horaria: $(date '+%Z')"
+        echo "📍 Zona horaria: $(date)"
         echo "🔗 Supabase URL: ${{ env.SUPABASE_URL }}"
     
     - name: 📞 Llamar a función de recordatorios
@@ -41,39 +41,54 @@ jobs:
         FUNCTION_URL="${{ env.SUPABASE_URL }}/functions/v1/recordatorios-automaticos"
         echo "🌐 URL de función: $FUNCTION_URL"
         
-        # Hacer la petición
-        set +e  # No salir en error inmediatamente
+        # Crear el JSON de datos
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        echo "🕐 Timestamp: $TIMESTAMP"
         
+        # Hacer la petición (NOTA: sin backslash al final de las líneas)
         response=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
           -X POST "$FUNCTION_URL" \
           -H "Authorization: Bearer $SUPABASE_KEY" \
           -H "Content-Type: application/json" \
+          -H "User-Agent: GitHub-Actions-Recordatorios/1.0" \
           --max-time 180 \
           --retry 2 \
           --retry-delay 5 \
-          -d '{"source": "github-actions", "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}')
+          -d "{\"source\": \"github-actions\", \"timestamp\": \"$TIMESTAMP\"}")
         
-        # Extraer código HTTP y respuesta
+        # Extraer código HTTP
         http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
         body=$(echo "$response" | sed '/HTTP_CODE:/d')
         
         echo "📊 Código HTTP: $http_code"
+        echo "📦 Respuesta: $body"
         
-        # Guardar salidas
-        echo "http_code=$http_code" >> $GITHUB_OUTPUT
+        # Guardar salidas correctamente usando delimiter
+        echo "http_code<<EOF" >> $GITHUB_OUTPUT
+        echo "$http_code" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
         echo "response_body<<EOF" >> $GITHUB_OUTPUT
         echo "$body" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
         
-        # Extraer datos de la respuesta
+        # Extraer datos de la respuesta para reporte
         if [ ! -z "$body" ]; then
           total_citas=$(echo "$body" | grep -o '"total_citas":[0-9]*' | cut -d: -f2 || echo "0")
           enviados=$(echo "$body" | grep -o '"recordatorios_enviados":[0-9]*' | cut -d: -f2 || echo "0")
           errores=$(echo "$body" | grep -o '"errores":[0-9]*' | cut -d: -f2 || echo "0")
           
-          echo "total_citas=$total_citas" >> $GITHUB_OUTPUT
-          echo "enviados=$enviados" >> $GITHUB_OUTPUT
-          echo "errores=$errores" >> $GITHUB_OUTPUT
+          echo "total_citas<<EOF" >> $GITHUB_OUTPUT
+          echo "$total_citas" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "enviados<<EOF" >> $GITHUB_OUTPUT
+          echo "$enviados" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "errores<<EOF" >> $GITHUB_OUTPUT
+          echo "$errores" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
         fi
         
         # Verificar éxito
@@ -82,7 +97,7 @@ jobs:
           exit 0
         else
           echo "❌ Error HTTP: $http_code"
-          echo "🔍 Respuesta: $body"
+          echo "🔍 Error details: $body"
           exit 1
         fi
     
@@ -96,30 +111,40 @@ jobs:
         echo "📅 Fecha: $(date '+%Y-%m-%d')"
         echo "🔧 Workflow: ${{ github.workflow }}"
         echo "🎯 Trigger: ${{ github.event_name }}"
-        echo "📤 Status: ${{ job.status }}"
-        echo "📤 Status HTTP: ${{ steps.ejecutar-recordatorios.outputs.http_code || 'N/A' }}"
-        echo "📊 Citas evaluadas: ${{ steps.ejecutar-recordatorios.outputs.total_citas || '0' }}"
-        echo "✅ Emails enviados: ${{ steps.ejecutar-recordatorios.outputs.enviados || '0' }}"
-        echo "❌ Errores: ${{ steps.ejecutar-recordatorios.outputs.errores || '0' }}"
+        echo "📤 Status HTTP: ${{ steps.ejecutar-recordatorios.outputs.http_code }}"
+        echo "📊 Citas evaluadas: ${{ steps.ejecutar-recordatorios.outputs.total_citas }}"
+        echo "✅ Emails enviados: ${{ steps.ejecutar-recordatorios.outputs.enviados }}"
+        echo "❌ Errores: ${{ steps.ejecutar-recordatorios.outputs.errores }}"
         echo "⏰ Próxima ejecución: En 5 minutos"
         echo "=========================================="
         
-        # Crear archivo de log para debugging
-        echo "# Reporte de Recordatorios" > recordatorios-${{ github.run_id }}.log
-        echo "Run ID: ${{ github.run_id }}" >> recordatorios-${{ github.run_id }}.log
-        echo "Run Number: ${{ github.run_number }}" >> recordatorios-${{ github.run_id }}.log
-        echo "Date: $(date)" >> recordatorios-${{ github.run_id }}.log
-        echo "Status: ${{ job.status }}" >> recordatorios-${{ github.run_id }}.log
+        # Crear archivo de log
+        LOG_FILE="recordatorios-${{ github.run_id }}.log"
+        echo "# Reporte de Recordatorios" > $LOG_FILE
+        echo "Fecha: $(date '+%Y-%m-%d %H:%M:%S')" >> $LOG_FILE
+        echo "Workflow: ${{ github.workflow }}" >> $LOG_FILE
+        echo "Run ID: ${{ github.run_id }}" >> $LOG_FILE
+        echo "Status HTTP: ${{ steps.ejecutar-recordatorios.outputs.http_code }}" >> $LOG_FILE
+        echo "Citas evaluadas: ${{ steps.ejecutar-recordatorios.outputs.total_citas }}" >> $LOG_FILE
+        echo "Emails enviados: ${{ steps.ejecutar-recordatorios.outputs.enviados }}" >> $LOG_FILE
+        echo "Errores: ${{ steps.ejecutar-recordatorios.outputs.errores }}" >> $LOG_FILE
         
-        # Subir log como artifact si falla
-        if [ "${{ job.status }}" = "failure" ]; then
-          echo "🚨 Workflow fallido - Log guardado"
-        fi
+        echo "📄 Log guardado en: $LOG_FILE"
     
-    - name: ⬆️ Subir logs en caso de error
-      if: failure()
+    - name: 📤 Subir logs como artefacto
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: recordatorios-error-logs
+        name: recordatorios-logs
         path: recordatorios-*.log
         retention-days: 7
+    
+    - name: 🚨 Notificar en caso de error crítico
+      if: failure()
+      run: |
+        echo "🚨 ATENCIÓN: El proceso de recordatorios falló"
+        echo "🔍 Revisar los logs de la Edge Function en Supabase"
+        echo "📧 Verificar que la Service Role Key sea correcta"
+        echo "🔄 Comprobar que la función 'recordatorios-automaticos' existe y está desplegada"
+        echo "📤 Status HTTP recibido: ${{ steps.ejecutar-recordatorios.outputs.http_code }}"
+        echo "📦 Respuesta completa: ${{ steps.ejecutar-recordatorios.outputs.response_body }}"
