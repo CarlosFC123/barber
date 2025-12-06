@@ -1765,6 +1765,98 @@
     }
 }
 
+// Función para actualizar todos los contadores
+function actualizarContadoresCitas() {
+    const ahora = new Date();
+    const elementosCitas = document.querySelectorAll('.cita-card[id^="cita-"]');
+    
+    elementosCitas.forEach(elementoCita => {
+        const citaId = elementoCita.dataset.citaId;
+        const fechaCitaStr = elementoCita.dataset.fecha;
+        const horaCitaStr = elementoCita.dataset.hora;
+        
+        if (!fechaCitaStr || !horaCitaStr) return;
+        
+        const [year, month, day] = fechaCitaStr.split('-');
+        const [hour, minute] = horaCitaStr.split(':');
+        const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
+        
+        const tiempoParaCita = fechaCita - ahora;
+        
+        const contadorElemento = document.getElementById(`contador-${citaId}`);
+        if (!contadorElemento) return;
+        
+        // Solo mostrar contador para citas futuras activas
+        const estadoElemento = elementoCita.querySelector('.cita-estado');
+        const estado = estadoElemento ? estadoElemento.textContent : '';
+        const esCitaActiva = ['aceptada', 'pendiente', 'confirmada'].includes(estado.toLowerCase());
+        
+        if (tiempoParaCita > 0 && esCitaActiva) {
+            const dias = Math.floor(tiempoParaCita / (1000 * 60 * 60 * 24));
+            const horas = Math.floor((tiempoParaCita % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutos = Math.floor((tiempoParaCita % (1000 * 60 * 60)) / (1000 * 60));
+            const segundos = Math.floor((tiempoParaCita % (1000 * 60)) / 1000);
+            
+            let textoContador = '';
+            
+            if (dias > 0) {
+                textoContador = `${dias}d ${horas}h ${minutos}m`;
+            } else if (horas > 0) {
+                textoContador = `${horas}h ${minutos}m ${segundos}s`;
+            } else if (minutos > 0) {
+                textoContador = `${minutos}m ${segundos}s`;
+            } else {
+                textoContador = `${segundos}s`;
+            }
+            
+            // Cambiar color según el tiempo restante
+            let colorContador = '#28a745'; // Verde para más de 1 hora
+            let fondoContador = '#d4edda';
+            
+            if (tiempoParaCita <= (30 * 60 * 1000)) { // 30 minutos o menos
+                colorContador = '#dc3545'; // Rojo
+                fondoContador = '#f8d7da';
+            } else if (tiempoParaCita <= (60 * 60 * 1000)) { // 1 hora o menos
+                colorContador = '#ffc107'; // Amarillo
+                fondoContador = '#fff3cd';
+            }
+            
+            contadorElemento.innerHTML = `
+                <p style="color: ${colorContador}; font-weight: bold; background: ${fondoContador}; padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                    <strong>⏳ Tu cita es en:</strong> ${textoContador}
+                </p>
+            `;
+            
+            // Mostrar/ocultar mensaje de cancelación
+            const mensajeCancelacion = elementoCita.querySelector('.mensaje-cancelacion');
+            if (mensajeCancelacion) {
+                mensajeCancelacion.style.display = tiempoParaCita <= (60 * 60 * 1000) ? 'block' : 'none';
+            }
+            
+        } else {
+            contadorElemento.innerHTML = '';
+        }
+    });
+}
+
+// Iniciar contadores para todas las citas
+function iniciarContadoresCitas() {
+    // Limpiar intervalos anteriores
+    for (const id in intervalosContador) {
+        clearInterval(intervalosContador[id]);
+    }
+    intervalosContador = {};
+    
+    // Iniciar un intervalo global para todas las citas (cada 1 segundo para mejor precisión)
+    const intervaloGlobal = setInterval(actualizarContadoresCitas, 1000);
+    intervalosContador['global'] = intervaloGlobal;
+    
+    // Ejecutar inmediatamente
+    actualizarContadoresCitas();
+}
+
+
+
 
         async function actualizarEstadoCita(citaId, nuevoEstado) {
             try {
@@ -1992,7 +2084,16 @@
         window.app = {
             cancelarCita,
             eliminarCita,
-            cambiarPestana
+            cambiarPestana,
+            cargarMisCitas: async function() {
+                // Limpiar intervalos antes de cargar nuevas citas
+                for (const id in intervalosContador) {
+                    clearInterval(intervalosContador[id]);
+                }
+                intervalosContador = {};
+                
+                await cargarMisCitas();
+            }
         };
 
         verificarAutenticacion();
