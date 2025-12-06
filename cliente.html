@@ -1601,64 +1601,116 @@
         }
 
         // FUNCIÓN PARA ACTUALIZAR ESTADOS DE CITAS
-        async function verificarYActualizarEstadosCitas() {
-            try {
-                console.log('🔄 Verificando estados de citas...');
+       async function verificarYActualizarEstadosCitas() {
+    try {
+        console.log('🔄 Verificando estados de citas...');
+        
+        const ahora = new Date();
+        
+        // 1. Verificar citas pasadas para marcarlas como completadas
+        const { data: citasParaEvaluar, error } = await supabase
+            .from('citas')
+            .select('id, fecha, hora, estado, cliente_id, expira_en')
+            .eq('cliente_id', usuarioActual.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada']);
+
+        if (error) throw error;
+
+        if (citasParaEvaluar && citasParaEvaluar.length > 0) {
+            const citasIdsParaCompletar = [];
+            
+            citasParaEvaluar.forEach(cita => {
+                const [anio, mes, dia] = cita.fecha.split('-');
+                const [horaCita, minutoCita] = cita.hora.split(':');
                 
-                const ahora = new Date();
+                const fechaHoraCita = new Date(anio, mes - 1, dia, 
+                                              parseInt(horaCita), 
+                                              parseInt(minutoCita), 
+                                              0, 0);
                 
-                const { data: citasParaEvaluar, error } = await supabase
-                    .from('citas')
-                    .select('id, fecha, hora, estado, cliente_id')
-                    .eq('cliente_id', usuarioActual.id)
-                    .in('estado', ['aceptada', 'pendiente', 'confirmada']);
-
-                if (error) throw error;
-
-                if (citasParaEvaluar && citasParaEvaluar.length > 0) {
-                    const citasIdsParaCompletar = [];
-                    
-                    citasParaEvaluar.forEach(cita => {
-                        const [anio, mes, dia] = cita.fecha.split('-');
-                        const [horaCita, minutoCita] = cita.hora.split(':');
-                        
-                        const fechaHoraCita = new Date(anio, mes - 1, dia, 
-                                                      parseInt(horaCita), 
-                                                      parseInt(minutoCita), 
-                                                      0, 0);
-                        
-                        // Si la cita YA PASÓ (fecha y hora anteriores)
-                        if (fechaHoraCita < ahora) {
-                            citasIdsParaCompletar.push(cita.id);
-                        }
-                    });
-                    
-                    if (citasIdsParaCompletar.length > 0) {
-                        console.log(`🔄 Actualizando ${citasIdsParaCompletar.length} citas a "completada"`);
-                        
-                        await supabase
-                            .from('citas')
-                            .update({ 
-                                estado: 'completada',
-                                actualizado_en: new Date().toISOString()
-                            })
-                            .in('id', citasIdsParaCompletar);
-
-                        console.log(`✅ ${citasIdsParaCompletar.length} citas actualizadas a "completada"`);
-                        
-                        await precargarCitasFuturas();
-                        
-                        if (document.getElementById('mis-citas').classList.contains('active')) {
-                            await cargarMisCitas();
-                        }
-                    }
+                // Si la cita YA PASÓ (fecha y hora anteriores)
+                if (fechaHoraCita < ahora) {
+                    citasIdsParaCompletar.push(cita.id);
                 }
+            });
+            
+            if (citasIdsParaCompletar.length > 0) {
+                console.log(`🔄 Actualizando ${citasIdsParaCompletar.length} citas a "completada"`);
+                
+                // Calcular fecha de expiración (2 horas después de ahora)
+                const fechaExpira = new Date();
+                fechaExpira.setHours(fechaExpira.getHours() + 2);
+                
+                await supabase
+                    .from('citas')
+                    .update({ 
+                        estado: 'completada',
+                        expira_en: fechaExpira.toISOString(),
+                        actualizado_en: new Date().toISOString()
+                    })
+                    .in('id', citasIdsParaCompletar);
 
-            } catch (error) {
-                console.error('❌ Error actualizando estados de citas:', error);
+                console.log(`✅ ${citasIdsParaCompletar.length} citas actualizadas a "completada" con expiración en 2 horas`);
             }
         }
+        
+        // 2. Verificar y eliminar citas expiradas
+        await verificarYEliminarCitasExpiradas();
+        
+        // 3. Precargar y actualizar vista
+        await precargarCitasFuturas();
+        
+        if (document.getElementById('mis-citas').classList.contains('active')) {
+            await cargarMisCitas();
+        }
 
+    } catch (error) {
+        console.error('❌ Error actualizando estados de citas:', error);
+    }
+}
+
+// NUEVA FUNCIÓN PARA VERIFICAR Y ELIMINAR CITAS EXPIRADAS
+async function verificarYEliminarCitasExpiradas() {
+    try {
+        console.log('🔄 Verificando citas expiradas para eliminar...');
+        
+        const ahora = new Date().toISOString();
+        
+        // Buscar citas que hayan expirado (estado completada o cancelada con expira_en pasado)
+        const { data: citasExpiradas, error } = await supabase
+            .from('citas')
+            .select('id, estado, expira_en')
+            .eq('cliente_id', usuarioActual.id)
+            .in('estado', ['completada', 'cancelada'])
+            .lt('expira_en', ahora);
+
+        if (error) throw error;
+
+        if (citasExpiradas && citasExpiradas.length > 0) {
+            console.log(`🗑️ Encontradas ${citasExpiradas.length} citas expiradas para eliminar`);
+            
+            const citasIdsAEliminar = citasExpiradas.map(cita => cita.id);
+            
+            // Eliminar las citas expiradas
+            const { error: deleteError } = await supabase
+                .from('citas')
+                .delete()
+                .in('id', citasIdsAEliminar);
+
+            if (deleteError) throw deleteError;
+            
+            console.log(`✅ ${citasExpiradas.length} citas expiradas eliminadas`);
+            
+            return citasExpiradas.length;
+        }
+        
+        return 0;
+
+    } catch (error) {
+        console.error('❌ Error eliminando citas expiradas:', error);
+        return 0;
+    }
+}
       async function cargarMisCitas() {
     try {
         const { data: citas, error } = await supabase
@@ -1715,6 +1767,30 @@
                 let mensajeCancelacionHTML = '';
                 let mensajeEliminacionHTML = '';
                 
+                // Calcular tiempo para eliminación automática
+                let tiempoParaEliminar = null;
+                if (cita.expira_en) {
+                    const fechaExpira = new Date(cita.expira_en);
+                    tiempoParaEliminar = fechaExpira - ahora;
+                    
+                    if (tiempoParaEliminar > 0 && puedeEliminar) {
+                        const horas = Math.floor(tiempoParaEliminar / (1000 * 60 * 60));
+                        const minutos = Math.floor((tiempoParaEliminar % (1000 * 60 * 60)) / (1000 * 60));
+                        
+                        mensajeEliminacionHTML = `
+                            <p style="color: #ffc107; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
+                                🗑️ Esta cita se eliminará automáticamente en ${horas}h ${minutos}m
+                            </p>
+                        `;
+                    } else if (tiempoParaEliminar <= 0 && puedeEliminar) {
+                        mensajeEliminacionHTML = `
+                            <p style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
+                                ⚠️ Esta cita será eliminada en cualquier momento
+                            </p>
+                        `;
+                    }
+                }
+                
                 if (citaEnCurso && tiempoParaCita > 0 && 
                     (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada')) {
                     
@@ -1727,16 +1803,8 @@
                     }
                 }
                 
-                if (puedeEliminar) {
-                    mensajeEliminacionHTML = `
-                        <p style="color: #ffc107; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                            🗑️ Esta cita se eliminará pronto automáticamente
-                        </p>
-                    `;
-                }
-                
                 return `
-                    <div class="cita-card ${cita.estado}" id="cita-${cita.id}" data-cita-id="${cita.id}" data-fecha="${cita.fecha}" data-hora="${cita.hora}">
+                    <div class="cita-card ${cita.estado}" id="cita-${cita.id}" data-cita-id="${cita.id}" data-fecha="${cita.fecha}" data-hora="${cita.hora}" data-expira="${cita.expira_en || ''}">
                         <div class="cita-header">
                             <h3>${cita.servicios.nombre}</h3>
                             <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
@@ -1748,6 +1816,7 @@
                             ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
                             <p><strong>📅 Solicitado:</strong> ${fechaLocal}</p>
                             <div id="contador-${cita.id}" class="contador-cita"></div>
+                            <div id="contador-eliminar-${cita.id}" class="contador-eliminar"></div>
                             ${mensajeCancelacionHTML}
                             ${mensajeEliminacionHTML}
                         </div>
@@ -1759,7 +1828,7 @@
                                 <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
                             ` : ''}
                             ${puedeEliminar ? `
-                                <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar</button>
+                                <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
                             ` : ''}
                         </div>
                     </div>
@@ -1768,13 +1837,88 @@
             
             // Iniciar actualizaciones de contadores para cada cita activa
             iniciarContadoresCitas();
+            iniciarContadoresEliminacion();
         }
 
     } catch (error) {
         console.error('Error cargando citas:', error);
         showAlert('Error al cargar tus citas', 'error');
     }
-} 
+}
+
+// Función para actualizar contadores de eliminación automática
+function actualizarContadoresEliminacion() {
+    const ahora = new Date();
+    const elementosCitas = document.querySelectorAll('.cita-card[id^="cita-"]');
+    
+    elementosCitas.forEach(elementoCita => {
+        const citaId = elementoCita.dataset.citaId;
+        const expiraStr = elementoCita.dataset.expira;
+        
+        if (!expiraStr) return;
+        
+        const fechaExpira = new Date(expiraStr);
+        const tiempoParaEliminar = fechaExpira - ahora;
+        
+        const contadorElemento = document.getElementById(`contador-eliminar-${citaId}`);
+        if (!contadorElemento) return;
+        
+        // Solo mostrar contador para citas canceladas o completadas
+        const estadoElemento = elementoCita.querySelector('.cita-estado');
+        const estado = estadoElemento ? estadoElemento.textContent : '';
+        const esCitaExpirada = ['cancelada', 'completada'].includes(estado.toLowerCase());
+        
+        if (esCitaExpirada && tiempoParaEliminar > 0) {
+            const horas = Math.floor(tiempoParaEliminar / (1000 * 60 * 60));
+            const minutos = Math.floor((tiempoParaEliminar % (1000 * 60 * 60)) / (1000 * 60));
+            const segundos = Math.floor((tiempoParaEliminar % (1000 * 60)) / 1000);
+            
+            let textoContador = '';
+            
+            if (horas > 0) {
+                textoContador = `${horas}h ${minutos}m ${segundos}s`;
+            } else if (minutos > 0) {
+                textoContador = `${minutos}m ${segundos}s`;
+            } else {
+                textoContador = `${segundos}s`;
+            }
+            
+            // Cambiar color según el tiempo restante
+            let colorContador = '#ffc107'; // Amarillo
+            let fondoContador = '#fff3cd';
+            
+            if (tiempoParaEliminar <= (30 * 60 * 1000)) { // 30 minutos o menos
+                colorContador = '#dc3545'; // Rojo
+                fondoContador = '#f8d7da';
+            }
+            
+            contadorElemento.innerHTML = `
+                <p style="color: ${colorContador}; font-weight: bold; background: ${fondoContador}; padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                    <strong>⏰ Eliminación automática en:</strong> ${textoContador}
+                </p>
+            `;
+            
+        } else if (esCitaExpirada && tiempoParaEliminar <= 0) {
+            contadorElemento.innerHTML = `
+                <p style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                    <strong>⚠️ Esta cita será eliminada en cualquier momento</strong>
+                </p>
+            `;
+        } else {
+            contadorElemento.innerHTML = '';
+        }
+    });
+}
+
+// Iniciar contadores de eliminación
+function iniciarContadoresEliminacion() {
+    const intervaloEliminar = setInterval(actualizarContadoresEliminacion, 1000);
+    intervalosContador['eliminar'] = intervaloEliminar;
+    
+    // Ejecutar inmediatamente
+    actualizarContadoresEliminacion();
+}
+
 // Función para actualizar todos los contadores
 function actualizarContadoresCitas() {
     const ahora = new Date();
@@ -2011,56 +2155,61 @@ function iniciarContadoresCitas() {
             }
         }
 
-        async function cancelarCita(citaId) {
-            try {
-                const { data: cita, error: errorCita } = await supabase
-                    .from('citas')
-                    .select('fecha, hora, estado')
-                    .eq('id', citaId)
-                    .single();
+       async function cancelarCita(citaId) {
+    try {
+        const { data: cita, error: errorCita } = await supabase
+            .from('citas')
+            .select('fecha, hora, estado')
+            .eq('id', citaId)
+            .single();
 
-                if (errorCita) throw errorCita;
+        if (errorCita) throw errorCita;
 
-                const ahora = new Date();
-                const fechaCita = new Date(`${cita.fecha}T${cita.hora}`);
-                const tiempoParaCita = fechaCita - ahora;
-                const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+        const ahora = new Date();
+        const fechaCita = new Date(`${cita.fecha}T${cita.hora}`);
+        const tiempoParaCita = fechaCita - ahora;
+        const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
 
-                if (faltaMenosDeUnaHora) {
-                    showAlert('❌ No puedes cancelar la cita cuando faltan menos de 1 hora', 'error');
-                    await cargarMisCitas();
-                    return;
-                }
-
-                if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
-                    return;
-                }
-
-                const { error } = await supabase
-                    .from('citas')
-                    .update({ 
-                        estado: 'cancelada',
-                        actualizado_en: new Date().toISOString()
-                    })
-                    .eq('id', citaId);
-
-                if (error) throw error;
-
-                showAlert('✅ Cita cancelada exitosamente', 'success');
-                
-                await precargarCitasFuturas();
-                
-                if (selectedDate && document.getElementById('agendar').classList.contains('active')) {
-                    await generateHoras(selectedDate);
-                }
-                
-                await cargarMisCitas();
-
-            } catch (error) {
-                console.error('Error cancelando cita:', error);
-                showAlert('❌ Error al cancelar la cita', 'error');
-            }
+        if (faltaMenosDeUnaHora) {
+            showAlert('❌ No puedes cancelar la cita cuando faltan menos de 1 hora', 'error');
+            await cargarMisCitas();
+            return;
         }
+
+        if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
+            return;
+        }
+
+        // Calcular fecha de expiración (2 horas después de ahora)
+        const fechaExpira = new Date();
+        fechaExpira.setHours(fechaExpira.getHours() + 2);
+
+        const { error } = await supabase
+            .from('citas')
+            .update({ 
+                estado: 'cancelada',
+                expira_en: fechaExpira.toISOString(),
+                actualizado_en: new Date().toISOString()
+            })
+            .eq('id', citaId);
+
+        if (error) throw error;
+
+        showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
+        
+        await precargarCitasFuturas();
+        
+        if (selectedDate && document.getElementById('agendar').classList.contains('active')) {
+            await generateHoras(selectedDate);
+        }
+        
+        await cargarMisCitas();
+
+    } catch (error) {
+        console.error('Error cancelando cita:', error);
+        showAlert('❌ Error al cancelar la cita', 'error');
+    }
+}
 
         function cambiarPestana(pestanaId) {
             document.querySelectorAll('.tab-content').forEach(tab => {

@@ -1,0 +1,57 @@
+name: Limpieza Automática de Citas
+
+on:
+  schedule:
+    # Ejecutar cada 5 minutos
+    - cron: '*/5 * * * *'
+  
+  # Permitir ejecución manual desde GitHub
+  workflow_dispatch:
+  
+  # Opcional: Ejecutar cuando haya cambios en main
+  push:
+    branches: [ main ]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Verificar hora de ejecución
+      run: echo "🕐 Iniciando limpieza - $(date '+%Y-%m-%d %H:%M:%S')"
+    
+    - name: Llamar a función Supabase
+      env:
+        SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
+        SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4'
+      run: |
+        echo "🔗 Conectando con Supabase..."
+        
+        # Hacer la petición POST a la función
+        response=$(curl -s -w "\n%{http_code}" -X POST \
+          "$SUPABASE_URL/functions/v1/cleanup-expired-appointments" \
+          -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{}')
+        
+        # Separar respuesta y código HTTP
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | sed '$d')
+        
+        echo "📊 Código HTTP: $http_code"
+        echo "📦 Respuesta JSON: $body"
+        
+        # Verificar si hubo error
+        if [ "$http_code" != "200" ]; then
+          echo "❌ Error en la ejecución - Código: $http_code"
+          echo "🔍 Detalles: $body"
+          exit 1
+        fi
+        
+        echo "✅ Limpieza ejecutada exitosamente"
+    
+    - name: Mostrar resumen
+      if: always()
+      run: |
+        echo "📋 Workflow completado - Ver logs arriba para detalles"
+        echo "⏰ Próxima ejecución en 5 minutos"
