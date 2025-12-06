@@ -1014,27 +1014,19 @@
         }
 
         // FUNCIÓN CORREGIDA PARA VERIFICAR RECORDATORIOS (CON CONTROL DE EJECUCIÓN)
-        async function verificarYProgramarRecordatorios() {
-    const ahora = Date.now();
-    if (enviandoRecordatorios || (ahora - ultimaEjecucionRecordatorios) < MIN_INTERVALO_RECORDATORIOS) {
-        console.log('⏳ Recordatorio ya en ejecución o ejecutado recientemente, saltando...');
-        return;
-    }
-    
-    enviandoRecordatorios = true;
-    ultimaEjecucionRecordatorios = ahora;
-    
+       async function verificarYProgramarRecordatorios() {
     try {
         console.log('🔄 Verificando citas para recordatorios...');
         
+        // Usar hora local de Yucatán
         const ahoraDate = new Date();
         const año = ahoraDate.getFullYear();
         const mes = String(ahoraDate.getMonth() + 1).padStart(2, '0');
         const dia = String(ahoraDate.getDate()).padStart(2, '0');
         const fechaActual = `${año}-${mes}-${dia}`;
         
-        console.log('📅 Fecha actual (local):', fechaActual);
-        console.log('🕐 Hora actual (MX):', ahoraDate.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' }));
+        console.log('📅 Fecha actual (Yucatán):', fechaActual);
+        console.log('🕐 Hora actual (Yucatán):', ahoraDate.toLocaleTimeString('es-MX'));
 
         // Buscar citas para hoy que aún no tienen recordatorio
         const { data: citasParaRecordatorio, error } = await supabase
@@ -1052,13 +1044,11 @@
 
         if (error) {
             console.error('❌ Error buscando citas para recordatorio:', error);
-            enviandoRecordatorios = false;
             return;
         }
 
         if (!citasParaRecordatorio || citasParaRecordatorio.length === 0) {
             console.log('✅ No hay citas para hoy que requieran recordatorio');
-            enviandoRecordatorios = false;
             return;
         }
 
@@ -1069,7 +1059,7 @@
         for (const cita of citasParaRecordatorio) {
             const [horaCita, minutoCita] = cita.hora.split(':');
             
-            // IMPORTANTE: Crear fecha usando hora local (MX)
+            // Crear fecha usando hora local de Yucatán
             const fechaHoraCita = new Date(año, mes - 1, dia, 
                                           parseInt(horaCita), 
                                           parseInt(minutoCita), 
@@ -1080,14 +1070,16 @@
             
             console.log(`   📅 Cita ${cita.id}: ${cita.hora} - Tiempo restante: ${minutosParaCita} minutos`);
             
-            // Si la cita está dentro de 1 hora (55-65 minutos antes)
-            // Usar ventana de 55-65 minutos para coincidir con Edge Function
+            // Ventana de 55-65 minutos antes
             if (tiempoParaCita > 0 && minutosParaCita >= 55 && minutosParaCita <= 65) {
                 console.log(`   🔔 Enviando recordatorio para cita ${cita.id} (dentro de ${minutosParaCita} minutos)`);
                 
                 const resultado = await enviarRecordatorioCita(cita);
                 if (resultado) {
                     recordatoriosEnviados++;
+                    console.log(`   ✅ Recordatorio enviado exitosamente`);
+                } else {
+                    console.log(`   ❌ Error enviando recordatorio`);
                 }
                 
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1102,8 +1094,6 @@
 
     } catch (error) {
         console.error('❌ Error en verificación de recordatorios:', error);
-    } finally {
-        enviandoRecordatorios = false;
     }
 }
 
@@ -1612,6 +1602,7 @@
     try {
         console.log('🔄 Verificando estados de citas...');
         
+        // Usar hora local de Yucatán
         const ahora = new Date();
         
         // 1. Verificar citas pasadas para marcarlas como completadas
@@ -1630,12 +1621,13 @@
                 const [anio, mes, dia] = cita.fecha.split('-');
                 const [horaCita, minutoCita] = cita.hora.split(':');
                 
+                // Usar hora local de Yucatán para comparación
                 const fechaHoraCita = new Date(anio, mes - 1, dia, 
                                               parseInt(horaCita), 
                                               parseInt(minutoCita), 
                                               0, 0);
                 
-                // Si la cita YA PASÓ (fecha y hora anteriores)
+                // Si la cita YA PASÓ
                 if (fechaHoraCita < ahora) {
                     citasIdsParaCompletar.push(cita.id);
                 }
@@ -1644,20 +1636,30 @@
             if (citasIdsParaCompletar.length > 0) {
                 console.log(`🔄 Actualizando ${citasIdsParaCompletar.length} citas a "completada"`);
                 
-                // Calcular fecha de expiración (2 horas después de ahora)
+                // Usar hora local Yucatán para la expiración
                 const fechaExpira = new Date();
                 fechaExpira.setHours(fechaExpira.getHours() + 2);
+                
+                const añoExpira = fechaExpira.getFullYear();
+                const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
+                const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
+                const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
+                const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
+                const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
+                
+                const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
+                const timestampActual = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')} ${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}:${String(ahora.getSeconds()).padStart(2, '0')}`;
                 
                 await supabase
                     .from('citas')
                     .update({ 
                         estado: 'completada',
-                        expira_en: fechaExpira.toISOString(),
-                        actualizado_en: new Date().toISOString()
+                        expira_en: timestampExpira,
+                        actualizado_en: timestampActual
                     })
                     .in('id', citasIdsParaCompletar);
 
-                console.log(`✅ ${citasIdsParaCompletar.length} citas actualizadas a "completada" con expiración en 2 horas`);
+                console.log(`✅ ${citasIdsParaCompletar.length} citas actualizadas a "completada"`);
             }
         }
         
@@ -1675,21 +1677,29 @@
         console.error('❌ Error actualizando estados de citas:', error);
     }
 }
-
 // NUEVA FUNCIÓN PARA VERIFICAR Y ELIMINAR CITAS EXPIRADAS
 async function verificarYEliminarCitasExpiradas() {
     try {
         console.log('🔄 Verificando citas expiradas para eliminar...');
         
-        const ahora = new Date().toISOString();
+        // Usar hora local de Yucatán para comparación
+        const ahora = new Date();
+        const año = ahora.getFullYear();
+        const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+        const dia = String(ahora.getDate()).padStart(2, '0');
+        const hora = String(ahora.getHours()).padStart(2, '0');
+        const minuto = String(ahora.getMinutes()).padStart(2, '0');
+        const segundo = String(ahora.getSeconds()).padStart(2, '0');
         
-        // Buscar citas que hayan expirado (estado completada o cancelada con expira_en pasado)
+        const ahoraFormateado = `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+        
+        // Buscar citas que hayan expirado (usando comparación de strings)
         const { data: citasExpiradas, error } = await supabase
             .from('citas')
             .select('id, estado, expira_en')
             .eq('cliente_id', usuarioActual.id)
             .in('estado', ['completada', 'cancelada'])
-            .lt('expira_en', ahora);
+            .lt('expira_en', ahoraFormateado);
 
         if (error) throw error;
 
@@ -1698,7 +1708,6 @@ async function verificarYEliminarCitasExpiradas() {
             
             const citasIdsAEliminar = citasExpiradas.map(cita => cita.id);
             
-            // Eliminar las citas expiradas
             const { error: deleteError } = await supabase
                 .from('citas')
                 .delete()
@@ -1752,69 +1761,45 @@ async function verificarYEliminarCitasExpiradas() {
                     </button>
                 </div>
             ` + citas.map(cita => {
-                const fechaCreadoUTC = new Date(cita.creado_en);
-                const fechaCreadoMX = fechaCreadoUTC.toLocaleString('es-MX', { 
-                    timeZone: 'America/Mexico_City',
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
+                // Mostrar fecha/hora como está en la BD (ya es hora Yucatán)
+                let fechaCreadoStr = 'N/A';
+                if (cita.creado_en) {
+                    // Si es timestamp de Supabase, convertir a hora local
+                    if (cita.creado_en.includes('T')) {
+                        // Formato ISO: "2024-01-15T15:30:00"
+                        fechaCreadoStr = new Date(cita.creado_en).toLocaleString('es-MX');
+                    } else {
+                        // Formato simple: "2024-01-15 15:30:00"
+                        fechaCreadoStr = cita.creado_en;
+                    }
+                }
                 
                 const ahora = new Date();
                 const [year, month, day] = cita.fecha.split('-');
                 const [hour, minute] = cita.hora.split(':');
-                const fechaCitaMX = new Date(year, month - 1, day, hour, minute, 0, 0);
                 
-                const citaPasada = fechaCitaMX < ahora;
+                // IMPORTANTE: Crear fecha usando hora local de Yucatán
+                const fechaCitaYucatan = new Date(year, month - 1, day, hour, minute, 0, 0);
+                
+                const citaPasada = fechaCitaYucatan < ahora;
                 const citaEnCurso = !citaPasada;
                 
-                const tiempoParaCita = fechaCitaMX - ahora;
+                const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
                 const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
                 const puedeCancelar = citaEnCurso && !faltaMenosDeUnaHora && 
                                     (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
                 
-                // Determinar si la cita puede ser eliminada
                 const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
                 
                 let mensajeCancelacionHTML = '';
                 let mensajeEliminacionHTML = '';
                 
-                // Calcular tiempo para eliminación automática
-                let tiempoParaEliminar = null;
-                if (cita.expira_en) {
-                    const fechaExpira = new Date(cita.expira_en);
-                    tiempoParaEliminar = fechaExpira - ahora;
-                    
-                    if (tiempoParaEliminar > 0 && puedeEliminar) {
-                        // const horas = Math.floor(tiempoParaEliminar / (1000 * 60 * 60));
-                        // const minutos = Math.floor((tiempoParaEliminar % (1000 * 60 * 60)) / (1000 * 60));
-                        
-                        // mensajeEliminacionHTML = `
-                        //     <p style="color: #ffc107; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                        //         🗑️ Esta cita se eliminará automáticamente en ${horas}h ${minutos}m
-                        //     </p>
-                        // `;
-                    } else if (tiempoParaEliminar <= 0 && puedeEliminar) {
-                        mensajeEliminacionHTML = `
-                            <p style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                                ⚠️ Esta cita será eliminada en cualquier momento
-                            </p>
-                        `;
-                    }
-                }
-                
-                if (citaEnCurso && tiempoParaCita > 0 && 
-                    (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada')) {
-                    
-                    if (faltaMenosDeUnaHora) {
-                        mensajeCancelacionHTML = `
-                            <p class="mensaje-cancelacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                                ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
-                            </p>
-                        `;
-                    }
+                if (citaEnCurso && tiempoParaCita > 0 && faltaMenosDeUnaHora) {
+                    mensajeCancelacionHTML = `
+                        <p class="mensaje-cancelacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
+                            ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
+                        </p>
+                    `;
                 }
                 
                 return `
@@ -1828,7 +1813,7 @@ async function verificarYEliminarCitasExpiradas() {
                             <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
                             <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
                             ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                            <p><strong>📅 Solicitado:</strong> ${fechaCreadoMX}</p>
+                            <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
                             <div id="contador-${cita.id}" class="contador-cita"></div>
                             <div id="contador-eliminar-${cita.id}" class="contador-eliminar"></div>
                             ${mensajeCancelacionHTML}
@@ -1849,7 +1834,6 @@ async function verificarYEliminarCitasExpiradas() {
                 `;
             }).join('');
             
-            // Iniciar actualizaciones de contadores para cada cita activa
             iniciarContadoresCitas();
             iniciarContadoresEliminacion();
         }
@@ -2110,9 +2094,23 @@ function iniciarContadoresCitas() {
             return;
         }
 
-        // IMPORTANTE: Usar fecha/hora en UTC para Supabase
-        const ahoraUTC = new Date().toISOString(); // Esto guarda en UTC
+        // USAR SOLO HORA LOCAL DE YUCATÁN - FORMATO SIMPLE
+        const ahoraLocal = new Date();
         
+        // Formatear fecha Yucatán en formato que Supabase entenderá como hora local
+        const añoLocal = ahoraLocal.getFullYear();
+        const mesLocal = String(ahoraLocal.getMonth() + 1).padStart(2, '0');
+        const diaLocal = String(ahoraLocal.getDate()).padStart(2, '0');
+        const horaLocal = String(ahoraLocal.getHours()).padStart(2, '0');
+        const minutoLocal = String(ahoraLocal.getMinutes()).padStart(2, '0');
+        const segundoLocal = String(ahoraLocal.getSeconds()).padStart(2, '0');
+        
+        // Crear timestamp en formato ISO sin timezone (Supabase lo tratará como local)
+        const timestampLocal = `${añoLocal}-${mesLocal}-${diaLocal} ${horaLocal}:${minutoLocal}:${segundoLocal}`;
+        
+        console.log('🕐 Hora Yucatán:', timestampLocal);
+        console.log('🕐 Hora actual local:', ahoraLocal.toLocaleString('es-MX'));
+
         const { data, error } = await supabase
             .from('citas')
             .insert([{
@@ -2123,8 +2121,8 @@ function iniciarContadoresCitas() {
                 hora: hora,
                 notas: notas,
                 estado: 'aceptada',
-                creado_en: ahoraUTC,  // ← UTC
-                actualizado_en: ahoraUTC  // ← UTC
+                creado_en: timestampLocal,  // Hora local Yucatán
+                actualizado_en: timestampLocal  // Hora local Yucatán
             }])
             .select(`
                 *,
@@ -2138,8 +2136,8 @@ function iniciarContadoresCitas() {
         }
 
         console.log('✅ Cita agendada exitosamente');
-        console.log('🕐 Hora UTC guardada:', ahoraUTC);
-        console.log('🕐 Hora local (MX):', new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' }));
+        console.log('📅 Fecha cita:', fechaFormateada, hora);
+        console.log('🕐 Hora registro:', timestampLocal);
         
         const correoEnviado = await enviarNotificacionCita(data[0]);
         
@@ -2186,8 +2184,12 @@ function iniciarContadoresCitas() {
         if (errorCita) throw errorCita;
 
         const ahora = new Date();
-        const fechaCita = new Date(`${cita.fecha}T${cita.hora}`);
-        const tiempoParaCita = fechaCita - ahora;
+        const [year, month, day] = cita.fecha.split('-');
+        const [hour, minute] = cita.hora.split(':');
+        
+        // Usar hora local de Yucatán
+        const fechaCitaYucatan = new Date(year, month - 1, day, hour, minute, 0, 0);
+        const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
         const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
 
         if (faltaMenosDeUnaHora) {
@@ -2200,16 +2202,34 @@ function iniciarContadoresCitas() {
             return;
         }
 
-        // Calcular fecha de expiración (2 horas después de ahora)
+        // Calcular fecha de expiración (2 horas después de ahora) en hora Yucatán
         const fechaExpira = new Date();
         fechaExpira.setHours(fechaExpira.getHours() + 2);
+        
+        const añoExpira = fechaExpira.getFullYear();
+        const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
+        const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
+        const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
+        const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
+        const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
+        
+        const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
+        
+        const añoActual = ahora.getFullYear();
+        const mesActual = String(ahora.getMonth() + 1).padStart(2, '0');
+        const diaActual = String(ahora.getDate()).padStart(2, '0');
+        const horaActual = String(ahora.getHours()).padStart(2, '0');
+        const minutoActual = String(ahora.getMinutes()).padStart(2, '0');
+        const segundoActual = String(ahora.getSeconds()).padStart(2, '0');
+        
+        const timestampActual = `${añoActual}-${mesActual}-${diaActual} ${horaActual}:${minutoActual}:${segundoActual}`;
 
         const { error } = await supabase
             .from('citas')
             .update({ 
                 estado: 'cancelada',
-                expira_en: fechaExpira.toISOString(),
-                actualizado_en: new Date().toISOString()
+                expira_en: timestampExpira,
+                actualizado_en: timestampActual
             })
             .eq('id', citaId);
 
@@ -2230,7 +2250,6 @@ function iniciarContadoresCitas() {
         showAlert('❌ Error al cancelar la cita', 'error');
     }
 }
-
         function cambiarPestana(pestanaId) {
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
