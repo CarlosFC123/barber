@@ -1015,90 +1015,97 @@
 
         // FUNCIÓN CORREGIDA PARA VERIFICAR RECORDATORIOS (CON CONTROL DE EJECUCIÓN)
         async function verificarYProgramarRecordatorios() {
-            // Control para evitar ejecuciones múltiples
-            const ahora = Date.now();
-            if (enviandoRecordatorios || (ahora - ultimaEjecucionRecordatorios) < MIN_INTERVALO_RECORDATORIOS) {
-                console.log('⏳ Recordatorio ya en ejecución o ejecutado recientemente, saltando...');
-                return;
-            }
+    const ahora = Date.now();
+    if (enviandoRecordatorios || (ahora - ultimaEjecucionRecordatorios) < MIN_INTERVALO_RECORDATORIOS) {
+        console.log('⏳ Recordatorio ya en ejecución o ejecutado recientemente, saltando...');
+        return;
+    }
+    
+    enviandoRecordatorios = true;
+    ultimaEjecucionRecordatorios = ahora;
+    
+    try {
+        console.log('🔄 Verificando citas para recordatorios...');
+        
+        const ahoraDate = new Date();
+        const año = ahoraDate.getFullYear();
+        const mes = String(ahoraDate.getMonth() + 1).padStart(2, '0');
+        const dia = String(ahoraDate.getDate()).padStart(2, '0');
+        const fechaActual = `${año}-${mes}-${dia}`;
+        
+        console.log('📅 Fecha actual (local):', fechaActual);
+        console.log('🕐 Hora actual (MX):', ahoraDate.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' }));
+
+        // Buscar citas para hoy que aún no tienen recordatorio
+        const { data: citasParaRecordatorio, error } = await supabase
+            .from('citas')
+            .select(`
+                *,
+                servicios(nombre, precio, duracion),
+                barberos(nombre),
+                clientes(nombre, email)
+            `)
+            .eq('fecha', fechaActual)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .eq('recordatorio_enviado', false)
+            .order('hora', { ascending: true });
+
+        if (error) {
+            console.error('❌ Error buscando citas para recordatorio:', error);
+            enviandoRecordatorios = false;
+            return;
+        }
+
+        if (!citasParaRecordatorio || citasParaRecordatorio.length === 0) {
+            console.log('✅ No hay citas para hoy que requieran recordatorio');
+            enviandoRecordatorios = false;
+            return;
+        }
+
+        console.log(`🔔 Encontradas ${citasParaRecordatorio.length} citas para evaluar`);
+        
+        let recordatoriosEnviados = 0;
+        
+        for (const cita of citasParaRecordatorio) {
+            const [horaCita, minutoCita] = cita.hora.split(':');
             
-            enviandoRecordatorios = true;
-            ultimaEjecucionRecordatorios = ahora;
+            // IMPORTANTE: Crear fecha usando hora local (MX)
+            const fechaHoraCita = new Date(año, mes - 1, dia, 
+                                          parseInt(horaCita), 
+                                          parseInt(minutoCita), 
+                                          0, 0);
             
-            try {
-                console.log('🔄 Verificando citas para recordatorios...');
+            const tiempoParaCita = fechaHoraCita.getTime() - ahoraDate.getTime();
+            const minutosParaCita = Math.floor(tiempoParaCita / 60000);
+            
+            console.log(`   📅 Cita ${cita.id}: ${cita.hora} - Tiempo restante: ${minutosParaCita} minutos`);
+            
+            // Si la cita está dentro de 1 hora (55-65 minutos antes)
+            // Usar ventana de 55-65 minutos para coincidir con Edge Function
+            if (tiempoParaCita > 0 && minutosParaCita >= 55 && minutosParaCita <= 65) {
+                console.log(`   🔔 Enviando recordatorio para cita ${cita.id} (dentro de ${minutosParaCita} minutos)`);
                 
-                const ahoraDate = new Date();
-                const año = ahoraDate.getFullYear();
-                const mes = String(ahoraDate.getMonth() + 1).padStart(2, '0');
-                const dia = String(ahoraDate.getDate()).padStart(2, '0');
-                const fechaActual = `${año}-${mes}-${dia}`;
-                
-                console.log('📅 Fecha actual:', fechaActual);
-
-                // Buscar citas para hoy que aún no tienen recordatorio
-                const { data: citasParaRecordatorio, error } = await supabase
-                    .from('citas')
-                    .select(`
-                        *,
-                        servicios(nombre, precio, duracion),
-                        barberos(nombre),
-                        clientes(nombre, email)
-                    `)
-                    .eq('fecha', fechaActual)
-                    .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                    .eq('recordatorio_enviado', false)
-                    .order('hora', { ascending: true });
-
-                if (error) {
-                    console.error('❌ Error buscando citas para recordatorio:', error);
-                    enviandoRecordatorios = false;
-                    return;
-                }
-
-                if (!citasParaRecordatorio || citasParaRecordatorio.length === 0) {
-                    console.log('✅ No hay citas para hoy que requieran recordatorio');
-                    enviandoRecordatorios = false;
-                    return;
-                }
-
-                console.log(`🔔 Encontradas ${citasParaRecordatorio.length} citas para evaluar`);
-                
-                let recordatoriosEnviados = 0;
-                
-                for (const cita of citasParaRecordatorio) {
-                    const [horaCita, minutoCita] = cita.hora.split(':');
-                    const fechaHoraCita = new Date(ahoraDate.getFullYear(), ahoraDate.getMonth(), ahoraDate.getDate(), 
-                                                  parseInt(horaCita), 
-                                                  parseInt(minutoCita), 
-                                                  0, 0);
-                    
-                    const tiempoParaCita = fechaHoraCita.getTime() - ahoraDate.getTime();
-                    
-                    console.log(`   📅 Cita ${cita.id}: ${cita.hora} - Tiempo restante: ${Math.floor(tiempoParaCita / 60000)} minutos`);
-                    
-                    // Si la cita está dentro de 1 hora (pero aún no ha pasado)
-                    if (tiempoParaCita > 0 && tiempoParaCita <= (60 * 60 * 1000)) {
-                        console.log(`   🔔 Enviando recordatorio para cita ${cita.id} (dentro de ${Math.floor(tiempoParaCita / 60000)} minutos)`);
-                        
-                        const resultado = await enviarRecordatorioCita(cita);
-                        if (resultado) {
-                            recordatoriosEnviados++;
-                        }
-                        
-                        // Pequeña pausa entre envíos para evitar sobrecarga
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
+                const resultado = await enviarRecordatorioCita(cita);
+                if (resultado) {
+                    recordatoriosEnviados++;
                 }
                 
-                console.log(`📊 Resumen: ${recordatoriosEnviados}/${citasParaRecordatorio.length} recordatorios enviados`);
-
-            } catch (error) {
-                console.error('❌ Error en verificación de recordatorios:', error);
-            } finally {
-                enviandoRecordatorios = false;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            } else if (tiempoParaCita > 0) {
+                console.log(`   ⏳ Cita ${cita.id}: ${minutosParaCita} minutos - Fuera de ventana (55-65 min)`);
+            } else {
+                console.log(`   ⚠️ Cita ${cita.id}: Ya pasó o está en progreso`);
             }
         }
+        
+        console.log(`📊 Resumen: ${recordatoriosEnviados}/${citasParaRecordatorio.length} recordatorios enviados`);
+
+    } catch (error) {
+        console.error('❌ Error en verificación de recordatorios:', error);
+    } finally {
+        enviandoRecordatorios = false;
+    }
+}
 
         function showAlert(message, type = 'error') {
             const alertDiv = document.getElementById('alert');
@@ -1745,18 +1752,25 @@ async function verificarYEliminarCitasExpiradas() {
                     </button>
                 </div>
             ` + citas.map(cita => {
-                const fechaCreado = new Date(cita.creado_en);
-                const fechaLocal = fechaCreado.toLocaleString('es-MX');
+                const fechaCreadoUTC = new Date(cita.creado_en);
+                const fechaCreadoMX = fechaCreadoUTC.toLocaleString('es-MX', { 
+                    timeZone: 'America/Mexico_City',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
                 
                 const ahora = new Date();
                 const [year, month, day] = cita.fecha.split('-');
                 const [hour, minute] = cita.hora.split(':');
-                const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
+                const fechaCitaMX = new Date(year, month - 1, day, hour, minute, 0, 0);
                 
-                const citaPasada = fechaCita < ahora;
+                const citaPasada = fechaCitaMX < ahora;
                 const citaEnCurso = !citaPasada;
                 
-                const tiempoParaCita = fechaCita - ahora;
+                const tiempoParaCita = fechaCitaMX - ahora;
                 const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
                 const puedeCancelar = citaEnCurso && !faltaMenosDeUnaHora && 
                                     (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
@@ -1814,7 +1828,7 @@ async function verificarYEliminarCitasExpiradas() {
                             <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
                             <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
                             ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                            <p><strong>📅 Solicitado:</strong> ${fechaLocal}</p>
+                            <p><strong>📅 Solicitado:</strong> ${fechaCreadoMX}</p>
                             <div id="contador-${cita.id}" class="contador-cita"></div>
                             <div id="contador-eliminar-${cita.id}" class="contador-eliminar"></div>
                             ${mensajeCancelacionHTML}
@@ -2060,100 +2074,106 @@ function iniciarContadoresCitas() {
         }
 
         async function agendarCita(e) {
-            e.preventDefault();
-            
-            const servicioId = document.getElementById('servicio').value;
-            const hora = document.getElementById('hora').value;
-            const notas = document.getElementById('notas').value;
+    e.preventDefault();
+    
+    const servicioId = document.getElementById('servicio').value;
+    const hora = document.getElementById('hora').value;
+    const notas = document.getElementById('notas').value;
 
-            if (!servicioId || !selectedDate || !hora) {
-                showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
-                return;
-            }
+    if (!servicioId || !selectedDate || !hora) {
+        showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
+        return;
+    }
 
-            const año = selectedDate.getFullYear();
-            const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
-            const dia = String(selectedDate.getDate()).padStart(2, '0');
-            const fechaFormateada = `${año}-${mes}-${dia}`;
-            
-            console.log('📅 Intentando agendar cita:', {
+    const año = selectedDate.getFullYear();
+    const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const dia = String(selectedDate.getDate()).padStart(2, '0');
+    const fechaFormateada = `${año}-${mes}-${dia}`;
+    
+    console.log('📅 Intentando agendar cita:', {
+        fecha: fechaFormateada,
+        hora: hora,
+        servicio: servicioId,
+        barbero: barberoFijo.id
+    });
+
+    try {
+        const todasLasCitasFuturas = todasLasCitasFuturasCache;
+        
+        const citaExistenteCache = todasLasCitasFuturas.find(cita => {
+            return cita.fecha === fechaFormateada && cita.hora === hora;
+        });
+
+        if (citaExistenteCache) {
+            showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
+            await generateHoras(selectedDate);
+            return;
+        }
+
+        // IMPORTANTE: Usar fecha/hora en UTC para Supabase
+        const ahoraUTC = new Date().toISOString(); // Esto guarda en UTC
+        
+        const { data, error } = await supabase
+            .from('citas')
+            .insert([{
+                cliente_id: usuarioActual.id,
+                servicio_id: servicioId,
+                barbero_id: barberoFijo.id,
                 fecha: fechaFormateada,
                 hora: hora,
-                servicio: servicioId,
-                barbero: barberoFijo.id
-            });
+                notas: notas,
+                estado: 'aceptada',
+                creado_en: ahoraUTC,  // ← UTC
+                actualizado_en: ahoraUTC  // ← UTC
+            }])
+            .select(`
+                *,
+                servicios(nombre, precio),
+                barberos(nombre)
+            `);
 
-            try {
-                const todasLasCitasFuturas = todasLasCitasFuturasCache;
-                
-                const citaExistenteCache = todasLasCitasFuturas.find(cita => {
-                    return cita.fecha === fechaFormateada && cita.hora === hora;
-                });
-
-                if (citaExistenteCache) {
-                    showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
-                    await generateHoras(selectedDate);
-                    return;
-                }
-
-                const { data, error } = await supabase
-                    .from('citas')
-                    .insert([{
-                        cliente_id: usuarioActual.id,
-                        servicio_id: servicioId,
-                        barbero_id: barberoFijo.id,
-                        fecha: fechaFormateada,
-                        hora: hora,
-                        notas: notas,
-                        estado: 'aceptada',
-                        creado_en: new Date().toISOString()
-                    }])
-                    .select(`
-                        *,
-                        servicios(nombre, precio),
-                        barberos(nombre)
-                    `);
-
-                if (error) {
-                    console.error('❌ Error insertando cita:', error);
-                    throw error;
-                }
-
-                console.log('✅ Cita agendada exitosamente');
-                
-                const correoEnviado = await enviarNotificacionCita(data[0]);
-                
-                if (correoEnviado) {
-                    showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
-                } else {
-                    showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
-                }
-                
-                await precargarCitasFuturas();
-                
-                document.querySelectorAll('.servicio-option').forEach(opt => {
-                    opt.classList.remove('selected');
-                });
-                document.getElementById('servicio').value = '';
-                document.getElementById('hora').value = '';
-                document.getElementById('notas').value = '';
-                selectedDate = null;
-                document.getElementById('selectedDateDisplay').textContent = 'Selecciona una fecha';
-                document.getElementById('horasContainer').style.display = 'none';
-                
-                calendarioHabilitado = false;
-                habilitarCalendario();
-                currentMonth = new Date();
-                generateCalendar(currentMonth);
-                
-                await cargarMisCitas();
-                cambiarPestana('mis-citas');
-
-            } catch (error) {
-                console.error('❌ Error agendando cita:', error);
-                showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
-            }
+        if (error) {
+            console.error('❌ Error insertando cita:', error);
+            throw error;
         }
+
+        console.log('✅ Cita agendada exitosamente');
+        console.log('🕐 Hora UTC guardada:', ahoraUTC);
+        console.log('🕐 Hora local (MX):', new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' }));
+        
+        const correoEnviado = await enviarNotificacionCita(data[0]);
+        
+        if (correoEnviado) {
+            showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
+        } else {
+            showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
+        }
+        
+        await precargarCitasFuturas();
+        
+        document.querySelectorAll('.servicio-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        document.getElementById('servicio').value = '';
+        document.getElementById('hora').value = '';
+        document.getElementById('notas').value = '';
+        selectedDate = null;
+        document.getElementById('selectedDateDisplay').textContent = 'Selecciona una fecha';
+        document.getElementById('horasContainer').style.display = 'none';
+        
+        calendarioHabilitado = false;
+        habilitarCalendario();
+        currentMonth = new Date();
+        generateCalendar(currentMonth);
+        
+        await cargarMisCitas();
+        cambiarPestana('mis-citas');
+
+    } catch (error) {
+        console.error('❌ Error agendando cita:', error);
+        showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
+    }
+}
 
        async function cancelarCita(citaId) {
     try {
