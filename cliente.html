@@ -932,201 +932,201 @@
         }
 
         // FUNCIÓN SIMPLIFICADA PARA ENVIAR RECORDATORIO
-        async function enviarRecordatorioCita(citaData) {
-            try {
-                console.log('🔔 Preparando envío de recordatorio para cita ID:', citaData.id);
+        // async function enviarRecordatorioCita(citaData) {
+        //     try {
+        //         console.log('🔔 Preparando envío de recordatorio para cita ID:', citaData.id);
                 
-                const { data: usuario, error: errorUsuario } = await supabase
-                    .from('clientes')
-                    .select('nombre, email')
-                    .eq('id', citaData.cliente_id)
-                    .single();
+        //         const { data: usuario, error: errorUsuario } = await supabase
+        //             .from('clientes')
+        //             .select('nombre, email')
+        //             .eq('id', citaData.cliente_id)
+        //             .single();
 
-                if (errorUsuario) {
-                    console.error('❌ Error obteniendo datos del usuario:', errorUsuario);
-                    return false;
-                }
+        //         if (errorUsuario) {
+        //             console.error('❌ Error obteniendo datos del usuario:', errorUsuario);
+        //             return false;
+        //         }
 
-                // Formatear fecha
-                const [year, month, day] = citaData.fecha.split('-');
-                const [horaCita, minutoCita] = citaData.hora.split(':');
+        //         // Formatear fecha
+        //         const [year, month, day] = citaData.fecha.split('-');
+        //         const [horaCita, minutoCita] = citaData.hora.split(':');
                 
-                const fechaCita = new Date(year, month - 1, day, 
-                                          parseInt(horaCita), 
-                                          parseInt(minutoCita), 
-                                          0, 0);
+        //         const fechaCita = new Date(year, month - 1, day, 
+        //                                   parseInt(horaCita), 
+        //                                   parseInt(minutoCita), 
+        //                                   0, 0);
                 
-                const opcionesFecha = { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric',
-                    timeZone: 'America/Mexico_City'
-                };
+        //         const opcionesFecha = { 
+        //             weekday: 'long', 
+        //             year: 'numeric', 
+        //             month: 'long', 
+        //             day: 'numeric',
+        //             timeZone: 'America/Mexico_City'
+        //         };
                 
-                const fechaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
+        //         const fechaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
 
-                const cuentaActual = cuentasEmailJS[cuentaActualIndex];
+        //         const cuentaActual = cuentasEmailJS[cuentaActualIndex];
                 
-                const templateParams = {
-                    to_email: usuario.email,
-                    to_name: usuario.nombre,
-                    cliente_nombre: usuario.nombre,
-                    servicio_nombre: citaData.servicios.nombre || 'Servicio de barbería',
-                    fecha_cita: fechaFormateada,
-                    hora_cita: citaData.hora,
-                    barbero_nombre: citaData.barberos.nombre || 'Barbero',
-                    direccion_barberia: 'Calle 24-A, Tzucacab, Yucatán',
-                    google_maps_link: 'https://www.google.com/maps?q=20.063818,-89.0476701',
-                    mensaje_recordatorio: `⏰ Recordatorio: Tu cita es dentro de 1 hora`
-                };
+        //         const templateParams = {
+        //             to_email: usuario.email,
+        //             to_name: usuario.nombre,
+        //             cliente_nombre: usuario.nombre,
+        //             servicio_nombre: citaData.servicios.nombre || 'Servicio de barbería',
+        //             fecha_cita: fechaFormateada,
+        //             hora_cita: citaData.hora,
+        //             barbero_nombre: citaData.barberos.nombre || 'Barbero',
+        //             direccion_barberia: 'Calle 24-A, Tzucacab, Yucatán',
+        //             google_maps_link: 'https://www.google.com/maps?q=20.063818,-89.0476701',
+        //             mensaje_recordatorio: `⏰ Recordatorio: Tu cita es dentro de 1 hora`
+        //         };
 
-                console.log('🔔 Enviando recordatorio a:', usuario.email);
+        //         console.log('🔔 Enviando recordatorio a:', usuario.email);
 
-                // Intentar enviar con la cuenta actual
-                try {
-                    await emailjs.send(
-                        cuentaActual.serviceId,
-                        cuentaActual.templateRecordatorio,
-                        templateParams
-                    );
+        //         // Intentar enviar con la cuenta actual
+        //         try {
+        //             await emailjs.send(
+        //                 cuentaActual.serviceId,
+        //                 cuentaActual.templateRecordatorio,
+        //                 templateParams
+        //             );
                     
-                    console.log('✅ Recordatorio enviado exitosamente');
+        //             console.log('✅ Recordatorio enviado exitosamente');
                     
-                    // Marcar como enviado
-                    await supabase
-                        .from('citas')
-                        .update({ 
-                            recordatorio_enviado: true,
-                            actualizado_en: new Date().toISOString()
-                        })
-                        .eq('id', citaData.id);
+        //             // Marcar como enviado
+        //             await supabase
+        //                 .from('citas')
+        //                 .update({ 
+        //                     recordatorio_enviado: true,
+        //                     actualizado_en: new Date().toISOString()
+        //                 })
+        //                 .eq('id', citaData.id);
                         
-                    return true;
+        //             return true;
                     
-                } catch (emailError) {
-                    console.error('❌ Error enviando recordatorio con cuenta', cuentaActual.nombre, ':', emailError);
+        //         } catch (emailError) {
+        //             console.error('❌ Error enviando recordatorio con cuenta', cuentaActual.nombre, ':', emailError);
                     
-                    // Rotar a siguiente cuenta
-                    cuentaActualIndex = (cuentaActualIndex + 1) % cuentasEmailJS.length;
-                    inicializarEmailJSCuentaActual();
-                    console.log('🔄 Rotando a cuenta:', cuentasEmailJS[cuentaActualIndex].nombre);
+        //             // Rotar a siguiente cuenta
+        //             cuentaActualIndex = (cuentaActualIndex + 1) % cuentasEmailJS.length;
+        //             inicializarEmailJSCuentaActual();
+        //             console.log('🔄 Rotando a cuenta:', cuentasEmailJS[cuentaActualIndex].nombre);
                     
-                    // Intentar con siguiente cuenta
-                    try {
-                        const nuevaCuenta = cuentasEmailJS[cuentaActualIndex];
-                        await emailjs.send(
-                            nuevaCuenta.serviceId,
-                            nuevaCuenta.templateRecordatorio,
-                            templateParams
-                        );
+        //             // Intentar con siguiente cuenta
+        //             try {
+        //                 const nuevaCuenta = cuentasEmailJS[cuentaActualIndex];
+        //                 await emailjs.send(
+        //                     nuevaCuenta.serviceId,
+        //                     nuevaCuenta.templateRecordatorio,
+        //                     templateParams
+        //                 );
                         
-                        console.log('✅ Recordatorio enviado con cuenta de respaldo');
+        //                 console.log('✅ Recordatorio enviado con cuenta de respaldo');
                         
-                        await supabase
-                            .from('citas')
-                            .update({ 
-                                recordatorio_enviado: true,
-                                actualizado_en: new Date().toISOString()
-                            })
-                            .eq('id', citaData.id);
+        //                 await supabase
+        //                     .from('citas')
+        //                     .update({ 
+        //                         recordatorio_enviado: true,
+        //                         actualizado_en: new Date().toISOString()
+        //                     })
+        //                     .eq('id', citaData.id);
                             
-                        return true;
-                    } catch (segundoError) {
-                        console.error('❌ Error también con cuenta de respaldo:', segundoError);
-                        return false;
-                    }
-                }
+        //                 return true;
+        //             } catch (segundoError) {
+        //                 console.error('❌ Error también con cuenta de respaldo:', segundoError);
+        //                 return false;
+        //             }
+        //         }
 
-            } catch (error) {
-                console.error('❌ Error en proceso de envío de recordatorio:', error);
-                return false;
-            }
-        }
+        //     } catch (error) {
+        //         console.error('❌ Error en proceso de envío de recordatorio:', error);
+        //         return false;
+        //     }
+        // }
 
         // FUNCIÓN CORREGIDA PARA VERIFICAR RECORDATORIOS (CON CONTROL DE EJECUCIÓN)
-       async function verificarYProgramarRecordatorios() {
-    try {
-        console.log('🔄 Verificando citas para recordatorios...');
+//        async function verificarYProgramarRecordatorios() {
+//     try {
+//         console.log('🔄 Verificando citas para recordatorios...');
         
-        // Usar hora local de Yucatán
-        const ahoraDate = new Date();
-        const año = ahoraDate.getFullYear();
-        const mes = String(ahoraDate.getMonth() + 1).padStart(2, '0');
-        const dia = String(ahoraDate.getDate()).padStart(2, '0');
-        const fechaActual = `${año}-${mes}-${dia}`;
+//         // Usar hora local de Yucatán
+//         const ahoraDate = new Date();
+//         const año = ahoraDate.getFullYear();
+//         const mes = String(ahoraDate.getMonth() + 1).padStart(2, '0');
+//         const dia = String(ahoraDate.getDate()).padStart(2, '0');
+//         const fechaActual = `${año}-${mes}-${dia}`;
         
-        console.log('📅 Fecha actual (Yucatán):', fechaActual);
-        console.log('🕐 Hora actual (Yucatán):', ahoraDate.toLocaleTimeString('es-MX'));
+//         console.log('📅 Fecha actual (Yucatán):', fechaActual);
+//         console.log('🕐 Hora actual (Yucatán):', ahoraDate.toLocaleTimeString('es-MX'));
 
-        // Buscar citas para hoy que aún no tienen recordatorio
-        const { data: citasParaRecordatorio, error } = await supabase
-            .from('citas')
-            .select(`
-                *,
-                servicios(nombre, precio, duracion),
-                barberos(nombre),
-                clientes(nombre, email)
-            `)
-            .eq('fecha', fechaActual)
-            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-            .eq('recordatorio_enviado', false)
-            .order('hora', { ascending: true });
+//         // Buscar citas para hoy que aún no tienen recordatorio
+//         const { data: citasParaRecordatorio, error } = await supabase
+//             .from('citas')
+//             .select(`
+//                 *,
+//                 servicios(nombre, precio, duracion),
+//                 barberos(nombre),
+//                 clientes(nombre, email)
+//             `)
+//             .eq('fecha', fechaActual)
+//             .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+//             .eq('recordatorio_enviado', false)
+//             .order('hora', { ascending: true });
 
-        if (error) {
-            console.error('❌ Error buscando citas para recordatorio:', error);
-            return;
-        }
+//         if (error) {
+//             console.error('❌ Error buscando citas para recordatorio:', error);
+//             return;
+//         }
 
-        if (!citasParaRecordatorio || citasParaRecordatorio.length === 0) {
-            console.log('✅ No hay citas para hoy que requieran recordatorio');
-            return;
-        }
+//         if (!citasParaRecordatorio || citasParaRecordatorio.length === 0) {
+//             console.log('✅ No hay citas para hoy que requieran recordatorio');
+//             return;
+//         }
 
-        console.log(`🔔 Encontradas ${citasParaRecordatorio.length} citas para evaluar`);
+//         console.log(`🔔 Encontradas ${citasParaRecordatorio.length} citas para evaluar`);
         
-        let recordatoriosEnviados = 0;
+//         let recordatoriosEnviados = 0;
         
-        for (const cita of citasParaRecordatorio) {
-            const [horaCita, minutoCita] = cita.hora.split(':');
+//         for (const cita of citasParaRecordatorio) {
+//             const [horaCita, minutoCita] = cita.hora.split(':');
             
-            // Crear fecha usando hora local de Yucatán
-            const fechaHoraCita = new Date(año, mes - 1, dia, 
-                                          parseInt(horaCita), 
-                                          parseInt(minutoCita), 
-                                          0, 0);
+//             // Crear fecha usando hora local de Yucatán
+//             const fechaHoraCita = new Date(año, mes - 1, dia, 
+//                                           parseInt(horaCita), 
+//                                           parseInt(minutoCita), 
+//                                           0, 0);
             
-            const tiempoParaCita = fechaHoraCita.getTime() - ahoraDate.getTime();
-            const minutosParaCita = Math.floor(tiempoParaCita / 60000);
+//             const tiempoParaCita = fechaHoraCita.getTime() - ahoraDate.getTime();
+//             const minutosParaCita = Math.floor(tiempoParaCita / 60000);
             
-            console.log(`   📅 Cita ${cita.id}: ${cita.hora} - Tiempo restante: ${minutosParaCita} minutos`);
+//             console.log(`   📅 Cita ${cita.id}: ${cita.hora} - Tiempo restante: ${minutosParaCita} minutos`);
             
-            // Ventana de 55-65 minutos antes
-            if (tiempoParaCita > 0 && minutosParaCita >= 55 && minutosParaCita <= 65) {
-                console.log(`   🔔 Enviando recordatorio para cita ${cita.id} (dentro de ${minutosParaCita} minutos)`);
+//             // Ventana de 55-65 minutos antes
+//             if (tiempoParaCita > 0 && minutosParaCita >= 55 && minutosParaCita <= 65) {
+//                 console.log(`   🔔 Enviando recordatorio para cita ${cita.id} (dentro de ${minutosParaCita} minutos)`);
                 
-                const resultado = await enviarRecordatorioCita(cita);
-                if (resultado) {
-                    recordatoriosEnviados++;
-                    console.log(`   ✅ Recordatorio enviado exitosamente`);
-                } else {
-                    console.log(`   ❌ Error enviando recordatorio`);
-                }
+//                 const resultado = await enviarRecordatorioCita(cita);
+//                 if (resultado) {
+//                     recordatoriosEnviados++;
+//                     console.log(`   ✅ Recordatorio enviado exitosamente`);
+//                 } else {
+//                     console.log(`   ❌ Error enviando recordatorio`);
+//                 }
                 
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            } else if (tiempoParaCita > 0) {
-                console.log(`   ⏳ Cita ${cita.id}: ${minutosParaCita} minutos - Fuera de ventana (55-65 min)`);
-            } else {
-                console.log(`   ⚠️ Cita ${cita.id}: Ya pasó o está en progreso`);
-            }
-        }
+//                 await new Promise(resolve => setTimeout(resolve, 1000));
+//             } else if (tiempoParaCita > 0) {
+//                 console.log(`   ⏳ Cita ${cita.id}: ${minutosParaCita} minutos - Fuera de ventana (55-65 min)`);
+//             } else {
+//                 console.log(`   ⚠️ Cita ${cita.id}: Ya pasó o está en progreso`);
+//             }
+//         }
         
-        console.log(`📊 Resumen: ${recordatoriosEnviados}/${citasParaRecordatorio.length} recordatorios enviados`);
+//         console.log(`📊 Resumen: ${recordatoriosEnviados}/${citasParaRecordatorio.length} recordatorios enviados`);
 
-    } catch (error) {
-        console.error('❌ Error en verificación de recordatorios:', error);
-    }
-}
+//     } catch (error) {
+//         console.error('❌ Error en verificación de recordatorios:', error);
+//     }
+// }
 
         function showAlert(message, type = 'error') {
             const alertDiv = document.getElementById('alert');
