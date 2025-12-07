@@ -709,6 +709,22 @@
                 background: #1a3c27; 
                 color: #90EE90; 
             }
+            .no-horas-disponibles {
+                animation: fadeIn 0.5s ease;
+            }
+
+            .no-horas-disponibles ul li {
+                color: #cccccc;
+                margin-bottom: 5px;
+                font-size: 14px;
+            }
+
+            .no-horas-disponibles ul li:before {
+                content: "•";
+                color: #d4af37;
+                margin-right: 8px;
+            }
+            
         }
     </style>
 </head>
@@ -1429,118 +1445,149 @@
         }
 
         async function generateHoras(selectedDateObj) {
-            const horasGrid = document.getElementById('horasGrid');
-            horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
+    const horasGrid = document.getElementById('horasGrid');
+    horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
 
-            const horas = [];
-            
-            // TURNO DE LA MAÑANA: 9:00 AM a 12:20 PM
-            let hora = 9;
-            let minutos = 0;
-            
-            while (!(hora === 13 && minutos === 0)) {
-                horas.push({ hora, minutos });
-                minutos += 40;
-                if (minutos >= 60) {
-                    minutos -= 60;
-                    hora += 1;
-                }
-                if (hora === 13 && minutos === 0) {
-                    break;
-                }
-            }
-
-            // TURNO DE LA TARDE: 2:40 PM a 7:20 PM
-            hora = 14;
-            minutos = 40;
-            
-            while (hora <= 19) {
-                horas.push({ hora, minutos });
-                
-                minutos += 40;
-                if (minutos >= 60) {
-                    minutos -= 60;
-                    hora += 1;
-                }
-                
-                if (hora > 19 || (hora === 19 && minutos > 20)) {
-                    break;
-                }
-            }
-
-            const now = new Date();
-            const esHoy = selectedDateObj.toDateString() === now.toDateString();
-            const horaActual = now.getHours();
-            const minutosActual = now.getMinutes();
-
-            try {
-                const todasLasCitasFuturas = todasLasCitasFuturasCache;
-                const horasOcupadas = new Set();
-                
-                const año = selectedDateObj.getFullYear();
-                const mes = String(selectedDateObj.getMonth() + 1).padStart(2, '0');
-                const dia = String(selectedDateObj.getDate()).padStart(2, '0');
-                const fechaSeleccionadaFormateada = `${año}-${mes}-${dia}`;
-                
-                const citasDelDiaSeleccionado = todasLasCitasFuturas.filter(cita => {
-                    return cita.fecha === fechaSeleccionadaFormateada;
-                });
-
-                citasDelDiaSeleccionado.forEach(cita => {
-                    if (cita.hora) {
-                        horasOcupadas.add(cita.hora);
-                    }
-                });
-
-                horasGrid.innerHTML = '';
-
-                let horasDisponibles = 0;
-
-                horas.forEach(({ hora: h, minutos: m }) => {
-                    const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'hora-btn';
-                    btn.textContent = horaStr;
-                    btn.dataset.hora = horaStr;
-                    
-                    const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
-                    const horaOcupada = horasOcupadas.has(horaStr);
-                    
-                    if (horaPasada || horaOcupada) {
-                        btn.disabled = true;
-                        btn.title = horaPasada ? 'Hora pasada' : 'Hora ocupada por otro cliente';
-                        btn.classList.add(horaPasada ? 'disabled' : 'ocupada');
-                    } else {
-                        btn.onclick = () => selectHora(horaStr, btn);
-                        btn.title = 'Hora disponible';
-                        horasDisponibles++;
-                    }
-                    
-                    const selectedHora = document.getElementById('hora').value;
-                    if (selectedHora === horaStr) {
-                        btn.classList.add('selected');
-                    }
-                    
-                    horasGrid.appendChild(btn);
-                });
-
-                if (horasDisponibles === 0) {
-                    horasGrid.innerHTML = `
-                        <div style="grid-column: 1 / -1; text-align: center; padding: 20px;">
-                            <div class="alert alert-error">
-                                <strong>⚠️ No hay horas disponibles</strong><br>
-                                Todas las horas para esta fecha están ocupadas o son pasadas.
-                            </div>
-                        </div>
-                    `;
-                }
-
-            } catch (error) {
-                console.error('❌ Error generando horas:', error);
-                horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
-            }
+    const horas = [];
+    
+    // TURNO DE LA MAÑANA: 9:00 AM a 12:20 PM
+    let hora = 9;
+    let minutos = 0;
+    
+    while (!(hora === 13 && minutos === 0)) {
+        horas.push({ hora, minutos });
+        minutos += 40;
+        if (minutos >= 60) {
+            minutos -= 60;
+            hora += 1;
         }
+        if (hora === 13 && minutos === 0) {
+            break;
+        }
+    }
+
+    // TURNO DE LA TARDE: 2:40 PM a 7:20 PM
+    hora = 14;
+    minutos = 40;
+    
+    while (hora <= 19) {
+        horas.push({ hora, minutos });
+        
+        minutos += 40;
+        if (minutos >= 60) {
+            minutos -= 60;
+            hora += 1;
+        }
+        
+        if (hora > 19 || (hora === 19 && minutos > 20)) {
+            break;
+        }
+    }
+
+    const now = new Date();
+    const esHoy = selectedDateObj.toDateString() === now.toDateString();
+    const horaActual = now.getHours();
+    const minutosActual = now.getMinutes();
+
+    try {
+        const todasLasCitasFuturas = todasLasCitasFuturasCache;
+        const horasOcupadas = new Set();
+        
+        const año = selectedDateObj.getFullYear();
+        const mes = String(selectedDateObj.getMonth() + 1).padStart(2, '0');
+        const dia = String(selectedDateObj.getDate()).padStart(2, '0');
+        const fechaSeleccionadaFormateada = `${año}-${mes}-${dia}`;
+        
+        const citasDelDiaSeleccionado = todasLasCitasFuturas.filter(cita => {
+            return cita.fecha === fechaSeleccionadaFormateada;
+        });
+
+        citasDelDiaSeleccionado.forEach(cita => {
+            if (cita.hora) {
+                horasOcupadas.add(cita.hora);
+            }
+        });
+
+        horasGrid.innerHTML = '';
+
+        let horasDisponibles = 0;
+
+        horas.forEach(({ hora: h, minutos: m }) => {
+            const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'hora-btn';
+            btn.textContent = horaStr;
+            btn.dataset.hora = horaStr;
+            
+            const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
+            const horaOcupada = horasOcupadas.has(horaStr);
+            
+            if (horaPasada || horaOcupada) {
+                btn.disabled = true;
+                btn.title = horaPasada ? 'Hora pasada' : 'Hora ocupada por otro cliente';
+                btn.classList.add(horaPasada ? 'disabled' : 'ocupada');
+            } else {
+                btn.onclick = () => selectHora(horaStr, btn);
+                btn.title = 'Hora disponible';
+                horasDisponibles++;
+            }
+            
+            const selectedHora = document.getElementById('hora').value;
+            if (selectedHora === horaStr) {
+                btn.classList.add('selected');
+            }
+            
+            horasGrid.appendChild(btn);
+        });
+
+        if (horasDisponibles === 0) {
+            // CREAR MENSAJE PERSONALIZADO
+            const fechaBonita = selectedDateObj.toLocaleDateString('es-MX', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+            
+            horasGrid.innerHTML = `
+                <div class="no-horas-disponibles" style="grid-column: 1 / -1; text-align: center; padding: 30px;">
+                    <div style="font-size: 48px; margin-bottom: 15px; color: #d4af37;">⏰</div>
+                    <h3 style="color: #d4af37; margin-bottom: 10px;">¡Todas las horas están ocupadas!</h3>
+                    <p style="color: #ccc; margin-bottom: 15px;">Para el <strong>${fechaBonita}</strong> todas las horas disponibles han sido reservadas.</p>
+                    <div style="background: #2a2a2a; padding: 15px; border-radius: 8px; border: 2px solid #d4af37; margin: 20px 0;">
+                        <p style="color: #ffc107; margin: 0;">💡 <strong>Sugerencias:</strong></p>
+                        <ul style="text-align: left; margin: 10px 0; padding-left: 20px;">
+                            <li>Prueba con otro día del calendario</li>
+                            <li>Revisa fechas más adelante en el mes</li>
+                            <li>Contacta al barbero para disponibilidad especial</li>
+                        </ul>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('nextMonth').click();" style="margin-top: 15px;">
+                        Ver días disponibles →
+                    </button>
+                </div>
+            `;
+            
+            // Deshabilitar el botón de agendar cita si no hay horas
+            document.getElementById('btnAgendarCita').disabled = true;
+            document.getElementById('btnAgendarCita').style.opacity = '0.6';
+            document.getElementById('btnAgendarCita').style.cursor = 'not-allowed';
+            document.getElementById('btnAgendarCita').title = 'No hay horas disponibles para esta fecha';
+            
+        } else {
+            // Habilitar el botón si hay horas disponibles
+            document.getElementById('btnAgendarCita').disabled = false;
+            document.getElementById('btnAgendarCita').style.opacity = '1';
+            document.getElementById('btnAgendarCita').style.cursor = 'pointer';
+            document.getElementById('btnAgendarCita').title = 'Agendar cita';
+        }
+
+    } catch (error) {
+        console.error('❌ Error generando horas:', error);
+        horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
+    }
+}
 
         async function cargarBarberoFijo() {
             try {
