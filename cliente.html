@@ -1278,11 +1278,11 @@
 
                 // Programar verificaciones periódicas - CADA 5 MINUTOS, NO CADA MINUTO
                 setInterval(verificarYActualizarEstadosCitas, 1 * 60 * 1000);
-                setInterval(verificarYProgramarRecordatorios, 1 * 60 * 1000); // 5 minutos
+                // setInterval(verificarYProgramarRecordatorios, 1 * 60 * 1000); // 5 minutos
                 
                 // Ejecutar inmediatamente
                 await verificarYActualizarEstadosCitas();
-                await verificarYProgramarRecordatorios();
+                // await verificarYProgramarRecordatorios();
 
             } catch (error) {
                 console.error('Error de autenticación:', error);
