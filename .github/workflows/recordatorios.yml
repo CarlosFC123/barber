@@ -1,4 +1,4 @@
-name: Enviar Recordatorios - VERSIÓN CORREGIDA
+name: Enviar Recordatorios - VERSIÓN FINAL
 
 on:
   schedule:
@@ -25,34 +25,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq curl
       
-      - name: Verificar estructura de tabla
-        run: |
-          echo "🔍 Verificando estructura de tabla 'citas'..."
-          
-          # Verificar tipo de columna hora_recordatorio_enviado
-          SQL_QUERY='SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ''citas'' AND column_name IN (''hora_recordatorio_enviado'', ''recordatorio_enviado'')'
-          
-          curl -s -X POST \
-            "${{ env.SUPABASE_URL }}/rest/v1/rpc/execute_sql" \
-            -H "apikey: ${{ env.SUPABASE_KEY }}" \
-            -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"query\": \"$SQL_QUERY\"}" | jq .
-      
       - name: Obtener citas para hoy
         id: obtener-citas
         run: |
           FECHA_HOY=$(TZ='America/Merida' date +'%Y-%m-%d')
           HORA_ACTUAL=$(TZ='America/Merida' date +'%H:%M')
-          TIMESTAMP_ACTUAL=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           
           echo "🔍 Buscando citas para hoy: $FECHA_HOY"
           echo "🕐 Hora actual: $HORA_ACTUAL"
-          echo "⏰ Timestamp: $TIMESTAMP_ACTUAL"
           
-          # Buscar citas NO enviadas
+          # Buscar citas NO enviadas (recordatorio_enviado = false)
           RESPONSE=$(curl -s -X GET \
-            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=is.false&select=id,fecha,hora,cliente_id" \
+            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id" \
             -H "apikey: ${{ env.SUPABASE_KEY }}" \
             -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
             -H "Content-Type: application/json")
@@ -68,7 +52,6 @@ jobs:
           echo "CITAS_JSON=/tmp/citas.json" >> $GITHUB_OUTPUT
           echo "FECHA_HOY=$FECHA_HOY" >> $GITHUB_OUTPUT
           echo "HORA_ACTUAL=$HORA_ACTUAL" >> $GITHUB_OUTPUT
-          echo "TIMESTAMP_ACTUAL=$TIMESTAMP_ACTUAL" >> $GITHUB_OUTPUT
       
       - name: Procesar y enviar recordatorios
         env:
@@ -76,7 +59,6 @@ jobs:
         run: |
           FECHA_HOY="${{ steps.obtener-citas.outputs.FECHA_HOY }}"
           HORA_ACTUAL="${{ steps.obtener-citas.outputs.HORA_ACTUAL }}"
-          TIMESTAMP_ACTUAL="${{ steps.obtener-citas.outputs.TIMESTAMP_ACTUAL }}"
           
           CITAS=$(cat /tmp/citas.json)
           CANTIDAD=$(echo "$CITAS" | jq '. | length')
@@ -134,6 +116,7 @@ jobs:
               # 2. ENVIAR EMAIL CON SENDGRID
               echo "📨 Enviando email..."
               
+              # JSON mínimo para evitar spam
               EMAIL_JSON='{
                 "personalizations": [{
                   "to": [{"email": "'"$EMAIL"'"}],
@@ -142,7 +125,7 @@ jobs:
                     "hora_cita": "'"$HORA_CITA"'",
                     "minutos_restantes": "'"$MINUTOS"'"
                   },
-                  "subject": "Recordatorio de cita - Waldos Barber-Shop"
+                  "subject": "Recordatorio: Tu cita a las '"$HORA_CITA"' - Waldos Barber-Shop"
                 }],
                 "from": {
                   "email": "carlosffcastillo57@gmail.com",
@@ -163,18 +146,18 @@ jobs:
                 echo "✅ Email enviado exitosamente"
                 EMAILS_ENVIADOS=$((EMAILS_ENVIADOS + 1))
                 
-                # 3. ACTUALIZAR BD - CON TIMESTAMP CORRECTO
+                # 3. ACTUALIZAR BD - CON FORMATO TIME CORRECTO
                 echo "🔧 Actualizando base de datos..."
                 
-                # Crear timestamp completo para la BD
-                FECHA_COMPLETA="$FECHA_HOY $HORA_ACTUAL:00"
-                echo "📅 Fecha completa para BD: $FECHA_COMPLETA"
+                # Formato CORRECTO para TIME: 'HH24:MI:SS'
+                HORA_ACTUAL_FORMATEADA="${HORA_ACTUAL}:00"
+                echo "⏰ Hora para BD (formato time): $HORA_ACTUAL_FORMATEADA"
                 
-                # Método A: PATCH con timestamp ISO
+                # Método 1: PATCH directo
                 PATCH_DATA='{
                   "recordatorio_enviado": true,
-                  "hora_recordatorio_enviado": "'"$TIMESTAMP_ACTUAL"'",
-                  "actualizado_en": "'"$TIMESTAMP_ACTUAL"'"
+                  "hora_recordatorio_enviado": "'"$HORA_ACTUAL_FORMATEADA"'",
+                  "actualizado_en": "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"
                 }'
                 
                 echo "📊 Datos PATCH: $PATCH_DATA"
@@ -186,30 +169,14 @@ jobs:
                   -H "Content-Type: application/json" \
                   -d "$PATCH_DATA")
                 
-                echo "📤 Respuesta PATCH: código $PATCH_CODE"
-                
                 if [ "$PATCH_CODE" = "200" ] || [ "$PATCH_CODE" = "204" ]; then
-                  echo "✅ BD actualizada exitosamente"
+                  echo "✅ BD actualizada (PATCH: $PATCH_CODE)"
                   BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
-                  
-                  # VERIFICACIÓN
-                  sleep 1
-                  echo "🔍 Verificando actualización..."
-                  VERIFY=$(curl -s -X GET \
-                    "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID&select=recordatorio_enviado,hora_recordatorio_enviado,actualizado_en" \
-                    -H "apikey: ${{ env.SUPABASE_KEY }}" \
-                    -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                    -H "Content-Type: application/json")
-                  
-                  echo "📊 Estado actual: $VERIFY"
-                  
                 else
-                  echo "❌ Error en PATCH, intentando método alternativo..."
+                  echo "❌ Error PATCH ($PATCH_CODE), intentando método alternativo..."
                   
-                  # Método B: SQL directo con timestamp correcto
-                  echo "🔄 Intentando con SQL directo..."
-                  
-                  SQL_UPDATE="UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = TIMESTAMP '$FECHA_HOY $HORA_ACTUAL:00', actualizado_en = NOW() WHERE id = $ID"
+                  # Método 2: SQL directo
+                  SQL_UPDATE="UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = TIME '$HORA_ACTUAL_FORMATEADA', actualizado_en = NOW() WHERE id = $ID"
                   
                   SQL_RESPONSE=$(curl -s -o /tmp/sql_response.txt -w "%{http_code}" \
                     -X POST "${{ env.SUPABASE_URL }}/rest/v1/rpc/execute_sql" \
@@ -223,12 +190,23 @@ jobs:
                     BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
                   else
                     echo "❌ Error SQL ($SQL_RESPONSE)"
-                    echo "📄 Detalles: $(cat /tmp/sql_response.txt 2>/dev/null || echo 'N/A')"
                   fi
                 fi
                 
+                # VERIFICACIÓN FINAL
+                sleep 1
+                echo "🔍 Verificando estado final..."
+                VERIFY=$(curl -s -X GET \
+                  "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID&select=recordatorio_enviado,hora_recordatorio_enviado" \
+                  -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                  -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                  -H "Content-Type: application/json")
+                
+                echo "📊 Estado final: $VERIFY"
+                
               else
                 echo "❌ Error SendGrid ($SEND_CODE)"
+                echo "📄 Detalles: $(cat /tmp/send_response.txt 2>/dev/null | head -c 200)"
               fi
               
               # Limpiar
@@ -242,7 +220,7 @@ jobs:
               curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
                 -H "apikey: ${{ env.SUPABASE_KEY }}" \
                 -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                -d '{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"$TIMESTAMP_ACTUAL"'", "actualizado_en": "'"$TIMESTAMP_ACTUAL"'"}' > /dev/null 2>&1
+                -d '{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"${HORA_ACTUAL}:00"'"}' > /dev/null 2>&1
             else
               echo "❌ Menos de 40 minutos - No enviar"
             fi
@@ -259,23 +237,22 @@ jobs:
           echo "   🕐 Hora: $HORA_ACTUAL"
           echo "   📅 Fecha: $FECHA_HOY"
       
-      - name: Solución manual definitiva
+      - name: Solución definitiva si falla
         run: |
           echo ""
-          echo "🔧 SOLUCIÓN MANUAL DEFINITIVA"
+          echo "🔧 SOLUCIÓN DEFINITIVA MANUAL"
           echo "=============================="
           echo ""
           echo "EJECUTA en Supabase SQL Editor:"
           echo ""
-          echo "-- 1. Verificar estructura de columnas:"
-          echo "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'citas';"
+          echo "-- 1. Cambiar tipo a TEXT (recomendado para simplificar):"
+          echo "ALTER TABLE citas ALTER COLUMN hora_recordatorio_enviado TYPE TEXT;"
           echo ""
-          echo "-- 2. Opción A: Si hora_recordatorio_enviado es TIMESTAMP:"
-          echo "UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = NOW() WHERE id = 134;"
-          echo ""
-          echo "-- 3. Opción B: Si quieres cambiar a solo hora:"
-          echo "ALTER TABLE citas ALTER COLUMN hora_recordatorio_enviado TYPE TIME USING hora_recordatorio_enviado::time;"
+          echo "-- 2. Actualizar cita 134:"
           echo "UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = '16:00' WHERE id = 134;"
+          echo ""
+          echo "-- 3. O mantener como TIME pero actualizar correctamente:"
+          echo "UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = TIME '16:00:00' WHERE id = 134;"
           echo ""
           echo "-- 4. Verificar:"
           echo "SELECT id, hora, recordatorio_enviado, hora_recordatorio_enviado FROM citas WHERE id = 134;"
@@ -285,9 +262,10 @@ jobs:
         run: |
           echo ""
           echo "========================================"
-          echo "✅ SISTEMA DE RECORDATORIOS"
+          echo "✅ SISTEMA DE RECORDATORIOS - LISTO"
           echo "========================================"
           echo "🏁 Finalizado: $(TZ='America/Merida' date)"
-          echo "🔧 Corrección: Timestamps ISO 8601"
+          echo "🔧 Tipo corregido: TIME 'HH:MI:SS'"
+          echo "📧 Anti-spam: Asunto personalizado"
           echo "🔄 Próxima ejecución: 5 minutos"
           echo "========================================"
