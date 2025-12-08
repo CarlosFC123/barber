@@ -1,13 +1,13 @@
-name: Enviar Recordatorios de Citas - Anti Spam
+name: Enviar Recordatorios de Citas
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 env:
   SUPABASE_URL: https://nllllvztipbrhryzxamm.supabase.co
-  SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4
+  SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4
   SENDGRID_TEMPLATE_ID: d-8c34868a760f46ae987cc04944d697a0
 
 jobs:
@@ -36,8 +36,8 @@ jobs:
           
           RESPONSE=$(curl -s -X GET \
             "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id,servicio_id,barbero_id" \
-            -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
+            -H "apikey: ${{ env.SUPABASE_KEY }}" \
+            -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
             -H "Content-Type: application/json")
           
           if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
@@ -88,7 +88,7 @@ jobs:
           
           echo "📋 Procesando citas encontradas..."
           
-          # Función para crear JSON de SendGrid - CORREGIDA
+          # Función para crear JSON de SendGrid - COINCIDIENDO CON TU TEMPLATE
           crear_json_sendgrid() {
             local EMAIL="$1"
             local NOMBRE="$2"
@@ -99,20 +99,14 @@ jobs:
             local MINUTOS="$7"
             local DURACION="$8"
             
-            # Formatear fecha para español
-            DIA_NUM=$(echo "$FECHA" | sed 's/de.*//')
-            MES=$(echo "$FECHA" | sed 's/.*de //' | sed 's/ de.*//')
-            ANIO=$(echo "$FECHA" | sed 's/.*de //' | sed 's/.* //')
-            FECHA_FORMATEADA="$DIA_NUM de $MES de $ANIO"
-            
-            # Crear asunto completo
-            ASUNTO_COMPLETO="Recordatorio de tu cita en Waldos Barber-Shop - $HORA"
+            # Crear asunto dinámico
+            ASUNTO_COMPLETO="⏰ Recordatorio de Cita - Waldos Barber-Shop a las $HORA"
             
             jq -n \
               --arg email "$EMAIL" \
               --arg nombre "$NOMBRE" \
               --arg servicio "$SERVICIO" \
-              --arg fecha "$FECHA_FORMATEADA" \
+              --arg fecha "$FECHA" \
               --arg hora "$HORA" \
               --arg barbero "$BARBERO" \
               --argjson minutos "$MINUTOS" \
@@ -123,16 +117,16 @@ jobs:
               "personalizations": [{
                 "to": [{"email": $email, "name": $nombre}],
                 "dynamic_template_data": {
-                  "NOMBRE": $nombre,
-                  "SERVICIO": $servicio,
-                  "FECHA": $fecha,
-                  "HORA": $hora,
-                  "BARBERO": $barbero,
-                  "DURACION": $duracion,
-                  "MINUTOS": $minutos,
-                  "DIRECCION": "Calle 24-A, Tzucacab, Yucatán",
-                  "TELEFONO": "+52 997 151 2023",
-                  "GOOGLE_MAPS": "https://maps.google.com/?q=20.063818,-89.0476701"
+                  "cliente_nombre": $nombre,
+                  "servicio_nombre": $servicio,
+                  "fecha_cita": $fecha,
+                  "hora_cita": $hora,
+                  "barbero_nombre": $barbero,
+                  "duracion_servicio": $duracion,
+                  "minutos_restantes": $minutos,
+                  "direccion_barberia": "Calle 24-A, Tzucacab, Yucatán",
+                  "google_maps_link": "https://maps.google.com/?q=20.063818,-89.0476701",
+                  "mensaje_recordatorio": "⏰ Recordatorio: Tu cita es dentro de \($minutos) minutos"
                 },
                 "subject": $asunto
               }],
@@ -199,8 +193,8 @@ jobs:
             # Obtener datos del cliente
             CLIENTE_RESPONSE=$(curl -s -X GET \
               "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.$CLIENTE_ID&select=email,nombre,apellido" \
-              -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
-              -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
+              -H "apikey: ${{ env.SUPABASE_KEY }}" \
+              -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
               -H "Content-Type: application/json")
             
             EMAIL=$(echo "$CLIENTE_RESPONSE" | jq -r '.[0].email // empty')
@@ -225,8 +219,8 @@ jobs:
             # Obtener datos del servicio
             SERVICIO_RESPONSE=$(curl -s -X GET \
               "${{ env.SUPABASE_URL }}/rest/v1/servicios?id=eq.$SERVICIO_ID&select=nombre,duracion" \
-              -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
-              -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
+              -H "apikey: ${{ env.SUPABASE_KEY }}" \
+              -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
               -H "Content-Type: application/json")
             
             SERVICIO_NOMBRE=$(echo "$SERVICIO_RESPONSE" | jq -r '.[0].nombre // "Corte de Cabello"')
@@ -235,8 +229,8 @@ jobs:
             # Obtener datos del barbero
             BARBERO_RESPONSE=$(curl -s -X GET \
               "${{ env.SUPABASE_URL }}/rest/v1/barberos?id=eq.$BARBERO_ID&select=nombre" \
-              -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
-              -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
+              -H "apikey: ${{ env.SUPABASE_KEY }}" \
+              -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
               -H "Content-Type: application/json")
             
             BARBERO_NOMBRE=$(echo "$BARBERO_RESPONSE" | jq -r '.[0].nombre // "Nuestro Barbero"')
@@ -270,12 +264,10 @@ jobs:
               # Crear JSON y enviar
               JSON_DATA=$(crear_json_sendgrid "$EMAIL" "$NOMBRE_COMPLETO" "$SERVICIO_NOMBRE" "$FECHA_BONITA" "$HORA_CITA" "$BARBERO_NOMBRE" "$MINUTOS" "$DURACION")
               
-              # Debug: ver JSON creado
-              echo "   📨 JSON creado exitosamente"
-              
               echo "$JSON_DATA" > /tmp/sendgrid_$ID.json
               
-              echo "   📤 Enviando a SendGrid..."
+              # Debug: mostrar qué variables estamos enviando
+              echo "   📨 Enviando con variables: cliente_nombre, servicio_nombre, fecha_cita, hora_cita, barbero_nombre, duracion_servicio, minutos_restantes"
               
               RESPONSE_CODE=$(curl -s -o /tmp/response_$ID.txt -w "%{http_code}" \
                 -X POST "https://api.sendgrid.com/v3/mail/send" \
@@ -291,8 +283,8 @@ jobs:
                 echo "   🔧 Actualizando base de datos..."
                 PATCH_RESPONSE=$(curl -s -X PATCH \
                   "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
-                  -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
-                  -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
+                  -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                  -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                   -H "Content-Type: application/json" \
                   -H "Prefer: return=minimal" \
                   -d "{\"recordatorio_enviado\": true}")
@@ -308,15 +300,15 @@ jobs:
               fi
               
               rm -f /tmp/sendgrid_$ID.json /tmp/response_$ID.txt 2>/dev/null
-              sleep 2
+              sleep 1
               
             elif [ $MINUTOS -gt 120 ]; then
               echo "   ⏳ Demasiado temprano (+2 horas)"
             elif [ $MINUTOS -lt 0 ]; then
               echo "   ⏳ La cita ya pasó"
               curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
-                -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
-                -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
+                -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                 -d "{\"recordatorio_enviado\": true}" > /dev/null 2>&1
             else
               echo "   ❌ Muy tarde (menos de 40 minutos)"
@@ -339,14 +331,14 @@ jobs:
         run: |
           echo ""
           echo "========================================"
-          echo "✅ WORKFLOW COMPLETADO - CONFIGURACIÓN ANTI-SPAM"
+          echo "✅ WORKFLOW COMPLETADO"
           echo "========================================"
           echo "🏁 Finalizado: $(TZ='America/Merida' date)"
           echo "📍 Zona horaria: America/Merida (UTC-6)"
-          echo "✉️  Servicio: SendGrid con headers anti-spam"
+          echo "✉️  Servicio: SendGrid"
           echo "🏪 Barbería: Waldos Barber-Shop"
           echo "📧 Remitente: carlosffcastillo57@gmail.com"
           echo "⏰ Recordatorios: 40-120 minutos antes"
-          echo "🛡️  Configuración: Bypass List Management activado"
-          echo "🔄 Próxima ejecución: en 10 minutos"
+          echo "🛡️  Anti-Spam: Bypass List Management activado"
+          echo "🔄 Próxima ejecución: en 5 minutos"
           echo "========================================"
