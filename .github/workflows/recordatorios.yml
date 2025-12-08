@@ -54,7 +54,7 @@ jobs:
             # Guardar en archivo temporal para evitar problemas con caracteres especiales
             echo "$RESPONSE" > /tmp/citas.json
             
-            # SOLUCIÓN: Guardar solo la fecha y hora en outputs
+            # Guardar solo la fecha y hora en outputs
             # y el JSON en un archivo que pueda ser leído en el siguiente step
             echo "CITAS_JSON=/tmp/citas.json" >> $GITHUB_OUTPUT
           else
@@ -86,7 +86,7 @@ jobs:
             CITAS_JSON=$(cat "$CITAS_JSON_FILE")
           else
             CITAS_JSON="[]"
-            echo "⚠️  No se encontró archivo de citas, usando array vacío"
+            echo "⚠️  No se encontró archivo de citas, usar array vacío"
           fi
           
           # Debug: Mostrar qué recibimos
@@ -112,7 +112,7 @@ jobs:
             if echo "$CITAS_JSON" | jq empty 2>/dev/null; then
               echo "✅ JSON reparado exitosamente"
             else
-              echo "❌ No se pudo reparar el JSON, usando array vacío"
+              echo "❌ No se pudo reparar el JSON, usar array vacío"
               CITAS_JSON="[]"
             fi
           fi
@@ -135,23 +135,16 @@ jobs:
             local MINUTOS="$7"
             local DURACION="$8"
             
-            # Escapar caracteres especiales
-            local NOMBRE_ESC=$(echo "$NOMBRE" | jq -R . | sed 's/^"//;s/"$//')
-            local SERVICIO_ESC=$(echo "$SERVICIO" | jq -R . | sed 's/^"//;s/"$//')
-            local FECHA_ESC=$(echo "$FECHA" | jq -R . | sed 's/^"//;s/"$//')
-            local BARBERO_ESC=$(echo "$BARBERO" | jq -R . | sed 's/^"//;s/"$//')
-            local DURACION_ESC=$(echo "$DURACION" | jq -R . | sed 's/^"//;s/"$//')
-            
             # Construir JSON usando jq para asegurar formato válido
             jq -n \
               --arg email "$EMAIL" \
-              --arg nombre "$NOMBRE_ESC" \
-              --arg servicio "$SERVICIO_ESC" \
-              --arg fecha "$FECHA_ESC" \
+              --arg nombre "$NOMBRE" \
+              --arg servicio "$SERVICIO" \
+              --arg fecha "$FECHA" \
               --arg hora "$HORA" \
-              --arg barbero "$BARBERO_ESC" \
+              --arg barbero "$BARBERO" \
               --argjson minutos "$MINUTOS" \
-              --arg duracion "$DURACION_ESC" \
+              --arg duracion "$DURACION" \
               --arg template_id "${{ env.SENDGRID_TEMPLATE_ID }}" \
             '{
               "personalizations": [{
@@ -202,24 +195,67 @@ jobs:
             echo "========================================"
             echo "📋 CITA ID: $ID"
             echo "   Hora programada: $HORA_CITA"
+            echo "   Cliente ID: $CLIENTE_ID"
             
-            # Obtener datos del cliente
+            # SOLUCIÓN: Asegurar que el UUID esté correctamente formateado
+            # Algunas veces el UUID viene con problemas de encoding
+            CLIENTE_ID_CLEAN=$(echo "$CLIENTE_ID" | tr -d '"' | tr -d "'" | xargs)
+            
+            # Obtener datos del cliente con el UUID limpio
+            echo "   🔍 Buscando cliente con UUID: $CLIENTE_ID_CLEAN"
+            
             CLIENTE_RESPONSE=$(curl -s -X GET \
-              "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.$CLIENTE_ID&select=email,nombre" \
+              "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.${CLIENTE_ID_CLEAN}&select=email,nombre,apellido" \
               -H "apikey: ${{ env.SUPABASE_KEY }}" \
               -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-              -H "Content-Type: application/json")
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=representation")
             
+            # Debug de la respuesta
+            echo "   📥 Respuesta raw: $(echo "$CLIENTE_RESPONSE" | head -c 100)"
+            
+            # Extraer email y nombre
             EMAIL=$(echo "$CLIENTE_RESPONSE" | jq -r '.[0].email // empty')
             NOMBRE=$(echo "$CLIENTE_RESPONSE" | jq -r '.[0].nombre // "Cliente"')
+            APELLIDO=$(echo "$CLIENTE_RESPONSE" | jq -r '.[0].apellido // ""')
             
-            if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ] || [ "$EMAIL" = "" ]; then
-              echo "   ❌ Email no válido o no encontrado"
-              EMAILS_ERROR=$((EMAILS_ERROR + 1))
-              continue
+            # Combinar nombre y apellido si existe apellido
+            if [ -n "$APELLIDO" ] && [ "$APELLIDO" != "null" ]; then
+              NOMBRE_COMPLETO="$NOMBRE $APELLIDO"
+            else
+              NOMBRE_COMPLETO="$NOMBRE"
             fi
             
-            echo "   👤 Cliente: $NOMBRE"
+            if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ] || [ "$EMAIL" = "" ]; then
+              echo "   ❌ Email no encontrado para cliente ID: $CLIENTE_ID_CLEAN"
+              echo "   🔍 Intentando consulta alternativa..."
+              
+              # Consulta alternativa: probar sin el header de preferencia
+              CLIENTE_RESPONSE_ALT=$(curl -s -X GET \
+                "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.${CLIENTE_ID_CLEAN}&select=email,nombre,apellido" \
+                -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                -H "Content-Type: application/json")
+              
+              EMAIL=$(echo "$CLIENTE_RESPONSE_ALT" | jq -r '.[0].email // empty')
+              NOMBRE=$(echo "$CLIENTE_RESPONSE_ALT" | jq -r '.[0].nombre // "Cliente"')
+              APELLIDO=$(echo "$CLIENTE_RESPONSE_ALT" | jq -r '.[0].apellido // ""')
+              
+              if [ -n "$APELLIDO" ] && [ "$APELLIDO" != "null" ]; then
+                NOMBRE_COMPLETO="$NOMBRE $APELLIDO"
+              else
+                NOMBRE_COMPLETO="$NOMBRE"
+              fi
+              
+              if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ]; then
+                echo "   ❌ Email sigue sin encontrarse"
+                echo "   📊 Respuesta completa: $CLIENTE_RESPONSE_ALT"
+                EMAILS_ERROR=$((EMAILS_ERROR + 1))
+                continue
+              fi
+            fi
+            
+            echo "   👤 Cliente: $NOMBRE_COMPLETO"
             echo "   📧 Email: $EMAIL"
             
             # Obtener datos del servicio
@@ -272,7 +308,7 @@ jobs:
               FECHA_BONITA="$DIA de $MES de $ANIO"
               
               # Crear JSON usando la función con jq
-              JSON_DATA=$(crear_json_sendgrid "$EMAIL" "$NOMBRE" "$SERVICIO_NOMBRE" "$FECHA_BONITA" "$HORA_CITA" "$BARBERO_NOMBRE" "$MINUTOS" "$DURACION")
+              JSON_DATA=$(crear_json_sendgrid "$EMAIL" "$NOMBRE_COMPLETO" "$SERVICIO_NOMBRE" "$FECHA_BONITA" "$HORA_CITA" "$BARBERO_NOMBRE" "$MINUTOS" "$DURACION")
               
               # Guardar JSON a archivo
               echo "$JSON_DATA" > /tmp/sendgrid_$ID.json
