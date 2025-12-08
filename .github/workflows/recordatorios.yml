@@ -40,7 +40,21 @@ jobs:
             -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
             -H "Content-Type: application/json")
           
-          echo "CITAS_JSON=$RESPONSE" >> $GITHUB_OUTPUT
+          # FIX: Asegurar que la respuesta sea un array JSON válido
+          if [ -z "$RESPONSE" ]; then
+            RESPONSE="[]"
+          fi
+          
+          # Validar JSON
+          if echo "$RESPONSE" | jq empty 2>/dev/null; then
+            echo "CITAS_JSON=$RESPONSE" >> $GITHUB_OUTPUT
+            CANTIDAD=$(echo "$RESPONSE" | jq '. | length')
+            echo "📊 Citas encontradas: $CANTIDAD"
+          else
+            echo "⚠️  JSON inválido, usando array vacío"
+            echo "CITAS_JSON=[]" >> $GITHUB_OUTPUT
+          fi
+          
           echo "FECHA_HOY=$FECHA_HOY" >> $GITHUB_OUTPUT
           echo "HORA_ACTUAL=$HORA_ACTUAL" >> $GITHUB_OUTPUT
       
@@ -52,9 +66,21 @@ jobs:
           HORA_ACTUAL="${{ steps.obtener-citas.outputs.HORA_ACTUAL }}"
           CITAS_JSON='${{ steps.obtener-citas.outputs.CITAS_JSON }}'
           
-          if [ "$CITAS_JSON" = "[]" ] || [ -z "$CITAS_JSON" ]; then
+          # Debug: Mostrar qué recibimos
+          echo "🔍 DEBUG - Recibido CITAS_JSON:"
+          echo "$CITAS_JSON"
+          echo "🔍 Longitud: $(echo "$CITAS_JSON" | jq '. | length' 2>/dev/null || echo 'inválido')"
+          
+          if [ "$CITAS_JSON" = "[]" ] || [ -z "$CITAS_JSON" ] || [ "$CITAS_JSON" = "null" ]; then
             echo "ℹ️  No hay citas para procesar hoy ($FECHA_HOY)"
             exit 0
+          fi
+          
+          # Verificar si es JSON válido
+          if ! echo "$CITAS_JSON" | jq empty 2>/dev/null; then
+            echo "❌ ERROR: JSON inválido recibido"
+            echo "Contenido: $CITAS_JSON"
+            exit 1
           fi
           
           echo "📋 Procesando citas encontradas..."
@@ -162,9 +188,11 @@ jobs:
             
             echo "   ⏰ Minutos restantes: $MINUTOS"
             
-            # Verificar si está en ventana de 55-65 minutos antes
-            if [ $MINUTOS -ge 55 ] && [ $MINUTOS -le 65 ]; then
-              echo "   🎯 ¡ENVIANDO RECORDATORIO! (Ventana perfecta)"
+            # ========== VENTANA AMPLIADA ==========
+            # Ventana ideal: 40-120 minutos antes (para asegurar envío)
+            
+            if [ $MINUTOS -ge 40 ] && [ $MINUTOS -le 120 ]; then
+              echo "   🎯 ¡ENVIANDO RECORDATORIO! (Ventana ampliada: 40-120 min)"
               
               # Formatear fecha bonita
               DIA=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%d')
@@ -172,18 +200,10 @@ jobs:
               ANIO=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%Y')
               
               case $MES_NUM in
-                "01") MES="Enero";;
-                "02") MES="Febrero";;
-                "03") MES="Marzo";;
-                "04") MES="Abril";;
-                "05") MES="Mayo";;
-                "06") MES="Junio";;
-                "07") MES="Julio";;
-                "08") MES="Agosto";;
-                "09") MES="Septiembre";;
-                "10") MES="Octubre";;
-                "11") MES="Noviembre";;
-                "12") MES="Diciembre";;
+                "01") MES="Enero";; "02") MES="Febrero";; "03") MES="Marzo";;
+                "04") MES="Abril";; "05") MES="Mayo";; "06") MES="Junio";;
+                "07") MES="Julio";; "08") MES="Agosto";; "09") MES="Septiembre";;
+                "10") MES="Octubre";; "11") MES="Noviembre";; "12") MES="Diciembre";;
                 *) MES="";;
               esac
               
@@ -236,8 +256,8 @@ jobs:
               # Esperar 1 segundo entre emails
               sleep 1
               
-            elif [ $MINUTOS -gt 65 ]; then
-              echo "   ⏳ Muy temprano ($MINUTOS minutos antes)"
+            elif [ $MINUTOS -gt 120 ]; then
+              echo "   ⏳ Demasiado temprano (+2 horas)"
             elif [ $MINUTOS -lt 0 ]; then
               echo "   ⏳ La cita ya pasó"
               # Marcar como enviado aunque ya pasó para no volver a procesar
@@ -246,7 +266,7 @@ jobs:
                 -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                 -d "{\"recordatorio_enviado\": true}"
             else
-              echo "   ⚠️  Fuera de ventana ($MINUTOS minutos)"
+              echo "   ❌ Muy tarde (menos de 40 minutos)"
             fi
             
             echo "========================================"
@@ -260,6 +280,7 @@ jobs:
           echo "   📅 Fecha procesada: $FECHA_HOY"
           echo "   ✉️  Remitente: carlosffcastillo57@gmail.com"
           echo "   🎨 Template ID: ${{ env.SENDGRID_TEMPLATE_ID }}"
+          echo "   ⏰ Ventana ampliada: 40-120 minutos antes"
       
       - name: Finalizar
         run: |
@@ -272,6 +293,6 @@ jobs:
           echo "✉️  Servicio: SendGrid"
           echo "🏪 Barbería: Waldos Barber-Shop"
           echo "📧 Remitente verificado: carlosffcastillo57@gmail.com"
-          echo "⏰ Recordatorios: 55-65 minutos antes"
+          echo "⏰ Recordatorios: 40-120 minutos antes (ventana ampliada)"
           echo "🔄 Próxima ejecución: en 5 minutos"
           echo "========================================"
