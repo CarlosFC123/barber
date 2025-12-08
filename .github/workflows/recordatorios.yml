@@ -7,7 +7,7 @@ on:
 
 env:
   SUPABASE_URL: https://nllllvztipbrhryzxamm.supabase.co
-  SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4
+  SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4
   SENDGRID_TEMPLATE_ID: d-8c34868a760f46ae987cc04944d697a0
 
 jobs:
@@ -36,26 +36,18 @@ jobs:
           
           RESPONSE=$(curl -s -X GET \
             "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id,servicio_id,barbero_id" \
-            -H "apikey: ${{ env.SUPABASE_KEY }}" \
-            -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+            -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
             -H "Content-Type: application/json")
           
-          # FIX: Asegurar que la respuesta sea un array JSON válido
           if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
             RESPONSE="[]"
           fi
           
-          # Validar JSON y limpiar si es necesario
           if echo "$RESPONSE" | jq empty 2>/dev/null; then
-            # JSON válido, contar citas
             CANTIDAD=$(echo "$RESPONSE" | jq '. | length')
             echo "📊 Citas encontradas: $CANTIDAD"
-            
-            # Guardar en archivo temporal para evitar problemas con caracteres especiales
             echo "$RESPONSE" > /tmp/citas.json
-            
-            # Guardar solo la fecha y hora en outputs
-            # y el JSON en un archivo que pueda ser leído en el siguiente step
             echo "CITAS_JSON=/tmp/citas.json" >> $GITHUB_OUTPUT
           else
             echo "⚠️  JSON inválido, usando array vacío"
@@ -64,14 +56,8 @@ jobs:
             echo "📊 Citas encontradas: 0"
           fi
           
-          # Guardar solo valores simples en outputs
           echo "FECHA_HOY=$FECHA_HOY" >> $GITHUB_OUTPUT
           echo "HORA_ACTUAL=$HORA_ACTUAL" >> $GITHUB_OUTPUT
-          
-          # Debug: mostrar el JSON que obtenemos
-          echo "🔍 JSON obtenido (primeros 500 chars):"
-          echo "$RESPONSE" | head -c 500
-          echo ""
       
       - name: Procesar y enviar recordatorios
         env:
@@ -81,7 +67,6 @@ jobs:
           HORA_ACTUAL="${{ steps.obtener-citas.outputs.HORA_ACTUAL }}"
           CITAS_JSON_FILE="${{ steps.obtener-citas.outputs.CITAS_JSON }}"
           
-          # Leer el JSON desde el archivo
           if [ -f "$CITAS_JSON_FILE" ]; then
             CITAS_JSON=$(cat "$CITAS_JSON_FILE")
           else
@@ -89,37 +74,17 @@ jobs:
             echo "⚠️  No se encontró archivo de citas, usar array vacío"
           fi
           
-          # Debug: Mostrar qué recibimos
-          echo "🔍 DEBUG - Recibido CITAS_JSON:"
-          echo "$CITAS_JSON" | head -c 300
-          echo "..."
-          echo "🔍 Longitud: $(echo "$CITAS_JSON" | jq '. | length' 2>/dev/null || echo 'inválido')"
+          echo "🔍 Recibidas $(echo "$CITAS_JSON" | jq '. | length' 2>/dev/null || echo 0) citas"
           
           if [ "$CITAS_JSON" = "[]" ] || [ -z "$CITAS_JSON" ] || [ "$CITAS_JSON" = "null" ]; then
             echo "ℹ️  No hay citas para procesar hoy ($FECHA_HOY)"
             exit 0
           fi
           
-          # Verificar si es JSON válido
+          # Verificar JSON válido
           if ! echo "$CITAS_JSON" | jq empty 2>/dev/null; then
             echo "❌ ERROR: JSON inválido recibido"
-            echo "Contenido (primeros 200 chars): $(echo "$CITAS_JSON" | head -c 200)"
-            echo "Intentando reparar JSON..."
-            
-            # Intentar limpiar el JSON
-            CITAS_JSON=$(echo "$CITAS_JSON" | sed 's/^[^{[]*\[/[/' | sed 's/[^}\]]*$//')
-            
-            if echo "$CITAS_JSON" | jq empty 2>/dev/null; then
-              echo "✅ JSON reparado exitosamente"
-            else
-              echo "❌ No se pudo reparar el JSON, usar array vacío"
-              CITAS_JSON="[]"
-            fi
-          fi
-          
-          if [ "$CITAS_JSON" = "[]" ]; then
-            echo "ℹ️  No hay citas para procesar después de validación"
-            exit 0
+            exit 1
           fi
           
           echo "📋 Procesando citas encontradas..."
@@ -135,7 +100,6 @@ jobs:
             local MINUTOS="$7"
             local DURACION="$8"
             
-            # Construir JSON usando jq para asegurar formato válido
             jq -n \
               --arg email "$EMAIL" \
               --arg nombre "$NOMBRE" \
@@ -173,7 +137,6 @@ jobs:
           EMAILS_ENVIADOS=0
           EMAILS_ERROR=0
           
-          # Usar while IFS para procesar cada cita
           while IFS= read -r CITA; do
             if [ -z "$CITA" ]; then
               continue
@@ -185,9 +148,7 @@ jobs:
             SERVICIO_ID=$(echo "$CITA" | jq -r '.servicio_id // empty')
             BARBERO_ID=$(echo "$CITA" | jq -r '.barbero_id // empty')
             
-            # Validar campos requeridos
             if [ -z "$ID" ] || [ -z "$HORA_CITA" ] || [ -z "$CLIENTE_ID" ]; then
-              echo "❌ CITA inválida, saltando..."
               continue
             fi
             
@@ -195,64 +156,28 @@ jobs:
             echo "========================================"
             echo "📋 CITA ID: $ID"
             echo "   Hora programada: $HORA_CITA"
-            echo "   Cliente ID: $CLIENTE_ID"
             
-            # SOLUCIÓN: Asegurar que el UUID esté correctamente formateado
-            # Algunas veces el UUID viene con problemas de encoding
-            CLIENTE_ID_CLEAN=$(echo "$CLIENTE_ID" | tr -d '"' | tr -d "'" | xargs)
-            
-            # Obtener datos del cliente con el UUID limpio
-            echo "   🔍 Buscando cliente con UUID: $CLIENTE_ID_CLEAN"
-            
+            # Obtener datos del cliente con la política anónima
             CLIENTE_RESPONSE=$(curl -s -X GET \
-              "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.${CLIENTE_ID_CLEAN}&select=email,nombre,apellido" \
-              -H "apikey: ${{ env.SUPABASE_KEY }}" \
-              -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-              -H "Content-Type: application/json" \
-              -H "Prefer: return=representation")
+              "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.$CLIENTE_ID&select=email,nombre,apellido" \
+              -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
+              -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
+              -H "Content-Type: application/json")
             
-            # Debug de la respuesta
-            echo "   📥 Respuesta raw: $(echo "$CLIENTE_RESPONSE" | head -c 100)"
-            
-            # Extraer email y nombre
             EMAIL=$(echo "$CLIENTE_RESPONSE" | jq -r '.[0].email // empty')
             NOMBRE=$(echo "$CLIENTE_RESPONSE" | jq -r '.[0].nombre // "Cliente"')
             APELLIDO=$(echo "$CLIENTE_RESPONSE" | jq -r '.[0].apellido // ""')
             
-            # Combinar nombre y apellido si existe apellido
             if [ -n "$APELLIDO" ] && [ "$APELLIDO" != "null" ]; then
               NOMBRE_COMPLETO="$NOMBRE $APELLIDO"
             else
               NOMBRE_COMPLETO="$NOMBRE"
             fi
             
-            if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ] || [ "$EMAIL" = "" ]; then
-              echo "   ❌ Email no encontrado para cliente ID: $CLIENTE_ID_CLEAN"
-              echo "   🔍 Intentando consulta alternativa..."
-              
-              # Consulta alternativa: probar sin el header de preferencia
-              CLIENTE_RESPONSE_ALT=$(curl -s -X GET \
-                "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.${CLIENTE_ID_CLEAN}&select=email,nombre,apellido" \
-                -H "apikey: ${{ env.SUPABASE_KEY }}" \
-                -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                -H "Content-Type: application/json")
-              
-              EMAIL=$(echo "$CLIENTE_RESPONSE_ALT" | jq -r '.[0].email // empty')
-              NOMBRE=$(echo "$CLIENTE_RESPONSE_ALT" | jq -r '.[0].nombre // "Cliente"')
-              APELLIDO=$(echo "$CLIENTE_RESPONSE_ALT" | jq -r '.[0].apellido // ""')
-              
-              if [ -n "$APELLIDO" ] && [ "$APELLIDO" != "null" ]; then
-                NOMBRE_COMPLETO="$NOMBRE $APELLIDO"
-              else
-                NOMBRE_COMPLETO="$NOMBRE"
-              fi
-              
-              if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ]; then
-                echo "   ❌ Email sigue sin encontrarse"
-                echo "   📊 Respuesta completa: $CLIENTE_RESPONSE_ALT"
-                EMAILS_ERROR=$((EMAILS_ERROR + 1))
-                continue
-              fi
+            if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ]; then
+              echo "   ❌ Email no encontrado"
+              EMAILS_ERROR=$((EMAILS_ERROR + 1))
+              continue
             fi
             
             echo "   👤 Cliente: $NOMBRE_COMPLETO"
@@ -261,8 +186,8 @@ jobs:
             # Obtener datos del servicio
             SERVICIO_RESPONSE=$(curl -s -X GET \
               "${{ env.SUPABASE_URL }}/rest/v1/servicios?id=eq.$SERVICIO_ID&select=nombre,duracion" \
-              -H "apikey: ${{ env.SUPABASE_KEY }}" \
-              -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+              -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
+              -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
               -H "Content-Type: application/json")
             
             SERVICIO_NOMBRE=$(echo "$SERVICIO_RESPONSE" | jq -r '.[0].nombre // "Corte de Cabello"')
@@ -271,8 +196,8 @@ jobs:
             # Obtener datos del barbero
             BARBERO_RESPONSE=$(curl -s -X GET \
               "${{ env.SUPABASE_URL }}/rest/v1/barberos?id=eq.$BARBERO_ID&select=nombre" \
-              -H "apikey: ${{ env.SUPABASE_KEY }}" \
-              -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+              -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
+              -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
               -H "Content-Type: application/json")
             
             BARBERO_NOMBRE=$(echo "$BARBERO_RESPONSE" | jq -r '.[0].nombre // "Nuestro Barbero"')
@@ -283,14 +208,10 @@ jobs:
             MINUTOS=$((HORA_CITA_MIN - HORA_ACTUAL_MIN))
             
             echo "   ⏰ Minutos restantes: $MINUTOS"
-            echo "   🕐 Hora actual: $HORA_ACTUAL"
-            echo "   📅 Fecha hoy: $FECHA_HOY"
             
-            # ========== VENTANA AMPLIADA ==========
-            # Ventana ideal: 40-120 minutos antes (para asegurar envío)
-            
+            # Ventana ampliada: 40-120 minutos antes
             if [ $MINUTOS -ge 40 ] && [ $MINUTOS -le 120 ]; then
-              echo "   🎯 ¡ENVIANDO RECORDATORIO! (Ventana ampliada: 40-120 min)"
+              echo "   🎯 ¡ENVIANDO RECORDATORIO! (Ventana: 40-120 min)"
               
               # Formatear fecha bonita
               DIA=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%d')
@@ -307,14 +228,10 @@ jobs:
               
               FECHA_BONITA="$DIA de $MES de $ANIO"
               
-              # Crear JSON usando la función con jq
+              # Crear JSON y enviar
               JSON_DATA=$(crear_json_sendgrid "$EMAIL" "$NOMBRE_COMPLETO" "$SERVICIO_NOMBRE" "$FECHA_BONITA" "$HORA_CITA" "$BARBERO_NOMBRE" "$MINUTOS" "$DURACION")
-              
-              # Guardar JSON a archivo
               echo "$JSON_DATA" > /tmp/sendgrid_$ID.json
               
-              # Enviar a SendGrid
-              echo "   📤 Enviando via SendGrid..."
               RESPONSE_CODE=$(curl -s -o /tmp/response_$ID.txt -w "%{http_code}" \
                 -X POST "https://api.sendgrid.com/v3/mail/send" \
                 -H "Authorization: Bearer $SENDGRID_API_KEY" \
@@ -322,48 +239,36 @@ jobs:
                 -d @/tmp/sendgrid_$ID.json)
               
               if [ "$RESPONSE_CODE" = "202" ]; then
-                echo "   ✅ Email enviado exitosamente (Código: $RESPONSE_CODE)"
+                echo "   ✅ Email enviado exitosamente"
                 EMAILS_ENVIADOS=$((EMAILS_ENVIADOS + 1))
                 
-                # Marcar como enviado en Supabase
+                # Marcar como enviado
                 curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
-                  -H "apikey: ${{ env.SUPABASE_KEY }}" \
-                  -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                  -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
+                  -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
                   -H "Content-Type: application/json" \
-                  -H "Prefer: return=minimal" \
                   -d "{
                     \"recordatorio_enviado\": true,
                     \"hora_recordatorio_enviado\": \"$HORA_ACTUAL\",
                     \"actualizado_en\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\"
                   }"
                 
-                echo "   ✅ Marcada como enviada en BD"
+                echo "   ✅ Marcada como enviada"
               else
                 echo "   ❌ Error SendGrid (Código: $RESPONSE_CODE)"
                 EMAILS_ERROR=$((EMAILS_ERROR + 1))
-                
-                # Mostrar error detallado
-                if [ -f "/tmp/response_$ID.txt" ]; then
-                  echo "   🔍 Detalles del error:"
-                  cat /tmp/response_$ID.txt
-                fi
               fi
               
-              # Limpiar archivos temporales
               rm -f /tmp/sendgrid_$ID.json /tmp/response_$ID.txt 2>/dev/null
-              
-              # Esperar 1 segundo entre emails para evitar rate limits
               sleep 1
               
             elif [ $MINUTOS -gt 120 ]; then
               echo "   ⏳ Demasiado temprano (+2 horas)"
             elif [ $MINUTOS -lt 0 ]; then
               echo "   ⏳ La cita ya pasó"
-              # Marcar como enviado aunque ya pasó para no volver a procesar
               curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
-                -H "apikey: ${{ env.SUPABASE_KEY }}" \
-                -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                -H "Prefer: return=minimal" \
+                -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
+                -H "Authorization: Bearer ${{ env.SUPABASE_ANON_KEY }}" \
                 -d "{\"recordatorio_enviado\": true}" > /dev/null 2>&1
             else
               echo "   ❌ Muy tarde (menos de 40 minutos)"
@@ -375,13 +280,11 @@ jobs:
           
           echo ""
           echo "📊 RESUMEN DE EJECUCIÓN:"
-          echo "   ✅ Emails enviados exitosamente: $EMAILS_ENVIADOS"
+          echo "   ✅ Emails enviados: $EMAILS_ENVIADOS"
           echo "   ❌ Emails con error: $EMAILS_ERROR"
-          echo "   🕐 Hora de ejecución: $HORA_ACTUAL"
-          echo "   📅 Fecha procesada: $FECHA_HOY"
-          echo "   ✉️  Remitente: carlosffcastillo57@gmail.com"
-          echo "   🎨 Template ID: ${{ env.SENDGRID_TEMPLATE_ID }}"
-          echo "   ⏰ Ventana ampliada: 40-120 minutos antes"
+          echo "   🕐 Hora: $HORA_ACTUAL"
+          echo "   📅 Fecha: $FECHA_HOY"
+          echo "   🔑 Permisos: Política anónima activada"
       
       - name: Finalizar
         run: |
@@ -393,7 +296,8 @@ jobs:
           echo "📍 Zona horaria: America/Merida (UTC-6)"
           echo "✉️  Servicio: SendGrid"
           echo "🏪 Barbería: Waldos Barber-Shop"
-          echo "📧 Remitente verificado: carlosffcastillo57@gmail.com"
-          echo "⏰ Recordatorios: 40-120 minutos antes (ventana ampliada)"
+          echo "📧 Remitente: carlosffcastillo57@gmail.com"
+          echo "⏰ Recordatorios: 40-120 minutos antes"
+          echo "🔑 Permisos: SELECT para anónimos activado"
           echo "🔄 Próxima ejecución: en 5 minutos"
           echo "========================================"
