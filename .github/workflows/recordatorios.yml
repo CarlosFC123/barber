@@ -19,6 +19,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PROJECT_REF: 'nllllvztipbrhryzxamm'  # Tu project ref
         run: |
-          curl -X POST "https://nllllvztipbrhryzxamm.supabase.co/functions/v1/enviar-recordatorios" \
+          curl -X POST "https://nllllvztipbrhryzxamm.supabase.co/functions/v1/recordatorios-automaticos" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
             -H "Content-Type: application/json"
