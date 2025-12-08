@@ -35,8 +35,7 @@ jobs:
           echo "🕐 Hora actual: $HORA_ACTUAL"
           
           RESPONSE=$(curl -s -X GET \
-            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id,servicio_id,barbero_id" \
-            -H "apikey: ${{ env.SUPABASE_KEY }}" \
+            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&or=(recordatorio_enviado.eq.false,recordatorio_enviado.is.null)&select=id,fecha,hora,cliente_id,servicio_id,barbero_id,recordatorio_enviado"            -H "apikey: ${{ env.SUPABASE_KEY }}" \
             -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
             -H "Content-Type: application/json")
           
