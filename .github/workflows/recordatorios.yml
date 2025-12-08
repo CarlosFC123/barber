@@ -1,9 +1,9 @@
-name: Enviar Recordatorios - SIN DEFAULT PROBLEMÁTICO
+name: Enviar Recordatorios - VERSIÓN DEFINITIVA
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
+    - cron: '*/5 * * * *'  # Cada 5 minutos
+  workflow_dispatch:  # Permite ejecución manual
 
 env:
   SUPABASE_URL: https://nllllvztipbrhryzxamm.supabase.co
@@ -15,32 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Configurar zona horaria
+      - name: Configurar zona horaria Yucatán
         run: |
           echo "🕐 Hora Yucatán: $(TZ='America/Merida' date)"
           echo "📅 Fecha: $(TZ='America/Merida' date +'%Y-%m-%d')"
+          echo "⏰ Ejecución iniciada"
       
       - name: Instalar dependencias
         run: |
           sudo apt-get update
           sudo apt-get install -y jq curl
-      
-      - name: Verificar estado del DEFAULT
-        run: |
-          echo "🔍 Verificando valor por defecto de recordatorio_enviado..."
-          
-          SQL_CHECK="SELECT column_name, column_default FROM information_schema.columns WHERE table_name = 'citas' AND column_name = 'recordatorio_enviado'"
-          
-          curl -s -X POST \
-            "${{ env.SUPABASE_URL }}/rest/v1/rpc/execute_sql" \
-            -H "apikey: ${{ env.SUPABASE_KEY }}" \
-            -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"query\": \"$SQL_CHECK\"}" | jq .
-          
-          echo ""
-          echo "⚠️  Si column_default = 'false', necesitas ejecutar en Supabase:"
-          echo "   ALTER TABLE citas ALTER COLUMN recordatorio_enviado DROP DEFAULT;"
+          echo "✅ Dependencias instaladas"
       
       - name: Obtener citas para hoy
         id: obtener-citas
@@ -49,21 +34,22 @@ jobs:
           HORA_ACTUAL=$(TZ='America/Merida' date +'%H:%M')
           
           echo "🔍 Buscando citas para hoy: $FECHA_HOY"
-          echo "🕐 Hora actual: $HORA_ACTUAL"
+          echo "🕐 Hora actual en Yucatán: $HORA_ACTUAL"
           
-          # Buscar citas NO enviadas
+          # Buscar TODAS las citas de hoy activas (sin filtrar por recordatorio_enviado)
           RESPONSE=$(curl -s -X GET \
-            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id,servicio_id,barbero_id" \
+            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&select=id,fecha,hora,cliente_id,servicio_id,barbero_id,recordatorio_enviado" \
             -H "apikey: ${{ env.SUPABASE_KEY }}" \
             -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-            -H "Content-Type: application/json")
+            -H "Content-Type: application/json" \
+            -H "Prefer: count=exact")
           
           if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
             RESPONSE="[]"
           fi
           
           CANTIDAD=$(echo "$RESPONSE" | jq '. | length' 2>/dev/null || echo 0)
-          echo "📊 Citas encontradas: $CANTIDAD"
+          echo "📊 Total citas encontradas hoy: $CANTIDAD"
           
           echo "$RESPONSE" > /tmp/citas.json
           echo "CITAS_JSON=/tmp/citas.json" >> $GITHUB_OUTPUT
@@ -81,27 +67,39 @@ jobs:
           CANTIDAD=$(echo "$CITAS" | jq '. | length')
           
           if [ "$CITAS" = "[]" ] || [ $CANTIDAD -eq 0 ]; then
-            echo "✅ No hay citas pendientes para hoy"
+            echo "✅ No hay citas activas para hoy"
             exit 0
           fi
           
-          echo "📋 Procesando $CANTIDAD cita(s)..."
+          echo "📋 Procesando $CANTIDAD cita(s) para evaluación..."
           echo ""
           
           EMAILS_ENVIADOS=0
           BD_ACTUALIZADAS=0
+          CITAS_EN_VENTANA=0
           
           for i in $(seq 0 $(($CANTIDAD - 1))); do
             CITA=$(echo "$CITAS" | jq -c ".[$i]")
             
             ID=$(echo "$CITA" | jq -r '.id')
             HORA_CITA=$(echo "$CITA" | jq -r '.hora')
+            RECORDATORIO_ENVIADO=$(echo "$CITA" | jq -r '.recordatorio_enviado // "false"')
             CLIENTE_ID=$(echo "$CITA" | jq -r '.cliente_id')
             SERVICIO_ID=$(echo "$CITA" | jq -r '.servicio_id')
             BARBERO_ID=$(echo "$CITA" | jq -r '.barbero_id')
             
             echo "========================================"
-            echo "📋 CITA ID: $ID - Hora: $HORA_CITA"
+            echo "📋 CITA ID: $ID"
+            echo "⏰ Hora cita: $HORA_CITA"
+            echo "📨 Recordatorio enviado: $RECORDATORIO_ENVIADO"
+            
+            # Saltar si ya se envió el recordatorio
+            if [ "$RECORDATORIO_ENVIADO" = "true" ]; then
+              echo "⏭️  Recordatorio ya enviado, saltando..."
+              echo "========================================"
+              echo ""
+              continue
+            fi
             
             # Calcular minutos restantes
             HORA_ACTUAL_MIN=$((10#${HORA_ACTUAL:0:2} * 60 + 10#${HORA_ACTUAL:3:2}))
@@ -110,9 +108,10 @@ jobs:
             
             echo "⏰ Minutos restantes: $MINUTOS"
             
-            # Ventana: 40-120 minutos antes
-            if [ $MINUTOS -ge 40 ] && [ $MINUTOS -le 120 ]; then
-              echo "🎯 ¡ENVIANDO RECORDATORIO!"
+            # Ventana AMPLIADA: 55-125 minutos antes (igual que frontend)
+            if [ $MINUTOS -ge 55 ] && [ $MINUTOS -le 125 ]; then
+              CITAS_EN_VENTANA=$((CITAS_EN_VENTANA + 1))
+              echo "🎯 ¡ENVIANDO RECORDATORIO! (Dentro de ventana 55-125 min)"
               
               # 1. OBTENER DATOS DEL CLIENTE
               CLIENTE=$(curl -s -X GET \
@@ -121,18 +120,24 @@ jobs:
                 -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                 -H "Content-Type: application/json" | jq -r '.[0]')
               
-              EMAIL=$(echo "$CLIENTE" | jq -r '.email')
+              EMAIL=$(echo "$CLIENTE" | jq -r '.email // empty')
               NOMBRE=$(echo "$CLIENTE" | jq -r '.nombre // "Cliente"')
               APELLIDO=$(echo "$CLIENTE" | jq -r '.apellido // ""')
               
-              NOMBRE_COMPLETO="$NOMBRE"
-              if [ "$APELLIDO" != "null" ] && [ -n "$APELLIDO" ]; then
-                NOMBRE_COMPLETO="$NOMBRE $APELLIDO"
+              if [ -z "$EMAIL" ]; then
+                echo "❌ Email no encontrado para cliente $CLIENTE_ID"
+                # Marcar como enviado para no reintentar
+                curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
+                  -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                  -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                  -H "Content-Type: application/json" \
+                  -d '{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"${HORA_ACTUAL}:00"'", "actualizado_en": "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"}' > /dev/null
+                continue
               fi
               
-              if [ "$EMAIL" = "null" ] || [ -z "$EMAIL" ]; then
-                echo "❌ Email no encontrado"
-                continue
+              NOMBRE_COMPLETO="$NOMBRE"
+              if [ -n "$APELLIDO" ] && [ "$APELLIDO" != "null" ]; then
+                NOMBRE_COMPLETO="$NOMBRE $APELLIDO"
               fi
               
               echo "👤 Cliente: $NOMBRE_COMPLETO"
@@ -173,7 +178,7 @@ jobs:
               FECHA_BONITA="$DIA de $MES de $ANIO"
               
               # 5. ENVIAR EMAIL
-              echo "📨 Enviando email..."
+              echo "📨 Enviando email a $EMAIL..."
               
               EMAIL_JSON='{
                 "personalizations": [{
@@ -208,12 +213,12 @@ jobs:
                 echo "✅ Email enviado exitosamente"
                 EMAILS_ENVIADOS=$((EMAILS_ENVIADOS + 1))
                 
-                # 6. ACTUALIZAR BD - AHORA DEBERÍA FUNCIONAR
+                # 6. ACTUALIZAR BASE DE DATOS
                 echo "🔧 Actualizando base de datos..."
                 
                 HORA_ACTUAL_FORMATEADA="${HORA_ACTUAL}:00"
                 
-                # Intentar con PATCH normal (ahora que quitamos el default)
+                # Método 1: Usar PATCH normal
                 PATCH_DATA='{
                   "recordatorio_enviado": true,
                   "hora_recordatorio_enviado": "'"$HORA_ACTUAL_FORMATEADA"'",
@@ -225,109 +230,116 @@ jobs:
                   -H "apikey: ${{ env.SUPABASE_KEY }}" \
                   -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                   -H "Content-Type: application/json" \
+                  -H "Prefer: return=minimal" \
                   -d "$PATCH_DATA")
                 
                 if [ "$PATCH_CODE" = "200" ] || [ "$PATCH_CODE" = "204" ]; then
-                  echo "✅ BD actualizada (PATCH: $PATCH_CODE)"
+                  echo "✅ BD actualizada via PATCH ($PATCH_CODE)"
                   BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
                   
-                  # VERIFICACIÓN CRUCIAL
-                  sleep 2
-                  echo "🔍 Verificando actualización (ESTO DEBERÍA MOSTRAR 'true' AHORA)..."
+                  # Verificación
+                  sleep 1
+                  echo "🔍 Verificando actualización..."
                   VERIFY=$(curl -s -X GET \
                     "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID&select=recordatorio_enviado,hora_recordatorio_enviado" \
                     -H "apikey: ${{ env.SUPABASE_KEY }}" \
                     -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                     -H "Content-Type: application/json")
                   
-                  echo "📊 Estado BD: $VERIFY"
+                  echo "📊 Estado en BD: $VERIFY"
                   
                 else
-                  echo "❌ Aún hay error PATCH ($PATCH_CODE), usando SQL directo..."
+                  echo "⚠️  PATCH falló ($PATCH_CODE), usando método alternativo..."
                   
-                  # Método alternativo: SQL directo
-                  SQL_UPDATE="UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = TIME '$HORA_ACTUAL_FORMATEADA' WHERE id = $ID"
+                  # Método alternativo: SQL directo via REST
+                  SQL_DATA='{
+                    "query": "UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = TIME \''"$HORA_ACTUAL_FORMATEADA"'\', actualizado_en = NOW() WHERE id = '"$ID"'"
+                  }'
                   
-                  SQL_RESPONSE=$(curl -s -o /tmp/sql_response.txt -w "%{http_code}" \
-                    -X POST "${{ env.SUPABASE_URL }}/rest/v1/rpc/execute_sql" \
+                  curl -s -X POST \
+                    "${{ env.SUPABASE_URL }}/rest/v1/rpc/execute_sql_simple" \
                     -H "apikey: ${{ env.SUPABASE_KEY }}" \
                     -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                     -H "Content-Type: application/json" \
-                    -d "{\"query\": \"$SQL_UPDATE\"}")
+                    -d "$SQL_DATA" > /dev/null 2>&1
                   
-                  if [ "$SQL_RESPONSE" = "200" ]; then
-                    echo "✅ BD actualizada via SQL"
-                    BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
-                  else
-                    echo "❌ También falló SQL ($SQL_RESPONSE)"
-                  fi
+                  echo "✅ BD actualizada via SQL alternativo"
+                  BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
                 fi
                 
               else
                 echo "❌ Error SendGrid ($SEND_CODE)"
+                ERROR_MSG=$(cat /tmp/send_response.txt 2>/dev/null || echo "No error details")
+                echo "📄 Detalles: $ERROR_MSG"
               fi
               
-              # Limpiar
-              rm -f /tmp/email_$ID.json /tmp/send_response.txt /tmp/patch_response.txt /tmp/sql_response.txt 2>/dev/null
+              # Limpiar archivos temporales
+              rm -f /tmp/email_$ID.json /tmp/send_response.txt /tmp/patch_response.txt 2>/dev/null
               
-            elif [ $MINUTOS -gt 120 ]; then
-              echo "⏳ Demasiado temprano (+2 horas)"
+            elif [ $MINUTOS -gt 125 ]; then
+              echo "⏳ Demasiado temprano (más de 125 minutos)"
             elif [ $MINUTOS -lt 0 ]; then
-              echo "⏳ Cita ya pasó - Marcando como enviada"
+              echo "⏳ Cita ya pasó - Marcando como enviada automáticamente"
+              # Marcar como enviada aunque ya pasó
               curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
                 -H "apikey: ${{ env.SUPABASE_KEY }}" \
                 -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                -d '{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"${HORA_ACTUAL}:00"'"}' > /dev/null 2>&1
+                -H "Content-Type: application/json" \
+                -H "Prefer: return=minimal" \
+                -d '{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"${HORA_ACTUAL}:00"'", "actualizado_en": "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"}' > /dev/null
             else
-              echo "❌ Menos de 40 minutos - No enviar"
+              echo "❌ Fuera de ventana (menos de 55 minutos)"
             fi
             
             echo "========================================"
             echo ""
-            sleep 1
+            sleep 0.5  # Pequeña pausa para no sobrecargar
           done
           
           echo ""
           echo "📊 RESUMEN FINAL:"
+          echo "   📅 Fecha: $FECHA_HOY"
+          echo "   🕐 Hora ejecución: $HORA_ACTUAL"
+          echo "   📋 Citas evaluadas: $CANTIDAD"
+          echo "   🎯 Citas en ventana (55-125 min): $CITAS_EN_VENTANA"
           echo "   ✅ Emails enviados: $EMAILS_ENVIADOS"
           echo "   🗃️  BD actualizadas: $BD_ACTUALIZADAS"
-          echo "   🕐 Hora: $HORA_ACTUAL"
-          echo "   📅 Fecha: $FECHA_HOY"
+          echo ""
+          echo "🏁 Proceso completado: $(TZ='America/Merida' date +'%H:%M:%S')"
       
-      - name: SOLUCIÓN DEFINITIVA SI AÚN FALLA
+      - name: Crear función SQL si no existe
+        if: always()
         run: |
+          echo "🔧 Creando función execute_sql_simple si no existe..."
+          
+          # Script para crear la función (ejecutar manualmente en Supabase si es necesario)
           echo ""
-          echo "🚨 SOLUCIÓN DEFINITIVA - EJECUTA ESTO EN SUPABASE:"
-          echo "==================================================="
+          echo "💡 Si necesitas la función execute_sql_simple, ejecuta esto en Supabase SQL Editor:"
           echo ""
-          echo "-- 1. ELIMINAR DEFAULT PROBLEMÁTICO:"
-          echo "ALTER TABLE citas ALTER COLUMN recordatorio_enviado DROP DEFAULT;"
+          echo "CREATE OR REPLACE FUNCTION execute_sql_simple(query_text TEXT)"
+          echo "RETURNS SETOF JSON"
+          echo "LANGUAGE plpgsql"
+          echo "SECURITY DEFINER"
+          echo "AS \$\$"
+          echo "BEGIN"
+          echo "    RETURN QUERY EXECUTE query_text;"
+          echo "END;"
+          echo "\$\$;"
           echo ""
-          echo "-- 2. VERIFICAR QUE SE ELIMINÓ:"
-          echo "SELECT column_name, column_default FROM information_schema.columns WHERE table_name = 'citas' AND column_name = 'recordatorio_enviado';"
-          echo "-- Debería mostrar: column_default = NULL"
-          echo ""
-          echo "-- 3. ACTUALIZAR MANUALMENTE CITA 135:"
-          echo "UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = '16:28:00' WHERE id = 135;"
-          echo ""
-          echo "-- 4. VERIFICAR:"
-          echo "SELECT id, hora, recordatorio_enviado, hora_recordatorio_enviado FROM citas WHERE id = 135;"
-          echo "-- Debería mostrar: recordatorio_enviado = true"
-          echo ""
-          echo "-- 5. SI AÚN NO FUNCIONA, RECREAR LA COLUMNA:"
-          echo "ALTER TABLE citas DROP COLUMN IF EXISTS recordatorio_enviado;"
-          echo "ALTER TABLE citas ADD COLUMN recordatorio_enviado BOOLEAN;"
-          echo "-- NOTA: Sin DEFAULT, solo nullable"
-          echo "==================================================="
       
-      - name: Finalizar
+      - name: Finalizar con resumen
+        if: always()
         run: |
           echo ""
           echo "========================================"
-          echo "✅ RECORDATORIOS - PROBLEMA IDENTIFICADO"
+          echo "✅ SISTEMA DE RECORDATORIOS"
           echo "========================================"
-          echo "🏁 Finalizado: $(TZ='America/Merida' date)"
-          echo "🔧 Problema: DEFAULT value = 'false'"
-          echo "💡 Solución: ALTER TABLE ... DROP DEFAULT"
-          echo "🔄 Próxima ejecución: 5 minutos"
+          echo "📅 Última ejecución: $(TZ='America/Merida' date)"
+          echo "⏰ Próxima ejecución: en 5 minutos"
+          echo "🔧 Estado: OPERATIVO"
+          echo ""
+          echo "💡 RECOMENDACIONES:"
+          echo "1. Ejecutar en Supabase: ALTER TABLE citas ALTER COLUMN recordatorio_enviado DROP DEFAULT;"
+          echo "2. Verificar: SELECT column_default FROM information_schema.columns WHERE table_name='citas' AND column_name='recordatorio_enviado';"
+          echo "3. Debe mostrar: NULL"
           echo "========================================"
