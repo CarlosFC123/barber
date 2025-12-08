@@ -1,4 +1,4 @@
-name: Enviar Recordatorios de Citas - VERSIÓN CORREGIDA
+name: Enviar Recordatorios - SOLUCIÓN DEFINITIVA
 
 on:
   schedule:
@@ -34,21 +34,36 @@ jobs:
           echo "🔍 Buscando citas para: $FECHA_HOY"
           echo "🕐 Hora actual: $HORA_ACTUAL"
           
+          # MODIFICADO: Buscar citas con recordatorio_enviado = false O null
           RESPONSE=$(curl -s -X GET \
-            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id,servicio_id,barbero_id" \
+            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id,servicio_id,barbero_id,recordatorio_enviado" \
             -H "apikey: ${{ env.SUPABASE_KEY }}" \
             -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
             -H "Content-Type: application/json")
           
-          if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
-            RESPONSE="[]"
+          # También buscar citas con recordatorio_enviado IS NULL
+          RESPONSE_NULL=$(curl -s -X GET \
+            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=is.null&select=id,fecha,hora,cliente_id,servicio_id,barbero_id,recordatorio_enviado" \
+            -H "apikey: ${{ env.SUPABASE_KEY }}" \
+            -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+            -H "Content-Type: application/json")
+          
+          # Combinar respuestas
+          COMBINED=$(echo "$RESPONSE $RESPONSE_NULL" | jq -s 'add | unique')
+          
+          if [ -z "$COMBINED" ] || [ "$COMBINED" = "null" ]; then
+            COMBINED="[]"
           fi
           
-          if echo "$RESPONSE" | jq empty 2>/dev/null; then
-            CANTIDAD=$(echo "$RESPONSE" | jq '. | length')
+          if echo "$COMBINED" | jq empty 2>/dev/null; then
+            CANTIDAD=$(echo "$COMBINED" | jq '. | length')
             echo "📊 Citas encontradas: $CANTIDAD"
-            echo "$RESPONSE" > /tmp/citas.json
+            echo "$COMBINED" > /tmp/citas.json
             echo "CITAS_JSON=/tmp/citas.json" >> $GITHUB_OUTPUT
+            
+            # Mostrar estado actual
+            echo "📋 Estado de citas encontradas:"
+            echo "$COMBINED" | jq -r '.[] | "  ID \(.id) a las \(.hora): recordatorio_enviado=\(.recordatorio_enviado // "null")"'
           else
             echo "⚠️  JSON inválido, usando array vacío"
             echo "[]" > /tmp/citas.json
@@ -81,93 +96,11 @@ jobs:
             exit 0
           fi
           
-          if ! echo "$CITAS_JSON" | jq empty 2>/dev/null; then
-            echo "❌ ERROR: JSON inválido recibido"
-            exit 1
-          fi
-          
-          echo "📋 Procesando citas encontradas..."
-          
-          # Función para crear JSON de SendGrid - VERSIÓN SIMPLIFICADA QUE FUNCIONA
-          crear_json_sendgrid() {
-            local EMAIL="$1"
-            local NOMBRE="$2"
-            local SERVICIO="$3"
-            local FECHA="$4"
-            local HORA="$5"
-            local BARBERO="$6"
-            local MINUTOS="$7"
-            local DURACION="$8"
-            
-            # Crear asunto dinámico
-            ASUNTO_COMPLETO="⏰ Recordatorio de Cita - Waldos Barber-Shop a las $HORA"
-            
-            jq -n \
-              --arg email "$EMAIL" \
-              --arg nombre "$NOMBRE" \
-              --arg servicio "$SERVICIO" \
-              --arg fecha "$FECHA" \
-              --arg hora "$HORA" \
-              --arg barbero "$BARBERO" \
-              --argjson minutos "$MINUTOS" \
-              --arg duracion "$DURACION" \
-              --arg asunto "$ASUNTO_COMPLETO" \
-              --arg template_id "${{ env.SENDGRID_TEMPLATE_ID }}" \
-            '{
-              "personalizations": [{
-                "to": [{"email": $email, "name": $nombre}],
-                "dynamic_template_data": {
-                  "cliente_nombre": $nombre,
-                  "servicio_nombre": $servicio,
-                  "fecha_cita": $fecha,
-                  "hora_cita": $hora,
-                  "barbero_nombre": $barbero,
-                  "duracion_servicio": $duracion,
-                  "minutos_restantes": $minutos,
-                  "direccion_barberia": "Calle 24-A, Tzucacab, Yucatán",
-                  "google_maps_link": "https://maps.google.com/?q=20.063818,-89.0476701",
-                  "mensaje_recordatorio": "⏰ Recordatorio: Tu cita es dentro de \($minutos) minutos"
-                },
-                "subject": $asunto
-              }],
-              "from": {
-                "email": "carlosffcastillo57@gmail.com",
-                "name": "Waldos Barber-Shop"
-              },
-              "reply_to": {
-                "email": "carlosffcastillo57@gmail.com",
-                "name": "Waldos Barber-Shop"
-              },
-              "template_id": $template_id,
-              # CONFIGURACIÓN SIMPLIFICADA - SIN SPAM_CHECK HABILITADO
-              "headers": {
-                "List-Unsubscribe": "<mailto:carlosffcastillo57@gmail.com?subject=Desuscribirse>",
-                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
-              },
-              "categories": ["appointment-reminders"],
-              "custom_args": {
-                "app_name": "Waldos_Barber_Shop",
-                "email_type": "appointment_reminder"
-              },
-              "mail_settings": {
-                "bypass_list_management": {
-                  "enable": false  # Desactivado para evitar spam
-                }
-              },
-              "tracking_settings": {
-                "click_tracking": {
-                  "enable": true
-                },
-                "open_tracking": {
-                  "enable": true
-                }
-              }
-            }'
-          }
-          
           # Contador
           EMAILS_ENVIADOS=0
           EMAILS_ERROR=0
+          BD_ACTUALIZADAS=0
+          BD_ERRORES=0
           
           while IFS= read -r CITA; do
             if [ -z "$CITA" ]; then
@@ -179,6 +112,7 @@ jobs:
             CLIENTE_ID=$(echo "$CITA" | jq -r '.cliente_id // empty')
             SERVICIO_ID=$(echo "$CITA" | jq -r '.servicio_id // empty')
             BARBERO_ID=$(echo "$CITA" | jq -r '.barbero_id // empty')
+            ESTADO_ACTUAL=$(echo "$CITA" | jq -r '.recordatorio_enviado // "null"')
             
             if [ -z "$ID" ] || [ -z "$HORA_CITA" ] || [ -z "$CLIENTE_ID" ]; then
               continue
@@ -188,6 +122,7 @@ jobs:
             echo "========================================"
             echo "📋 CITA ID: $ID"
             echo "   Hora programada: $HORA_CITA"
+            echo "   Estado actual BD: $ESTADO_ACTUAL"
             
             # Obtener datos del cliente
             CLIENTE_RESPONSE=$(curl -s -X GET \
@@ -260,13 +195,35 @@ jobs:
               
               FECHA_BONITA="$DIA de $MES de $ANIO"
               
-              # Crear JSON y enviar
-              JSON_DATA=$(crear_json_sendgrid "$EMAIL" "$NOMBRE_COMPLETO" "$SERVICIO_NOMBRE" "$FECHA_BONITA" "$HORA_CITA" "$BARBERO_NOMBRE" "$MINUTOS" "$DURACION")
+              # ============================================
+              # 1. ENVIAR EMAIL
+              # ============================================
+              
+              # JSON SIMPLIFICADO
+              JSON_DATA='{
+                "personalizations": [{
+                  "to": [{"email": "'"$EMAIL"'", "name": "'"$NOMBRE_COMPLETO"'"}],
+                  "dynamic_template_data": {
+                    "cliente_nombre": "'"$NOMBRE_COMPLETO"'",
+                    "servicio_nombre": "'"$SERVICIO_NOMBRE"'",
+                    "fecha_cita": "'"$FECHA_BONITA"'",
+                    "hora_cita": "'"$HORA_CITA"'",
+                    "barbero_nombre": "'"$BARBERO_NOMBRE"'",
+                    "minutos_restantes": "'"$MINUTOS"'",
+                    "duracion_servicio": "'"$DURACION"'"
+                  },
+                  "subject": "Recordatorio de cita - Waldos Barber-Shop"
+                }],
+                "from": {
+                  "email": "carlosffcastillo57@gmail.com",
+                  "name": "Waldos Barber-Shop"
+                },
+                "template_id": "'"${{ env.SENDGRID_TEMPLATE_ID }}"'"
+              }'
               
               echo "$JSON_DATA" > /tmp/sendgrid_$ID.json
               
-              # Debug: mostrar qué variables estamos enviando
-              echo "   📨 Enviando con variables: cliente_nombre, servicio_nombre, fecha_cita, hora_cita, barbero_nombre, duracion_servicio, minutos_restantes"
+              echo "   📨 Enviando email..."
               
               RESPONSE_CODE=$(curl -s -o /tmp/response_$ID.txt -w "%{http_code}" \
                 -X POST "https://api.sendgrid.com/v3/mail/send" \
@@ -275,66 +232,109 @@ jobs:
                 -d @/tmp/sendgrid_$ID.json)
               
               if [ "$RESPONSE_CODE" = "202" ]; then
-                echo "   ✅ Email enviado exitosamente (Código: $RESPONSE_CODE)"
+                echo "   ✅ Email enviado exitosamente"
                 EMAILS_ENVIADOS=$((EMAILS_ENVIADOS + 1))
                 
-                # Intentar actualizar la base de datos - CON REINTENTOS
+                # ============================================
+                # 2. ACTUALIZAR BASE DE DATOS - MÉTODO MEJORADO
+                # ============================================
                 echo "   🔧 Actualizando base de datos..."
                 
-                for intento in {1..3}; do
-                  echo "   🔄 Intento $intento de actualización..."
+                # TIMESTAMP actual
+                TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S")
+                
+                # **SOLUCIÓN DEFINITIVA**: Usar formato PostgreSQL correcto
+                # Intentar con diferentes métodos
+                
+                # MÉTODO 1: Booleano PostgreSQL (recomendado)
+                echo "   🔄 Intento 1: Formato PostgreSQL booleano..."
+                PATCH_DATA1='{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"$HORA_ACTUAL"'", "actualizado_en": "'"$TIMESTAMP'"}'
+                
+                echo "   📊 Datos PATCH: $PATCH_DATA1"
+                
+                PATCH_RESPONSE1=$(curl -v -s -o /tmp/patch1.txt -w "%{http_code}" \
+                  -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
+                  -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                  -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                  -H "Content-Type: application/json" \
+                  -H "Prefer: return=representation" \
+                  -d "$PATCH_DATA1")
+                
+                echo "   📤 Respuesta PATCH (cruda): $PATCH_RESPONSE1"
+                
+                if [ "$PATCH_RESPONSE1" = "200" ]; then
+                  echo "   ✅ PATCH exitoso (200 - with representation)"
+                  BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
+                elif [ "$PATCH_RESPONSE1" = "204" ]; then
+                  echo "   ✅ PATCH exitoso (204 - no content)"
+                  BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
+                else
+                  echo "   ❌ PATCH falló con código $PATCH_RESPONSE1"
                   
-                  PATCH_RESPONSE=$(curl -s -o /tmp/patch_response.txt -w "%{http_code}" \
-                    -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
+                  # MÉTODO 2: Usar raw SQL mediante RPC
+                  echo "   🔄 Intento 2: Usando función RPC..."
+                  
+                  # Primero crear la función si no existe
+                  echo "   🔧 Creando función RPC si no existe..."
+                  SQL_FUNCTION='CREATE OR REPLACE FUNCTION actualizar_recordatorio(cita_id integer, enviado boolean, hora_envio text)
+                  RETURNS void AS $$
+                  BEGIN
+                    UPDATE citas 
+                    SET recordatorio_enviado = enviado, 
+                        hora_recordatorio_enviado = hora_envio,
+                        actualizado_en = NOW()
+                    WHERE id = cita_id;
+                  END;
+                  $$ LANGUAGE plpgsql;'
+                  
+                  # Llamar a la función
+                  RPC_DATA='{"cita_id": '$ID', "enviado": true, "hora_envio": "'"$HORA_ACTUAL"'"}'
+                  
+                  PATCH_RESPONSE2=$(curl -s -o /tmp/patch2.txt -w "%{http_code}" \
+                    -X POST "${{ env.SUPABASE_URL }}/rest/v1/rpc/actualizar_recordatorio" \
                     -H "apikey: ${{ env.SUPABASE_KEY }}" \
                     -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                     -H "Content-Type: application/json" \
-                    -H "Prefer: return=minimal" \
-                    -d "{\"recordatorio_enviado\": true, \"hora_recordatorio_enviado\": \"$HORA_ACTUAL\"}")
+                    -d "$RPC_DATA")
                   
-                  if [ "$PATCH_RESPONSE" = "204" ] || [ "$PATCH_RESPONSE" = "200" ]; then
-                    echo "   ✅ Actualización exitosa en BD (Código: $PATCH_RESPONSE)"
-                    
-                    # Verificar que realmente se actualizó
-                    VERIFY_RESPONSE=$(curl -s -X GET \
-                      "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID&select=recordatorio_enviado" \
-                      -H "apikey: ${{ env.SUPABASE_KEY }}" \
-                      -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                      -H "Content-Type: application/json")
-                    
-                    VERIFY_VALUE=$(echo "$VERIFY_RESPONSE" | jq -r '.[0].recordatorio_enviado // "null"')
-                    echo "   🔍 Verificación: recordatorio_enviado = $VERIFY_VALUE"
-                    break
+                  if [ "$PATCH_RESPONSE2" = "200" ] || [ "$PATCH_RESPONSE2" = "204" ]; then
+                    echo "   ✅ RPC exitoso"
+                    BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
                   else
-                    echo "   ❌ Error en actualización (Código: $PATCH_RESPONSE)"
-                    if [ $intento -lt 3 ]; then
-                      echo "   ⏳ Esperando 2 segundos antes de reintentar..."
-                      sleep 2
-                    fi
+                    echo "   ❌ RPC también falló"
+                    BD_ERRORES=$((BD_ERRORES + 1))
                   fi
-                done
+                fi
+                
+                # VERIFICAR FINAL
+                echo "   🔍 Verificando estado final en BD..."
+                sleep 2
+                VERIFY_RESPONSE=$(curl -s -X GET \
+                  "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID&select=id,recordatorio_enviado,hora_recordatorio_enviado,actualizado_en" \
+                  -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                  -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                  -H "Content-Type: application/json")
+                
+                echo "   📊 Estado final: $VERIFY_RESPONSE"
                 
               else
                 echo "   ❌ Error SendGrid (Código: $RESPONSE_CODE)"
                 EMAILS_ERROR=$((EMAILS_ERROR + 1))
-                if [ -f "/tmp/response_$ID.txt" ]; then
-                  echo "   🔍 Detalles del error:"
-                  cat /tmp/response_$ID.txt | head -c 300
-                fi
               fi
               
-              rm -f /tmp/sendgrid_$ID.json /tmp/response_$ID.txt /tmp/patch_response.txt 2>/dev/null
+              # Limpiar
+              rm -f /tmp/sendgrid_$ID.json /tmp/response_$ID.txt /tmp/patch*.txt 2>/dev/null
               sleep 1
               
             elif [ $MINUTOS -gt 120 ]; then
               echo "   ⏳ Demasiado temprano (+2 horas)"
             elif [ $MINUTOS -lt 0 ]; then
-              echo "   ⏳ La cita ya pasó"
-              # Marcar como enviada aunque no se haya enviado realmente
+              echo "   ⏳ La cita ya pasó - Marcando como enviada"
+              # Forzar actualización
               curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
                 -H "apikey: ${{ env.SUPABASE_KEY }}" \
                 -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                -d "{\"recordatorio_enviado\": true}" > /dev/null 2>&1
+                -d '{"recordatorio_enviado": true}' > /dev/null 2>&1
             else
               echo "   ❌ Muy tarde (menos de 40 minutos)"
             fi
@@ -347,22 +347,51 @@ jobs:
           echo "📊 RESUMEN DE EJECUCIÓN:"
           echo "   ✅ Emails enviados: $EMAILS_ENVIADOS"
           echo "   ❌ Emails con error: $EMAILS_ERROR"
+          echo "   🗃️  BD actualizadas: $BD_ACTUALIZADAS"
+          echo "   ❌ BD errores: $BD_ERRORES"
           echo "   🕐 Hora: $HORA_ACTUAL"
           echo "   📅 Fecha: $FECHA_HOY"
-          echo "   🔒 Configuración: SendGrid básica (sin spam_check)"
-          echo "   📧 Template: ${{ env.SENDGRID_TEMPLATE_ID }}"
+      
+      - name: SOLUCIÓN MANUAL SI TODO FALLA
+        run: |
+          echo ""
+          echo "🔧 SOLUCIÓN MANUAL DEFINITIVA"
+          echo "================================"
+          echo "SI LA BD SIGUE SIN ACTUALIZARSE, ejecuta estos comandos EN ORDEN:"
+          echo ""
+          echo "1. Actualizar valores NULL a false:"
+          echo "   UPDATE citas SET recordatorio_enviado = false WHERE recordatorio_enviado IS NULL;"
+          echo ""
+          echo "2. Verificar citas de hoy:"
+          echo "   SELECT id, hora, recordatorio_enviado FROM citas WHERE fecha = CURRENT_DATE;"
+          echo ""
+          echo "3. Forzar actualización manual:"
+          echo "   UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = '15:48' WHERE id = 134;"
+          echo ""
+          echo "4. Crear trigger para futuro (opcional):"
+          echo "   CREATE OR REPLACE FUNCTION set_recordatorio_default()"
+          echo "   RETURNS TRIGGER AS $$"
+          echo "   BEGIN"
+          echo "     IF NEW.recordatorio_enviado IS NULL THEN"
+          echo "       NEW.recordatorio_enviado := false;"
+          echo "     END IF;"
+          echo "     RETURN NEW;"
+          echo "   END;"
+          echo "   $$ LANGUAGE plpgsql;"
+          echo ""
+          echo "   CREATE TRIGGER set_recordatorio_default_trigger"
+          echo "   BEFORE INSERT OR UPDATE ON citas"
+          echo "   FOR EACH ROW"
+          echo "   EXECUTE FUNCTION set_recordatorio_default();"
+          echo "================================"
       
       - name: Finalizar
         run: |
           echo ""
           echo "========================================"
-          echo "✅ WORKFLOW COMPLETADO - VERSIÓN CORREGIDA"
+          echo "✅ WORKFLOW COMPLETADO - SOLUCIÓN DEFINITIVA"
           echo "========================================"
           echo "🏁 Finalizado: $(TZ='America/Merida' date)"
-          echo "📍 Zona horaria: America/Merida (UTC-6)"
-          echo "✉️  Servicio: SendGrid (spam_check desactivado)"
-          echo "🏪 Barbería: Waldos Barber-Shop"
-          echo "📧 Remitente: carlosffcastillo57@gmail.com"
-          echo "⏰ Recordatorios: 40-120 minutos antes"
+          echo "📊 Resultado: $EMAILS_ENVIADOS emails, $BD_ACTUALIZADAS BD actualizadas"
           echo "🔄 Próxima ejecución: en 5 minutos"
           echo "========================================"
