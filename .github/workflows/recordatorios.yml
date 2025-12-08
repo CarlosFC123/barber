@@ -2,7 +2,7 @@ name: Enviar Recordatorios de Citas - Anti Spam
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Cambiado a cada 10 minutos (menos agresivo)
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 env:
@@ -81,7 +81,6 @@ jobs:
             exit 0
           fi
           
-          # Verificar JSON válido
           if ! echo "$CITAS_JSON" | jq empty 2>/dev/null; then
             echo "❌ ERROR: JSON inválido recibido"
             exit 1
@@ -89,7 +88,7 @@ jobs:
           
           echo "📋 Procesando citas encontradas..."
           
-          # Función para crear JSON de SendGrid CON MEJORAS ANTI-SPAM
+          # Función para crear JSON de SendGrid - CORREGIDA
           crear_json_sendgrid() {
             local EMAIL="$1"
             local NOMBRE="$2"
@@ -106,6 +105,9 @@ jobs:
             ANIO=$(echo "$FECHA" | sed 's/.*de //' | sed 's/.* //')
             FECHA_FORMATEADA="$DIA_NUM de $MES de $ANIO"
             
+            # Crear asunto completo
+            ASUNTO_COMPLETO="Recordatorio de tu cita en Waldos Barber-Shop - $HORA"
+            
             jq -n \
               --arg email "$EMAIL" \
               --arg nombre "$NOMBRE" \
@@ -115,6 +117,7 @@ jobs:
               --arg barbero "$BARBERO" \
               --argjson minutos "$MINUTOS" \
               --arg duracion "$DURACION" \
+              --arg asunto "$ASUNTO_COMPLETO" \
               --arg template_id "${{ env.SENDGRID_TEMPLATE_ID }}" \
             '{
               "personalizations": [{
@@ -131,47 +134,31 @@ jobs:
                   "TELEFONO": "+52 997 151 2023",
                   "GOOGLE_MAPS": "https://maps.google.com/?q=20.063818,-89.0476701"
                 },
-                "subject": "Recordatorio de tu cita en Waldos Barber-Shop - " + $hora
+                "subject": $asunto
               }],
               "from": {
                 "email": "carlosffcastillo57@gmail.com",
-                "name": "Waldos Barber-Shop - Sistema de Recordatorios"
+                "name": "Waldos Barber-Shop"
               },
               "reply_to": {
                 "email": "carlosffcastillo57@gmail.com",
                 "name": "Waldos Barber-Shop"
               },
               "template_id": $template_id,
-              # CONFIGURACIÓN ANTI-SPAM CRÍTICA
+              # CONFIGURACIÓN ANTI-SPAM
               "headers": {
-                "X-SMTPAPI": {
-                  "filters": {
-                    "bypass_list_management": {
-                      "settings": {
-                        "enable": 1
-                      }
-                    }
-                  }
-                },
                 "List-Unsubscribe": "<mailto:carlosffcastillo57@gmail.com?subject=Desuscribirse>",
                 "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-                "Precedence": "bulk",
-                "X-Priority": "3",
-                "X-Mailer": "SendGrid API"
+                "Precedence": "bulk"
               },
-              "categories": ["appointment-reminders", "transactional", "barbershop"],
+              "categories": ["appointment-reminders", "transactional"],
               "custom_args": {
                 "app_name": "Waldos_Barber_Shop",
-                "email_type": "appointment_reminder",
-                "customer_id": "waldo_cliente",
-                "transactional": "true"
+                "email_type": "appointment_reminder"
               },
               "mail_settings": {
                 "bypass_list_management": {
                   "enable": true
-                },
-                "sandbox_mode": {
-                  "enable": false
                 }
               },
               "tracking_settings": {
@@ -180,14 +167,7 @@ jobs:
                 },
                 "open_tracking": {
                   "enable": true
-                },
-                "subscription_tracking": {
-                  "enable": false
                 }
-              },
-              "asm": {
-                "group_id": 0,
-                "groups_to_display": []
               }
             }'
           }
@@ -216,7 +196,7 @@ jobs:
             echo "📋 CITA ID: $ID"
             echo "   Hora programada: $HORA_CITA"
             
-            # Obtener datos del cliente con la política anónima
+            # Obtener datos del cliente
             CLIENTE_RESPONSE=$(curl -s -X GET \
               "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.$CLIENTE_ID&select=email,nombre,apellido" \
               -H "apikey: ${{ env.SUPABASE_ANON_KEY }}" \
@@ -289,11 +269,13 @@ jobs:
               
               # Crear JSON y enviar
               JSON_DATA=$(crear_json_sendgrid "$EMAIL" "$NOMBRE_COMPLETO" "$SERVICIO_NOMBRE" "$FECHA_BONITA" "$HORA_CITA" "$BARBERO_NOMBRE" "$MINUTOS" "$DURACION")
+              
+              # Debug: ver JSON creado
+              echo "   📨 JSON creado exitosamente"
+              
               echo "$JSON_DATA" > /tmp/sendgrid_$ID.json
               
-              # Debug: mostrar parte del JSON
-              echo "   📨 Enviando email con configuración anti-spam..."
-              echo "   📊 Asunto: Recordatorio de tu cita en Waldos Barber-Shop - $HORA_CITA"
+              echo "   📤 Enviando a SendGrid..."
               
               RESPONSE_CODE=$(curl -s -o /tmp/response_$ID.txt -w "%{http_code}" \
                 -X POST "https://api.sendgrid.com/v3/mail/send" \
@@ -305,7 +287,7 @@ jobs:
                 echo "   ✅ Email enviado exitosamente (Código: $RESPONSE_CODE)"
                 EMAILS_ENVIADOS=$((EMAILS_ENVIADOS + 1))
                 
-                # Marcar como enviado (SOLO recordatorio_enviado si no existe hora_recordatorio_enviado)
+                # Marcar como enviado
                 echo "   🔧 Actualizando base de datos..."
                 PATCH_RESPONSE=$(curl -s -X PATCH \
                   "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
@@ -321,12 +303,12 @@ jobs:
                 EMAILS_ERROR=$((EMAILS_ERROR + 1))
                 if [ -f "/tmp/response_$ID.txt" ]; then
                   echo "   🔍 Detalles del error:"
-                  cat /tmp/response_$ID.txt | head -c 200
+                  cat /tmp/response_$ID.txt | head -c 300
                 fi
               fi
               
               rm -f /tmp/sendgrid_$ID.json /tmp/response_$ID.txt 2>/dev/null
-              sleep 2  # Aumentado a 2 segundos entre emails
+              sleep 2
               
             elif [ $MINUTOS -gt 120 ]; then
               echo "   ⏳ Demasiado temprano (+2 horas)"
@@ -350,8 +332,7 @@ jobs:
           echo "   ❌ Emails con error: $EMAILS_ERROR"
           echo "   🕐 Hora: $HORA_ACTUAL"
           echo "   📅 Fecha: $FECHA_HOY"
-          echo "   🔒 Configuración: Anti-Spam Activada"
-          echo "   ⏰ Frecuencia: Cada 10 minutos"
+          echo "   🔒 Anti-Spam: Activado"
           echo "   📧 Template: ${{ env.SENDGRID_TEMPLATE_ID }}"
       
       - name: Finalizar
@@ -367,6 +348,5 @@ jobs:
           echo "📧 Remitente: carlosffcastillo57@gmail.com"
           echo "⏰ Recordatorios: 40-120 minutos antes"
           echo "🛡️  Configuración: Bypass List Management activado"
-          echo "📋 Categorías: transactional, appointment-reminders"
           echo "🔄 Próxima ejecución: en 10 minutos"
           echo "========================================"
