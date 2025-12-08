@@ -17,7 +17,8 @@ jobs:
     steps:
       - name: Configurar zona horaria
         run: |
-          echo "Hora Yucatán: $(TZ='America/Merida' date)"
+          echo "🕐 Hora Yucatán: $(TZ='America/Merida' date)"
+          echo "📅 Fecha: $(TZ='America/Merida' date +'%Y-%m-%d')"
       
       - name: Instalar dependencias
         run: |
@@ -30,8 +31,8 @@ jobs:
           FECHA_HOY=$(TZ='America/Merida' date +'%Y-%m-%d')
           HORA_ACTUAL=$(TZ='America/Merida' date +'%H:%M')
           
-          echo "Fecha: $FECHA_HOY"
-          echo "Hora: $HORA_ACTUAL"
+          echo "🔍 Buscando citas para: $FECHA_HOY"
+          echo "🕐 Hora actual: $HORA_ACTUAL"
           
           RESPONSE=$(curl -s -X GET \
             "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id,servicio_id,barbero_id" \
@@ -52,11 +53,13 @@ jobs:
           CITAS_JSON='${{ steps.obtener-citas.outputs.CITAS_JSON }}'
           
           if [ "$CITAS_JSON" = "[]" ] || [ -z "$CITAS_JSON" ]; then
-            echo "No hay citas"
+            echo "ℹ️  No hay citas para procesar hoy ($FECHA_HOY)"
             exit 0
           fi
           
-          # Función para crear JSON
+          echo "📋 Procesando citas encontradas..."
+          
+          # Función para crear JSON de SendGrid
           crear_json_sendgrid() {
             local EMAIL="$1"
             local NOMBRE="$2"
@@ -67,14 +70,14 @@ jobs:
             local MINUTOS="$7"
             local DURACION="$8"
             
-            # Escapar caracteres especiales para JSON
+            # Escapar caracteres especiales
             local NOMBRE_ESC=$(echo "$NOMBRE" | sed 's/"/\\"/g')
             local SERVICIO_ESC=$(echo "$SERVICIO" | sed 's/"/\\"/g')
             local FECHA_ESC=$(echo "$FECHA" | sed 's/"/\\"/g')
             local BARBERO_ESC=$(echo "$BARBERO" | sed 's/"/\\"/g')
             local DURACION_ESC=$(echo "$DURACION" | sed 's/"/\\"/g')
             
-            # Construir JSON manualmente
+            # Construir JSON
             echo '{'
             echo '  "personalizations": [{'
             echo '    "to": [{"email": "'"$EMAIL"'", "name": "'"$NOMBRE_ESC"'"}],'
@@ -92,11 +95,15 @@ jobs:
             echo '    },'
             echo '    "subject": "⏰ Recordatorio de Cita - Waldos Barber-Shop"'
             echo '  }],'
-            echo '  "from": {"email": "notificaciones@waldosbarber.com", "name": "Waldos Barber-Shop"},'
-            echo '  "reply_to": {"email": "notificaciones@waldosbarber.com", "name": "Waldos Barber-Shop"},'
+            echo '  "from": {"email": "carlosffcastillo57@gmail.com", "name": "Waldos Barber-Shop"},'
+            echo '  "reply_to": {"email": "carlosffcastillo57@gmail.com", "name": "Waldos Barber-Shop"},'
             echo '  "template_id": "'"${{ env.SENDGRID_TEMPLATE_ID }}"'"'
             echo '}'
           }
+          
+          # Contador
+          EMAILS_ENVIADOS=0
+          EMAILS_ERROR=0
           
           echo "$CITAS_JSON" | jq -c '.[]' | while read CITA; do
             ID=$(echo $CITA | jq -r '.id')
@@ -105,56 +112,61 @@ jobs:
             SERVICIO_ID=$(echo $CITA | jq -r '.servicio_id')
             BARBERO_ID=$(echo $CITA | jq -r '.barbero_id')
             
-            echo "Cita ID: $ID - Hora: $HORA_CITA"
+            echo ""
+            echo "========================================"
+            echo "📋 CITA ID: $ID"
+            echo "   Hora programada: $HORA_CITA"
             
             # Obtener datos del cliente
-            CLIENTE=$(curl -s -X GET \
+            CLIENTE_RESPONSE=$(curl -s -X GET \
               "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.$CLIENTE_ID&select=email,nombre" \
               -H "apikey: ${{ env.SUPABASE_KEY }}" \
               -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-              -H "Content-Type: application/json" | jq -r '.[0]')
+              -H "Content-Type: application/json")
             
-            EMAIL=$(echo $CLIENTE | jq -r '.email')
-            NOMBRE=$(echo $CLIENTE | jq -r '.nombre // "Cliente"')
+            EMAIL=$(echo "$CLIENTE_RESPONSE" | jq -r '.[0].email // empty')
+            NOMBRE=$(echo "$CLIENTE_RESPONSE" | jq -r '.[0].nombre // "Cliente"')
             
-            if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ]; then
-              echo "Email no válido"
+            if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ] || [ "$EMAIL" = "" ]; then
+              echo "   ❌ Email no válido"
+              EMAILS_ERROR=$((EMAILS_ERROR + 1))
               continue
             fi
             
-            echo "Cliente: $NOMBRE"
-            echo "Email: $EMAIL"
+            echo "   👤 Cliente: $NOMBRE"
+            echo "   📧 Email: $EMAIL"
             
             # Obtener datos del servicio
-            SERVICIO=$(curl -s -X GET \
+            SERVICIO_RESPONSE=$(curl -s -X GET \
               "${{ env.SUPABASE_URL }}/rest/v1/servicios?id=eq.$SERVICIO_ID&select=nombre,duracion" \
               -H "apikey: ${{ env.SUPABASE_KEY }}" \
               -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-              -H "Content-Type: application/json" | jq -r '.[0]')
+              -H "Content-Type: application/json")
             
-            SERVICIO_NOMBRE=$(echo $SERVICIO | jq -r '.nombre // "Corte"')
-            DURACION=$(echo $SERVICIO | jq -r '.duracion // "30 min"')
+            SERVICIO_NOMBRE=$(echo "$SERVICIO_RESPONSE" | jq -r '.[0].nombre // "Corte de Cabello"')
+            DURACION=$(echo "$SERVICIO_RESPONSE" | jq -r '.[0].duracion // "30 minutos"')
             
             # Obtener datos del barbero
-            BARBERO=$(curl -s -X GET \
+            BARBERO_RESPONSE=$(curl -s -X GET \
               "${{ env.SUPABASE_URL }}/rest/v1/barberos?id=eq.$BARBERO_ID&select=nombre" \
               -H "apikey: ${{ env.SUPABASE_KEY }}" \
               -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-              -H "Content-Type: application/json" | jq -r '.[0]')
+              -H "Content-Type: application/json")
             
-            BARBERO_NOMBRE=$(echo $BARBERO | jq -r '.nombre // "Barbero"')
+            BARBERO_NOMBRE=$(echo "$BARBERO_RESPONSE" | jq -r '.[0].nombre // "Nuestro Barbero"')
             
-            # Calcular minutos
+            # Calcular minutos restantes
             HORA_ACTUAL_MIN=$((10#${HORA_ACTUAL:0:2} * 60 + 10#${HORA_ACTUAL:3:2}))
             HORA_CITA_MIN=$((10#${HORA_CITA:0:2} * 60 + 10#${HORA_CITA:3:2}))
             MINUTOS=$((HORA_CITA_MIN - HORA_ACTUAL_MIN))
             
-            echo "Minutos restantes: $MINUTOS"
+            echo "   ⏰ Minutos restantes: $MINUTOS"
             
+            # Verificar si está en ventana de 55-65 minutos antes
             if [ $MINUTOS -ge 55 ] && [ $MINUTOS -le 65 ]; then
-              echo "Enviando recordatorio..."
+              echo "   🎯 ¡ENVIANDO RECORDATORIO! (Ventana perfecta)"
               
-              # Formatear fecha
+              # Formatear fecha bonita
               DIA=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%d')
               MES_NUM=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%m')
               ANIO=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%Y')
@@ -184,31 +196,82 @@ jobs:
               echo "$JSON_DATA" > /tmp/sendgrid_$ID.json
               
               # Enviar a SendGrid
-              RESPONSE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+              echo "   📤 Enviando via SendGrid..."
+              RESPONSE=$(curl -s -o /tmp/response_$ID.txt -w "%{http_code}" \
                 -X POST "https://api.sendgrid.com/v3/mail/send" \
                 -H "Authorization: Bearer $SENDGRID_API_KEY" \
                 -H "Content-Type: application/json" \
                 -d @/tmp/sendgrid_$ID.json)
               
               if [ "$RESPONSE" = "202" ]; then
-                echo "✅ Email enviado"
+                echo "   ✅ Email enviado exitosamente"
+                EMAILS_ENVIADOS=$((EMAILS_ENVIADOS + 1))
                 
-                # Marcar como enviado
+                # Marcar como enviado en Supabase
                 curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
                   -H "apikey: ${{ env.SUPABASE_KEY }}" \
                   -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                  -d '{"recordatorio_enviado": true}'
+                  -H "Content-Type: application/json" \
+                  -d "{
+                    \"recordatorio_enviado\": true,
+                    \"hora_recordatorio_enviado\": \"$HORA_ACTUAL\",
+                    \"actualizado_en\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\"
+                  }"
+                
+                echo "   ✅ Marcada como enviada en BD"
               else
-                echo "❌ Error: $RESPONSE"
-                cat /tmp/response.txt 2>/dev/null
+                echo "   ❌ Error SendGrid (Código: $RESPONSE)"
+                EMAILS_ERROR=$((EMAILS_ERROR + 1))
+                
+                # Mostrar error detallado
+                if [ -f "/tmp/response_$ID.txt" ]; then
+                  echo "   🔍 Detalles:"
+                  cat /tmp/response_$ID.txt
+                fi
               fi
               
-              rm -f /tmp/sendgrid_$ID.json /tmp/response.txt
-              sleep 2
+              # Limpiar archivos temporales
+              rm -f /tmp/sendgrid_$ID.json /tmp/response_$ID.txt 2>/dev/null
+              
+              # Esperar 1 segundo entre emails
+              sleep 1
+              
+            elif [ $MINUTOS -gt 65 ]; then
+              echo "   ⏳ Muy temprano ($MINUTOS minutos antes)"
+            elif [ $MINUTOS -lt 0 ]; then
+              echo "   ⏳ La cita ya pasó"
+              # Marcar como enviado aunque ya pasó para no volver a procesar
+              curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
+                -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                -d "{\"recordatorio_enviado\": true}"
+            else
+              echo "   ⚠️  Fuera de ventana ($MINUTOS minutos)"
             fi
+            
+            echo "========================================"
           done
+          
+          echo ""
+          echo "📊 RESUMEN DE EJECUCIÓN:"
+          echo "   ✅ Emails enviados exitosamente: $EMAILS_ENVIADOS"
+          echo "   ❌ Emails con error: $EMAILS_ERROR"
+          echo "   🕐 Hora de ejecución: $HORA_ACTUAL"
+          echo "   📅 Fecha procesada: $FECHA_HOY"
+          echo "   ✉️  Remitente: carlosffcastillo57@gmail.com"
+          echo "   🎨 Template ID: ${{ env.SENDGRID_TEMPLATE_ID }}"
       
       - name: Finalizar
         run: |
-          echo "✅ Proceso completado"
-          echo "🕐 $(TZ='America/Merida' date)"
+          echo ""
+          echo "========================================"
+          echo "✅ WORKFLOW COMPLETADO"
+          echo "========================================"
+          echo "🏁 Finalizado: $(TZ='America/Merida' date)"
+          echo "📍 Zona horaria: America/Merida (UTC-6)"
+          echo "✉️  Servicio: SendGrid"
+          echo "🏪 Barbería: Waldos Barber-Shop"
+          echo "📧 Remitente verificado: carlosffcastillo57@gmail.com"
+          echo "⏰ Recordatorios: 55-65 minutos antes"
+          echo "🔄 Próxima ejecución: en 5 minutos"
+          echo "========================================"
