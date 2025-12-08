@@ -1,4 +1,3 @@
-# .github/workflows/recordatorios.yml
 name: Enviar Recordatorios de Citas
 
 on:
@@ -9,7 +8,6 @@ on:
 env:
   SUPABASE_URL: https://nllllvztipbrhryzxamm.supabase.co
   SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4
-  # Lista de todas las cuentas EmailJS
   EMAILJS_ACCOUNTS: '[{"serviceId":"service_ao7fguq","templateId":"template_recordatorio","publicKey":"KIuMRgP9Vj16_k9fO"},{"serviceId":"service_5mi5a07","templateId":"template_recordatorio2","publicKey":"bg-7SCSktqD_9iOFD"},{"serviceId":"service_wlw2gvp","templateId":"template_recordatorio3","publicKey":"DKOAjXyI-XNAOaWC4"},{"serviceId":"service_1adxg18","templateId":"template_recordatorio4","publicKey":"-E-CEpLzv_tqLjcv_"},{"serviceId":"service_rptmo0d","templateId":"template_recordatorio5","publicKey":"YHV2nGkTbpUWHnAQ4"},{"serviceId":"service_fhueg8f","templateId":"template_recordatorio6","publicKey":"f9JxFXrO-ubzgTyzd"}]'
 
 jobs:
@@ -39,24 +37,37 @@ jobs:
           echo "📅 Fecha hoy: $FECHA_HOY"
           echo "🕐 Hora actual: $HORA_ACTUAL"
           
+          # URL completa para debug
+          URL_COMPLETA="${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,estado,clientes:cliente_id(email,nombre),servicios:servicio_id(nombre),barberos:barbero_id(nombre)"
+          echo "🔗 URL: $(echo $URL_COMPLETA | sed 's/apikey=.*/apikey=***/g')"
+          
           # Obtener citas desde Supabase
-          RESPONSE=$(curl -s -X GET "${{ env.SUPABASE_URL }}/rest/v1/citas?\
-            fecha=eq.$FECHA_HOY&\
-            estado=in.(aceptada,pendiente,confirmada)&\
-            recordatorio_enviado=eq.false&\
-            select=id,fecha,hora,estado,\
-            clientes:cliente_id(email,nombre),\
-            servicios:servicio_id(nombre),\
-            barberos:barbero_id(nombre)" \
+          RESPONSE=$(curl -s -X GET \
+            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,estado,clientes:cliente_id(email,nombre),servicios:servicio_id(nombre),barberos:barbero_id(nombre)" \
             -H "apikey: ${{ env.SUPABASE_KEY }}" \
             -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
             -H "Content-Type: application/json")
           
-          echo "CITAS_JSON=$RESPONSE" >> $GITHUB_OUTPUT
+          # Verificar si la respuesta es válida
+          if [ -z "$RESPONSE" ]; then
+            echo "⚠️  Respuesta vacía de Supabase"
+            echo "CITAS_JSON=[]" >> $GITHUB_OUTPUT
+            CANTIDAD=0
+          elif echo "$RESPONSE" | jq empty 2>/dev/null; then
+            # JSON válido
+            echo "CITAS_JSON=$RESPONSE" >> $GITHUB_OUTPUT
+            CANTIDAD=$(echo "$RESPONSE" | jq '. | length')
+          else
+            # JSON inválido - probablemente un error
+            echo "❌ Error en respuesta de Supabase:"
+            echo "$RESPONSE"
+            echo "CITAS_JSON=[]" >> $GITHUB_OUTPUT
+            CANTIDAD=0
+          fi
+          
           echo "FECHA_HOY=$FECHA_HOY" >> $GITHUB_OUTPUT
           echo "HORA_ACTUAL=$HORA_ACTUAL" >> $GITHUB_OUTPUT
           
-          CANTIDAD=$(echo "$RESPONSE" | jq '. | length')
           echo "📊 Citas encontradas: $CANTIDAD"
       
       - name: Procesar y enviar recordatorios
@@ -64,8 +75,16 @@ jobs:
         run: |
           FECHA_HOY="${{ steps.obtener-citas.outputs.FECHA_HOY }}"
           HORA_ACTUAL="${{ steps.obtener-citas.outputs.HORA_ACTUAL }}"
-          CITAS_JSON="${{ steps.obtener-citas.outputs.CITAS_JSON }}"
+          CITAS_JSON='${{ steps.obtener-citas.outputs.CITAS_JSON }}'
           CUENTAS_JSON='${{ env.EMAILJS_ACCOUNTS }}'
+          
+          # Verificar si hay citas
+          if [ "$CITAS_JSON" = "[]" ] || [ -z "$CITAS_JSON" ]; then
+            echo "ℹ️  No hay citas para procesar hoy ($FECHA_HOY)"
+            exit 0
+          fi
+          
+          echo "📋 Procesando citas encontradas..."
           
           # Función para enviar email con rotación de cuentas
           enviar_email_con_rotacion() {
@@ -122,7 +141,7 @@ jobs:
                 echo "   ✅ Email enviado con cuenta: $SERVICE_ID"
                 return 0  # Éxito
               else
-                echo "   ❌ Error con cuenta $SERVICE_ID: $(echo $RESULTADO | jq -r '.text // .error // "Error desconocido"')"
+                echo "   ❌ Error con cuenta $SERVICE_ID: $RESULTADO"
                 # Esperar 1 segundo antes de intentar con siguiente cuenta
                 sleep 1
               fi
@@ -141,22 +160,27 @@ jobs:
             SERVICIO=$(echo $CITA | jq -r '.servicios.nombre')
             BARBERO=$(echo $CITA | jq -r '.barberos.nombre')
             
-            # Calcular minutos restantes
-            HORA_ACTUAL_MIN=$(date -d "$HORA_ACTUAL" +%s 2>/dev/null || echo 0)
-            HORA_CITA_MIN=$(date -d "$HORA_CITA" +%s 2>/dev/null || echo 0)
-            
-            if [ $HORA_ACTUAL_MIN -eq 0 ] || [ $HORA_CITA_MIN -eq 0 ]; then
-              echo "❌ Error calculando tiempo para cita $ID"
-              continue
-            fi
-            
-            MINUTOS_RESTANTES=$(( ($HORA_CITA_MIN - $HORA_ACTUAL_MIN) / 60 ))
-            
             echo ""
             echo "📋 Cita ID: $ID"
             echo "   Cliente: $NOMBRE"
             echo "   Email: $EMAIL"
             echo "   Hora cita: $HORA_CITA"
+            
+            # Calcular minutos restantes
+            # Usar un método más robusto para calcular tiempo
+            HORA_ACTUAL_NUM=$(echo $HORA_ACTUAL | tr -d ':')
+            HORA_CITA_NUM=$(echo $HORA_CITA | tr -d ':')
+            
+            if [ -z "$HORA_CITA_NUM" ] || [ "$HORA_CITA_NUM" = "null" ]; then
+              echo "❌ Error: Hora de cita inválida para ID $ID"
+              continue
+            fi
+            
+            # Calcular diferencia en minutos
+            HORA_ACTUAL_MIN=$((10#${HORA_ACTUAL:0:2} * 60 + 10#${HORA_ACTUAL:3:2}))
+            HORA_CITA_MIN=$((10#${HORA_CITA:0:2} * 60 + 10#${HORA_CITA:3:2}))
+            MINUTOS_RESTANTES=$((HORA_CITA_MIN - HORA_ACTUAL_MIN))
+            
             echo "   Minutos restantes: $MINUTOS_RESTANTES"
             
             # Verificar si está en ventana (55-65 minutos)
