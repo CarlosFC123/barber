@@ -1,4 +1,4 @@
-name: Enviar Recordatorios de Citas
+name: Enviar Recordatorios de Citas Mejorado
 
 on:
   schedule:
@@ -34,20 +34,29 @@ jobs:
           echo "🔍 Buscando citas para: $FECHA_HOY"
           echo "🕐 Hora actual: $HORA_ACTUAL"
           
-          RESPONSE=$(curl -s -X GET \
+          # Agregar logging detallado de la consulta
+          echo "🔗 URL de consulta: ${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id,servicio_id,barbero_id"
+          
+          RESPONSE=$(curl -v -X GET \
             "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&recordatorio_enviado=eq.false&select=id,fecha,hora,cliente_id,servicio_id,barbero_id" \
             -H "apikey: ${{ env.SUPABASE_KEY }}" \
             -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-            -H "Content-Type: application/json")
+            -H "Content-Type: application/json" 2>&1 | grep -A 100 "HTTP\|{")
           
-          if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
-            RESPONSE="[]"
+          echo "📋 Respuesta cruda de Supabase:"
+          echo "$RESPONSE" | head -50
+          
+          # Extraer solo el JSON de la respuesta
+          JSON_RESPONSE=$(echo "$RESPONSE" | grep -A 1000 "^\[" || echo "[]")
+          
+          if [ -z "$JSON_RESPONSE" ] || [ "$JSON_RESPONSE" = "null" ]; then
+            JSON_RESPONSE="[]"
           fi
           
-          if echo "$RESPONSE" | jq empty 2>/dev/null; then
-            CANTIDAD=$(echo "$RESPONSE" | jq '. | length')
+          if echo "$JSON_RESPONSE" | jq empty 2>/dev/null; then
+            CANTIDAD=$(echo "$JSON_RESPONSE" | jq '. | length')
             echo "📊 Citas encontradas: $CANTIDAD"
-            echo "$RESPONSE" > /tmp/citas.json
+            echo "$JSON_RESPONSE" > /tmp/citas.json
             echo "CITAS_JSON=/tmp/citas.json" >> $GITHUB_OUTPUT
           else
             echo "⚠️  JSON inválido, usando array vacío"
@@ -88,7 +97,7 @@ jobs:
           
           echo "📋 Procesando citas encontradas..."
           
-          # Función para crear JSON de SendGrid - COINCIDIENDO CON TU TEMPLATE
+          # Función para crear JSON de SendGrid - VERSIÓN MEJORADA ANTI-SPAM
           crear_json_sendgrid() {
             local EMAIL="$1"
             local NOMBRE="$2"
@@ -98,9 +107,11 @@ jobs:
             local BARBERO="$6"
             local MINUTOS="$7"
             local DURACION="$8"
+            local CLIENTE_ID="$9"
+            local CITA_ID="${10}"
             
-            # Crear asunto dinámico
-            ASUNTO_COMPLETO="⏰ Recordatorio de Cita - Waldos Barber-Shop a las $HORA"
+            # Crear asunto más personalizado
+            ASUNTO_COMPLETO="Tu cita en Waldos Barber-Shop - $HORA"
             
             jq -n \
               --arg email "$EMAIL" \
@@ -113,6 +124,8 @@ jobs:
               --arg duracion "$DURACION" \
               --arg asunto "$ASUNTO_COMPLETO" \
               --arg template_id "${{ env.SENDGRID_TEMPLATE_ID }}" \
+              --arg cliente_id "$CLIENTE_ID" \
+              --arg cita_id "$CITA_ID" \
             '{
               "personalizations": [{
                 "to": [{"email": $email, "name": $nombre}],
@@ -126,7 +139,7 @@ jobs:
                   "minutos_restantes": $minutos,
                   "direccion_barberia": "Calle 24-A, Tzucacab, Yucatán",
                   "google_maps_link": "https://maps.google.com/?q=20.063818,-89.0476701",
-                  "mensaje_recordatorio": "⏰ Recordatorio: Tu cita es dentro de \($minutos) minutos"
+                  "mensaje_recordatorio": "Recordatorio: Tu cita es dentro de \($minutos) minutos"
                 },
                 "subject": $asunto
               }],
@@ -139,28 +152,54 @@ jobs:
                 "name": "Waldos Barber-Shop"
               },
               "template_id": $template_id,
-              # CONFIGURACIÓN ANTI-SPAM
+              
+              # CONFIGURACIÓN ANTI-SPAM MEJORADA
               "headers": {
-                "List-Unsubscribe": "<mailto:carlosffcastillo57@gmail.com?subject=Desuscribirse>",
+                "List-Unsubscribe": "<mailto:carlosffcastillo57@gmail.com?subject=Desuscribirse>, <https://waldosbarbershop.com/unsubscribe>",
                 "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-                "Precedence": "bulk"
+                "X-Entity-Ref-ID": "appointment-\($cita_id)-\(now | strftime("%s"))",
+                "Precedence": "bulk",
+                "X-Priority": "3",
+                "X-MSMail-Priority": "Normal",
+                "X-Mailer": "WaldosBarberShopApp/1.0"
               },
+              
               "categories": ["appointment-reminders", "transactional"],
+              
               "custom_args": {
                 "app_name": "Waldos_Barber_Shop",
-                "email_type": "appointment_reminder"
+                "email_type": "appointment_reminder",
+                "customer_id": $cliente_id,
+                "appointment_id": $cita_id,
+                "transactional": "true",
+                "category": "appointment"
               },
+              
               "mail_settings": {
                 "bypass_list_management": {
-                  "enable": true
+                  "enable": false
+                },
+                "spam_check": {
+                  "enable": true,
+                  "threshold": 5
+                },
+                "footer": {
+                  "enable": false
+                },
+                "sandbox_mode": {
+                  "enable": false
                 }
               },
+              
               "tracking_settings": {
                 "click_tracking": {
-                  "enable": true
+                  "enable": false
                 },
                 "open_tracking": {
-                  "enable": true
+                  "enable": false
+                },
+                "subscription_tracking": {
+                  "enable": false
                 }
               }
             }'
@@ -169,6 +208,8 @@ jobs:
           # Contador
           EMAILS_ENVIADOS=0
           EMAILS_ERROR=0
+          ACTUALIZACIONES_EXITOSAS=0
+          ACTUALIZACIONES_FALLIDAS=0
           
           while IFS= read -r CITA; do
             if [ -z "$CITA" ]; then
@@ -189,6 +230,7 @@ jobs:
             echo "========================================"
             echo "📋 CITA ID: $ID"
             echo "   Hora programada: $HORA_CITA"
+            echo "   Cliente ID: $CLIENTE_ID"
             
             # Obtener datos del cliente
             CLIENTE_RESPONSE=$(curl -s -X GET \
@@ -262,12 +304,11 @@ jobs:
               FECHA_BONITA="$DIA de $MES de $ANIO"
               
               # Crear JSON y enviar
-              JSON_DATA=$(crear_json_sendgrid "$EMAIL" "$NOMBRE_COMPLETO" "$SERVICIO_NOMBRE" "$FECHA_BONITA" "$HORA_CITA" "$BARBERO_NOMBRE" "$MINUTOS" "$DURACION")
+              JSON_DATA=$(crear_json_sendgrid "$EMAIL" "$NOMBRE_COMPLETO" "$SERVICIO_NOMBRE" "$FECHA_BONITA" "$HORA_CITA" "$BARBERO_NOMBRE" "$MINUTOS" "$DURACION" "$CLIENTE_ID" "$ID")
               
               echo "$JSON_DATA" > /tmp/sendgrid_$ID.json
               
-              # Debug: mostrar qué variables estamos enviando
-              echo "   📨 Enviando con variables: cliente_nombre, servicio_nombre, fecha_cita, hora_cita, barbero_nombre, duracion_servicio, minutos_restantes"
+              echo "   📨 Enviando email..."
               
               RESPONSE_CODE=$(curl -s -o /tmp/response_$ID.txt -w "%{http_code}" \
                 -X POST "https://api.sendgrid.com/v3/mail/send" \
@@ -279,17 +320,66 @@ jobs:
                 echo "   ✅ Email enviado exitosamente (Código: $RESPONSE_CODE)"
                 EMAILS_ENVIADOS=$((EMAILS_ENVIADOS + 1))
                 
-                # Marcar como enviado
+                # Intentar actualizar la base de datos - MÉTODO MEJORADO
                 echo "   🔧 Actualizando base de datos..."
-                PATCH_RESPONSE=$(curl -s -X PATCH \
+                
+                # Primero, verificar el estado actual
+                echo "   🔍 Verificando estado actual..."
+                CHECK_RESPONSE=$(curl -s -X GET \
+                  "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID&select=id,recordatorio_enviado" \
+                  -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                  -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                  -H "Content-Type: application/json")
+                
+                echo "   📊 Estado actual: $CHECK_RESPONSE"
+                
+                # Actualizar usando dos métodos diferentes
+                echo "   🔄 Método 1: PATCH estándar..."
+                PATCH_RESPONSE=$(curl -v -X PATCH \
                   "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
                   -H "apikey: ${{ env.SUPABASE_KEY }}" \
                   -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                   -H "Content-Type: application/json" \
-                  -H "Prefer: return=minimal" \
-                  -d "{\"recordatorio_enviado\": true}")
+                  -H "Prefer: return=representation" \
+                  -d "{\"recordatorio_enviado\": true, \"hora_recordatorio_enviado\": \"$HORA_ACTUAL\", \"actualizado_en\": \"$(date -u '+%Y-%m-%d %H:%M:%S')\"}" 2>&1)
                 
-                echo "   ✅ Marcada como enviada en BD"
+                # Verificar si funcionó
+                if echo "$PATCH_RESPONSE" | grep -q "HTTP.*200\|HTTP.*204"; then
+                  echo "   ✅ PATCH exitoso (Método 1)"
+                  ACTUALIZACIONES_EXITOSAS=$((ACTUALIZACIONES_EXITOSAS + 1))
+                  
+                  # Verificar que realmente se actualizó
+                  sleep 1
+                  VERIFY_RESPONSE=$(curl -s -X GET \
+                    "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID&select=recordatorio_enviado" \
+                    -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                    -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                    -H "Content-Type: application/json")
+                  
+                  VERIFY_VALUE=$(echo "$VERIFY_RESPONSE" | jq -r '.[0].recordatorio_enviado // "null"')
+                  echo "   🔍 Verificación: recordatorio_enviado = $VERIFY_VALUE"
+                else
+                  echo "   ❌ PATCH falló (Método 1)"
+                  echo "   🔍 Intentando Método 2: UPDATE directo..."
+                  
+                  # Método alternativo usando supabase-js style
+                  PATCH_RESPONSE2=$(curl -v -X POST \
+                    "${{ env.SUPABASE_URL }}/rest/v1/rpc/update_cita_recordatorio" \
+                    -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                    -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                    -H "Content-Type: application/json" \
+                    -d "{\"cita_id\": $ID, \"enviado\": true}" 2>&1)
+                  
+                  if echo "$PATCH_RESPONSE2" | grep -q "HTTP.*200\|HTTP.*204\|HTTP.*201"; then
+                    echo "   ✅ UPDATE exitoso (Método 2)"
+                    ACTUALIZACIONES_EXITOSAS=$((ACTUALIZACIONES_EXITOSAS + 1))
+                  else
+                    echo "   ❌ UPDATE también falló (Método 2)"
+                    ACTUALIZACIONES_FALLIDAS=$((ACTUALIZACIONES_FALLIDAS + 1))
+                    echo "   📊 Respuesta PATCH:"
+                    echo "$PATCH_RESPONSE" | grep -E "HTTP|<"
+                  fi
+                fi
               else
                 echo "   ❌ Error SendGrid (Código: $RESPONSE_CODE)"
                 EMAILS_ERROR=$((EMAILS_ERROR + 1))
@@ -305,7 +395,8 @@ jobs:
             elif [ $MINUTOS -gt 120 ]; then
               echo "   ⏳ Demasiado temprano (+2 horas)"
             elif [ $MINUTOS -lt 0 ]; then
-              echo "   ⏳ La cita ya pasó"
+              echo "   ⏳ La cita ya pasó - Marcando como enviada"
+              # Marcar como enviada aunque no se haya enviado realmente
               curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
                 -H "apikey: ${{ env.SUPABASE_KEY }}" \
                 -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
@@ -322,23 +413,54 @@ jobs:
           echo "📊 RESUMEN DE EJECUCIÓN:"
           echo "   ✅ Emails enviados: $EMAILS_ENVIADOS"
           echo "   ❌ Emails con error: $EMAILS_ERROR"
+          echo "   🗃️  BD actualizadas: $ACTUALIZACIONES_EXITOSAS"
+          echo "   ❌ BD fallidas: $ACTUALIZACIONES_FALLIDAS"
           echo "   🕐 Hora: $HORA_ACTUAL"
           echo "   📅 Fecha: $FECHA_HOY"
-          echo "   🔒 Anti-Spam: Activado"
+          echo "   🔒 Anti-Spam: Configuración mejorada"
           echo "   📧 Template: ${{ env.SENDGRID_TEMPLATE_ID }}"
+      
+      - name: Verificar estado final
+        run: |
+          echo ""
+          echo "========================================"
+          echo "🔍 VERIFICANDO ESTADO FINAL"
+          echo "========================================"
+          
+          FECHA_HOY="${{ steps.obtener-citas.outputs.FECHA_HOY }}"
+          
+          # Consultar las citas de hoy para verificar
+          VERIFY_RESPONSE=$(curl -s -X GET \
+            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&select=id,hora,recordatorio_enviado" \
+            -H "apikey: ${{ env.SUPABASE_KEY }}" \
+            -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+            -H "Content-Type: application/json")
+          
+          echo "📋 Citas para hoy ($FECHA_HOY):"
+          echo "$VERIFY_RESPONSE" | jq -r '.[] | "  Cita \(.id) a las \(.hora): \(if .recordatorio_enviado == true then "✅ ENVIADO" else "❌ NO ENVIADO" end)"'
+          
+          echo ""
+          echo "📝 RECOMENDACIONES FINALES:"
+          echo "   1. Verifica que el campo 'recordatorio_enviado' en Supabase sea tipo boolean"
+          echo "   2. Asegúrate de que la tabla 'citas' tenga permisos de UPDATE"
+          echo "   3. Considera agregar un trigger en Supabase para actualizar automáticamente"
+          echo "   4. Para reducir spam:"
+          echo "      - Configura SPF, DKIM y DMARC en tu dominio"
+          echo "      - Usa un dominio propio en lugar de gmail.com"
+          echo "      - Mantén una lista de suscripción activa"
+          echo "========================================"
       
       - name: Finalizar
         run: |
           echo ""
           echo "========================================"
-          echo "✅ WORKFLOW COMPLETADO"
+          echo "✅ WORKFLOW COMPLETADO - VERSIÓN MEJORADA"
           echo "========================================"
           echo "🏁 Finalizado: $(TZ='America/Merida' date)"
           echo "📍 Zona horaria: America/Merida (UTC-6)"
-          echo "✉️  Servicio: SendGrid"
+          echo "✉️  Servicio: SendGrid (Anti-Spam Mejorado)"
           echo "🏪 Barbería: Waldos Barber-Shop"
           echo "📧 Remitente: carlosffcastillo57@gmail.com"
           echo "⏰ Recordatorios: 40-120 minutos antes"
-          echo "🛡️  Anti-Spam: Bypass List Management activado"
           echo "🔄 Próxima ejecución: en 5 minutos"
           echo "========================================"
