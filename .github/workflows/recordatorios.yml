@@ -16,9 +16,9 @@ jobs:
     steps:
       - name: Ejecutar Edge Function
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PROJECT_REF: 'nllllvztipbrhryzxamm'  # Tu project ref
         run: |
           curl -X POST "https://nllllvztipbrhryzxamm.supabase.co/functions/v1/enviar-recordatorios" \
-            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
             -H "Content-Type: application/json"
