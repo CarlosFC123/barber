@@ -1,211 +1,53 @@
-name: Enviar Recordatorios - VERSIÓN SEGURA
+name: Enviar Recordatorios de Citas
 
 on:
   schedule:
+    # Ejecutar cada 5 minutos
     - cron: '*/5 * * * *'
+  
+  # Para ejecutar manualmente desde GitHub
   workflow_dispatch:
 
 env:
   SUPABASE_URL: https://nllllvztipbrhryzxamm.supabase.co
-  SENDGRID_TEMPLATE_ID: d-8c34868a760f46ae987cc04944d697a0
 
 jobs:
   enviar-recordatorios:
     runs-on: ubuntu-latest
     
     steps:
+      # 1. Descargar el código del repositorio
+      - name: Checkout código
+        uses: actions/checkout@v3
+      
+      # 2. Configurar zona horaria (Yucatán)
       - name: Configurar zona horaria
         run: |
-          echo "🕐 Hora Yucatán: $(TZ='America/Merida' date)"
-          echo "📅 Fecha: $(TZ='America/Merida' date +'%Y-%m-%d')"
+          echo "🕐 Configurando zona horaria de Yucatán..."
+          echo "Hora actual: $(TZ='America/Merida' date)"
       
+      # 3. Instalar dependencias necesarias
       - name: Instalar dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl
+          sudo apt-get install -y jq curl swaks
+          echo "✅ Dependencias instaladas"
       
-      - name: Obtener citas para hoy
-        id: obtener-citas
+      # 4. Ejecutar el script de recordatorios
+      - name: Ejecutar script de recordatorios
         env:
+          # Secrets que configurarás en GitHub
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
-          FECHA_HOY=$(TZ='America/Merida' date +'%Y-%m-%d')
-          HORA_ACTUAL=$(TZ='America/Merida' date +'%H:%M')
+          echo "🚀 Iniciando proceso de recordatorios..."
+          echo "Usando:"
+          echo "  - Supabase: $SUPABASE_URL"
+          echo "  - Gmail: $GMAIL_USER"
           
-          echo "🔍 Buscando citas para hoy: $FECHA_HOY"
-          echo "🕐 Hora actual: $HORA_ACTUAL"
+          # Dar permisos de ejecución al script
+          chmod +x ./enviar_recordatorios.sh
           
-          RESPONSE=$(curl -s -X GET \
-            "${{ env.SUPABASE_URL }}/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&or=(recordatorio_enviado.eq.false,recordatorio_enviado.is.null)&select=id,fecha,hora,cliente_id,servicio_id,barbero_id,recordatorio_enviado" \
-            -H "apikey: $SUPABASE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_KEY" \
-            -H "Content-Type: application/json")
-          
-          if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
-            RESPONSE="[]"
-          fi
-          
-          CANTIDAD=$(echo "$RESPONSE" | jq '. | length' 2>/dev/null || echo 0)
-          echo "📊 Citas encontradas: $CANTIDAD"
-          
-          echo "$RESPONSE" > /tmp/citas.json
-          echo "CITAS_JSON=/tmp/citas.json" >> $GITHUB_OUTPUT
-          echo "FECHA_HOY=$FECHA_HOY" >> $GITHUB_OUTPUT
-          echo "HORA_ACTUAL=$HORA_ACTUAL" >> $GITHUB_OUTPUT
-      
-      - name: Procesar y enviar recordatorios
-        env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          FECHA_HOY="${{ steps.obtener-citas.outputs.FECHA_HOY }}"
-          HORA_ACTUAL="${{ steps.obtener-citas.outputs.HORA_ACTUAL }}"
-          
-          CITAS=$(cat /tmp/citas.json)
-          CANTIDAD=$(echo "$CITAS" | jq '. | length')
-          
-          if [ "$CITAS" = "[]" ] || [ $CANTIDAD -eq 0 ]; then
-            echo "✅ No hay citas pendientes para hoy"
-            exit 0
-          fi
-          
-          echo "📋 Procesando $CANTIDAD cita(s)..."
-          echo ""
-          
-          EMAILS_ENVIADOS=0
-          BD_ACTUALIZADAS=0
-          
-          for i in $(seq 0 $(($CANTIDAD - 1))); do
-            CITA=$(echo "$CITAS" | jq -c ".[$i]")
-            
-            ID=$(echo "$CITA" | jq -r '.id')
-            HORA_CITA=$(echo "$CITA" | jq -r '.hora')
-            RECORDATORIO_ENVIADO=$(echo "$CITA" | jq -r '.recordatorio_enviado // "false"')
-            CLIENTE_ID=$(echo "$CITA" | jq -r '.cliente_id')
-            SERVICIO_ID=$(echo "$CITA" | jq -r '.servicio_id')
-            BARBERO_ID=$(echo "$CITA" | jq -r '.barbero_id')
-            
-            echo "========================================"
-            echo "📋 CITA ID: $ID"
-            echo "⏰ Hora cita: $HORA_CITA"
-            echo "📨 Recordatorio enviado: $RECORDATORIO_ENVIADO"
-            
-            if [ "$RECORDATORIO_ENVIADO" = "true" ]; then
-              echo "⏭️  Ya enviado, saltando..."
-              echo "========================================"
-              echo ""
-              continue
-            fi
-            
-            HORA_ACTUAL_MIN=$((10#${HORA_ACTUAL:0:2} * 60 + 10#${HORA_ACTUAL:3:2}))
-            HORA_CITA_MIN=$((10#${HORA_CITA:0:2} * 60 + 10#${HORA_CITA:3:2}))
-            MINUTOS=$((HORA_CITA_MIN - HORA_ACTUAL_MIN))
-            
-            echo "⏰ Minutos restantes: $MINUTOS"
-            
-            if [ $MINUTOS -ge 55 ] && [ $MINUTOS -le 125 ]; then
-              echo "🎯 ¡ENVIANDO RECORDATORIO!"
-              
-              CLIENTE=$(curl -s -X GET \
-                "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.$CLIENTE_ID&select=email,nombre,apellido" \
-                -H "apikey: $SUPABASE_KEY" \
-                -H "Authorization: Bearer $SUPABASE_KEY" \
-                -H "Content-Type: application/json" | jq -r '.[0]')
-              
-              EMAIL=$(echo "$CLIENTE" | jq -r '.email // empty')
-              
-              if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ]; then
-                echo "❌ Email no encontrado"
-                curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
-                  -H "apikey: $SUPABASE_KEY" \
-                  -H "Authorization: Bearer $SUPABASE_KEY" \
-                  -d '{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"${HORA_ACTUAL}:00"'"}' > /dev/null
-                continue
-              fi
-              
-              echo "📧 Email: $EMAIL"
-              
-              # Formatear fecha
-              DIA=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%d')
-              MES_NUM=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%m')
-              ANIO=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%Y')
-              
-              MESES=("Enero" "Febrero" "Marzo" "Abril" "Mayo" "Junio" "Julio" "Agosto" "Septiembre" "Octubre" "Noviembre" "Diciembre")
-              MES_INDEX=$((10#$MES_NUM - 1))
-              MES=${MESES[$MES_INDEX]}
-              FECHA_BONITA="$DIA de $MES de $ANIO"
-              
-              # Enviar email
-              EMAIL_JSON='{
-                "personalizations": [{
-                  "to": [{"email": "'"$EMAIL"'"}],
-                  "dynamic_template_data": {
-                    "cliente_nombre": "'"$(echo "$CLIENTE" | jq -r '.nombre // "Cliente"')"'",
-                    "fecha_cita": "'"$FECHA_BONITA"'",
-                    "hora_cita": "'"$HORA_CITA"'",
-                    "minutos_restantes": "'"$MINUTOS"'"
-                  },
-                  "subject": "Recordatorio: Tu cita a las '"$HORA_CITA"' - Waldos Barber-Shop"
-                }],
-                "from": {
-                  "email": "carlosffcastillo57@gmail.com",
-                  "name": "Waldos Barber-Shop"
-                },
-                "template_id": "'"${{ env.SENDGRID_TEMPLATE_ID }}"'"
-              }'
-              
-              SEND_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X POST "https://api.sendgrid.com/v3/mail/send" \
-                -H "Authorization: Bearer $SENDGRID_API_KEY" \
-                -H "Content-Type: application/json" \
-                -d "$EMAIL_JSON")
-              
-              if [ "$SEND_CODE" = "202" ]; then
-                echo "✅ Email enviado"
-                EMAILS_ENVIADOS=$((EMAILS_ENVIADOS + 1))
-                
-                # Actualizar BD
-                HORA_ACTUAL_FORMATEADA="${HORA_ACTUAL}:00"
-                
-                PATCH_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-                  -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
-                  -H "apikey: $SUPABASE_KEY" \
-                  -H "Authorization: Bearer $SUPABASE_KEY" \
-                  -H "Content-Type: application/json" \
-                  -H "Prefer: return=minimal" \
-                  -d "{\"recordatorio_enviado\": true, \"hora_recordatorio_enviado\": \"$HORA_ACTUAL_FORMATEADA\"}")
-                
-                if [ "$PATCH_CODE" = "200" ] || [ "$PATCH_CODE" = "204" ]; then
-                  echo "✅ BD actualizada ($PATCH_CODE)"
-                  BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
-                else
-                  echo "⚠️  PATCH falló ($PATCH_CODE)"
-                fi
-                
-              else
-                echo "❌ Error SendGrid ($SEND_CODE)"
-              fi
-              
-            elif [ $MINUTOS -gt 125 ]; then
-              echo "⏳ Demasiado temprano (+125 minutos)"
-            elif [ $MINUTOS -lt 0 ]; then
-              echo "⏳ Cita ya pasó"
-              curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
-                -H "apikey: $SUPABASE_KEY" \
-                -H "Authorization: Bearer $SUPABASE_KEY" \
-                -d '{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"${HORA_ACTUAL}:00"'"}' > /dev/null 2>&1
-            else
-              echo "❌ Fuera de ventana (menos de 55 minutos)"
-            fi
-            
-            echo "========================================"
-            echo ""
-            sleep 1
-          done
-          
-          echo ""
-          echo "📊 RESUMEN FINAL:"
-          echo "   ✅ Emails enviados: $EMAILS_ENVIADOS"
-          echo "   🗃️  BD actualizadas: $BD_ACTUALIZADAS"
-          echo "   🕐 Hora: $HORA_ACTUAL"
-          echo "   📅 Fecha: $FECHA_HOY"
+          # Ejecutar el script
+          ./enviar_recordatorios.sh
