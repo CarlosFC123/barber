@@ -334,11 +334,10 @@ enviar_email_gmail() {
   
   echo "📤 Enviando email a: $email (Cita ID: $cita_id)"
   
-  # Guardar templates en archivos temporales
+  # Guardar HTML en archivo temporal
   echo "$html" > /tmp/email_${cita_id}.html
-  echo "$texto" > /tmp/email_${cita_id}.txt
   
-  # Enviar usando swaks con más logging
+  # Enviar SOLO HTML, sin multipart
   swaks \
     --to "$email" \
     --from "$GMAIL_USER" \
@@ -348,10 +347,9 @@ enviar_email_gmail() {
     --header "X-Priority: 1" \
     --header "Importance: High" \
     --header "X-Cita-ID: $cita_id" \
-    --body "$texto" \
-    --add-header "MIME-Version: 1.0" \
-    --add-header "Content-Type: text/html; charset=UTF-8" \
-    --data /tmp/email_${cita_id}.html \
+    --header "MIME-Version: 1.0" \
+    --header "Content-Type: text/html; charset=UTF-8" \
+    --body "$html" \
     --server smtp.gmail.com:587 \
     --auth LOGIN \
     --auth-user "$GMAIL_USER" \
