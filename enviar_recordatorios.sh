@@ -1,5 +1,5 @@
 #!/bin/bash
-# enviar_recordatorios.sh - Script completo para enviar recordatorios de citas - VERSIÓN COMPLETA
+# enviar_recordatorios.sh - Script completo para enviar recordatorios de citas - VERSIÓN CORREGIDA SIN metodo_envio
 
 # ============================================================================
 # CONFIGURACIÓN
@@ -13,24 +13,14 @@ SUPABASE_KEY="${SUPABASE_KEY}"
 # FUNCIONES AUXILIARES
 # ============================================================================
 
-# Función para depurar las respuestas de la API
-debug_api_response() {
-  local response="$1"
-  local endpoint="$2"
-  echo "🔍 DEBUG API ($endpoint):"
-  echo "   Status: $(echo "$response" | tail -n1)"
-  echo "   Body: $(echo "$response" | head -n-1)"
-}
-
 # Función para verificar y actualizar la BD con mejor manejo de errores
 actualizar_cita_enviada() {
   local cita_id="$1"
   local hora_actual="$2"
-  local metodo="$3"
   
   echo "🗃️  Intentando actualizar cita $cita_id..."
   
-  # Preparar datos para el PATCH - SIN metodo_envio
+  # Preparar datos para el PATCH - SIN metodo_envio (porque no existe en tu BD)
   local json_data="{\"recordatorio_enviado\": true, \"hora_recordatorio_enviado\": \"${hora_actual}:00\"}"
   echo "   JSON a enviar: $json_data"
   
@@ -40,14 +30,13 @@ actualizar_cita_enviada() {
     -H "apikey: $SUPABASE_KEY" \
     -H "Authorization: Bearer $SUPABASE_KEY" \
     -H "Content-Type: application/json" \
-    -H "Prefer: return=representation" \
+    -H "Prefer: return=minimal" \
     -d "$json_data")
   
   local http_code=$(echo "$response" | tail -n1)
   local body=$(echo "$response" | head -n-1)
   
   echo "   Código HTTP: $http_code"
-  echo "   Respuesta: $body"
   
   if [[ "$http_code" = "200" || "$http_code" = "204" ]]; then
     echo "✅ Base de datos actualizada correctamente para cita $cita_id"
@@ -61,7 +50,7 @@ actualizar_cita_enviada() {
 }
 
 # ============================================================================
-# FUNCIONES DE TEMPLATE COMPLETAS
+# FUNCIONES DE TEMPLATE COMPLETAS (mantener igual)
 # ============================================================================
 
 crear_template_html() {
@@ -424,11 +413,11 @@ obtener_datos_cita() {
 }
 
 # ============================================================================
-# FUNCIÓN PRINCIPAL - COMPLETA
+# FUNCIÓN PRINCIPAL - CORREGIDA
 # ============================================================================
 
 main() {
-  echo "🚀 Iniciando envío de recordatorios con Gmail - VERSIÓN CORREGIDA"
+  echo "🚀 Iniciando envío de recordatorios con Gmail"
   echo "=========================================="
   echo "📅 Fecha: $(TZ='America/Merida' date +'%Y-%m-%d')"
   echo "🕐 Hora: $(TZ='America/Merida' date +'%H:%M')"
@@ -454,24 +443,6 @@ main() {
   
   echo "🔍 Buscando citas para hoy: $FECHA_HOY"
   echo "🕐 Hora actual: $HORA_ACTUAL_FULL"
-  
-  # Obtener citas para hoy - VERIFICAR CONEXIÓN A SUPABASE
-  echo "🧪 Probando conexión a Supabase..."
-  TEST_RESPONSE=$(curl -s -w "\n%{http_code}" \
-    -X GET "$SUPABASE_URL/rest/v1/citas?limit=1" \
-    -H "apikey: $SUPABASE_KEY" \
-    -H "Authorization: Bearer $SUPABASE_KEY" \
-    -H "Content-Type: application/json")
-  
-  TEST_CODE=$(echo "$TEST_RESPONSE" | tail -n1)
-  
-  if [[ ! "$TEST_CODE" = "200" && ! "$TEST_CODE" = "201" && ! "$TEST_CODE" = "204" ]]; then
-    echo "❌ ERROR: No se pudo conectar a Supabase. Código: $TEST_CODE"
-    echo "   Verifica SUPABASE_KEY: ${SUPABASE_KEY:0:10}..."
-    exit 1
-  fi
-  
-  echo "✅ Conexión a Supabase exitosa"
   
   # Obtener citas para hoy
   RESPONSE=$(curl -s -w "\n%{http_code}" \
@@ -568,7 +539,7 @@ main() {
         echo "   ❌ No hay email válido, marcando como enviado..."
         
         # Marcar como enviado para no volver a intentar
-        if actualizar_cita_enviada "$ID" "$HORA_ACTUAL" "NO_EMAIL"; then
+        if actualizar_cita_enviada "$ID" "$HORA_ACTUAL"; then
           BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
         else
           BD_FALLIDAS=$((BD_FALLIDAS + 1))
@@ -600,9 +571,9 @@ main() {
       echo "   👨‍🎨 Barbero: $BARBERO_NOMBRE"
       echo "   ⏱️  Duración: $DURACION_SERVICIO"
       
-      # Crear templates
+      # Crear templates (CORREGIR typo: FECHA_BONita -> FECHA_BONITA)
       ASUNTO="Recordatorio: Tu cita hoy a las $HORA_CITA - Waldos Barber-Shop"
-      HTML_CONTENT=$(crear_template_html "$NOMBRE_CLIENTE" "$FECHA_BONita" "$HORA_CITA" "$MINUTOS" "$ID" "$SERVICIO_NOMBRE" "$BARBERO_NOMBRE" "$DURACION_SERVICIO")
+      HTML_CONTENT=$(crear_template_html "$NOMBRE_CLIENTE" "$FECHA_BONITA" "$HORA_CITA" "$MINUTOS" "$ID" "$SERVICIO_NOMBRE" "$BARBERO_NOMBRE" "$DURACION_SERVICIO")
       TEXTO_CONTENT=$(crear_template_texto "$NOMBRE_CLIENTE" "$FECHA_BONITA" "$HORA_CITA" "$MINUTOS" "$ID" "$SERVICIO_NOMBRE" "$BARBERO_NOMBRE" "$DURACION_SERVICIO")
       
       # Enviar email
@@ -612,7 +583,7 @@ main() {
         
         # Actualizar base de datos con función mejorada
         echo "   🗃️  Actualizando base de datos..."
-        if actualizar_cita_enviada "$ID" "$HORA_ACTUAL" "GMAIL"; then
+        if actualizar_cita_enviada "$ID" "$HORA_ACTUAL"; then
           BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
           echo "   📊 Cita marcada como notificada"
         else
@@ -626,7 +597,7 @@ main() {
         
         # Intentar marcar como fallida en BD
         echo "   🗃️  Marcando como fallido en BD..."
-        actualizar_cita_enviada "$ID" "$HORA_ACTUAL" "FALLIDO" || true
+        actualizar_cita_enviada "$ID" "$HORA_ACTUAL" || true
       fi
       
     elif [ $MINUTOS -gt 125 ]; then
@@ -635,7 +606,7 @@ main() {
     elif [ $MINUTOS -lt 0 ]; then
       echo "   ⏳ Cita ya pasó, marcando como enviado..."
       # Marcar citas pasadas como enviadas para no procesarlas más
-      if actualizar_cita_enviada "$ID" "$HORA_ACTUAL" "CITA_PASADA"; then
+      if actualizar_cita_enviada "$ID" "$HORA_ACTUAL"; then
         BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
       else
         BD_FALLIDAS=$((BD_FALLIDAS + 1))
