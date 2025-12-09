@@ -1,5 +1,5 @@
 #!/bin/bash
-# enviar_recordatorios.sh - Script completo para enviar recordatorios de citas - VERSIÓN CORREGIDA
+# enviar_recordatorios.sh - Script completo para enviar recordatorios de citas - VERSIÓN COMPLETA
 
 # ============================================================================
 # CONFIGURACIÓN
@@ -61,19 +61,279 @@ actualizar_cita_enviada() {
 }
 
 # ============================================================================
-# FUNCIONES DE TEMPLATE (mantener igual que tu versión)
+# FUNCIONES DE TEMPLATE COMPLETAS
 # ============================================================================
 
 crear_template_html() {
-  # ... (mantener tu función igual)
+  local nombre="$1"
+  local fecha="$2"
+  local hora="$3"
+  local minutos="$4"
+  local id="$5"
+  local servicio="$6"
+  local barbero="$7"
+  local duracion="$8"
+  
+  # Si no hay servicio, barbero o duración, usar valores por defecto
+  local servicio_nombre="${servicio:-Corte de cabello}"
+  local barbero_nombre="${barbero:-Nuestro barbero}"
+  local duracion_servicio="${duracion:-30 minutos}"
+  
+  cat <<EOF
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recordatorio de Cita - Waldos Barber-Shop</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #3a3a3a 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 32px;
+            letter-spacing: 2px;
+        }
+        
+        .header h2 {
+            margin: 10px 0 0;
+            font-size: 20px;
+            font-weight: normal;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .saludo {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        
+        .info-box {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #ff6b35;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        .info-box h3 {
+            margin-top: 0;
+            color: #ff6b35;
+        }
+        
+        .detalle-item {
+            margin-bottom: 10px;
+            display: flex;
+        }
+        
+        .detalle-label {
+            font-weight: bold;
+            min-width: 120px;
+        }
+        
+        .urgente {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 25px 0;
+            border-left: 4px solid #ffc107;
+            border: 2px solid #ffc107;
+        }
+        
+        .urgente strong {
+            color: #856404;
+        }
+        
+        .direccion {
+            background: #e9f7fe;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .map-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #4285f4;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .footer {
+            background: #1a1a1a;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 600px) {
+            .detalle-item {
+                flex-direction: column;
+            }
+            
+            .detalle-label {
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Waldos Barber-Shop</h1>
+            <h2>Recordatorio de Cita</h2>
+        </div>
+        
+        <div class="content">
+            <p class="saludo">Hola ${nombre},</p>
+            <p>Este es un recordatorio amigable de tu cita programada para <strong>hoy</strong>.</p>
+            
+            <div class="info-box">
+                <h3>📋 Detalles de tu Cita</h3>
+                
+                <div class="detalle-item">
+                    <span class="detalle-label">Servicio:</span>
+                    <span>${servicio_nombre}</span>
+                </div>
+                
+                <div class="detalle-item">
+                    <span class="detalle-label">Fecha:</span>
+                    <span>${fecha}</span>
+                </div>
+                
+                <div class="detalle-item">
+                    <span class="detalle-label">Hora:</span>
+                    <span>${hora}</span>
+                </div>
+                
+                <div class="detalle-item">
+                    <span class="detalle-label">Barbero:</span>
+                    <span>${barbero_nombre}</span>
+                </div>
+                
+                <div class="detalle-item">
+                    <span class="detalle-label">Duración:</span>
+                    <span>${duracion_servicio}</span>
+                </div>
+            </div>
+            
+            <div class="urgente">
+                <strong>⏰ ¡TU CITA ES EN ${minutos} MINUTOS!</strong>
+            </div>
+            
+            <div class="direccion">
+                <span class="detalle-label">📍 Dirección:</span>
+                <span>Calle 24-A, Tzucacab, Yucatán</span>
+                <br>
+                <a href="https://www.google.com/maps?q=20.063818,-89.0476701" class="map-link" target="_blank">
+                  Abrir en Google Maps
+                </a>
+            </div>
+            
+            <p style="text-align: center; font-size: 18px; margin-top: 30px;">
+                <strong>¡Te esperamos pronto!</strong> 
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025-2026 Waldos Barber Shop. Todos los derechos reservados.</p>
+            <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+            <p style="font-size: 12px; opacity: 0.8;">ID de referencia: WB-${id}</p>
+        </div>
+    </div>
+</body>
+</html>
+EOF
 }
 
 crear_template_texto() {
-  # ... (mantener tu función igual)
+  local nombre="$1"
+  local fecha="$2"
+  local hora="$3"
+  local minutos="$4"
+  local id="$5"
+  local servicio="$6"
+  local barbero="$7"
+  local duracion="$8"
+  
+  local servicio_nombre="${servicio:-Corte de cabello}"
+  local barbero_nombre="${barbero:-Nuestro barbero}"
+  local duracion_servicio="${duracion:-30 minutos}"
+  
+  cat <<EOF
+RECORDATORIO DE CITA - WALDOS BARBER-SHOP
+═══════════════════════════════════════════════════════════
+
+Hola ${nombre},
+
+Este es un recordatorio amigable de tu cita programada para HOY.
+
+📋 DETALLES DE TU CITA:
+═══════════════════════════════════════════════════════════
+• Servicio: ${servicio_nombre}
+• Fecha: ${fecha}
+• Hora: ${hora}
+• Barbero: ${barbero_nombre}
+• Duración: ${duracion_servicio}
+
+⏰ ¡TU CITA ES EN ${minutos} MINUTOS!
+═══════════════════════════════════════════════════════════
+
+📍 DIRECCIÓN:
+Waldos Barber-Shop
+Calle 24-A, Tzucacab, Yucatán
+
+📞 CONTACTO:
+Teléfono: 999-123-4567
+WhatsApp: 999-987-6543
+
+💡 IMPORTANTE:
+• Por favor llega 5-10 minutos antes
+• Si llegas tarde, tu cita podría ser acortada
+• Para cancelar o reprogramar responde este email
+
+¡Te esperamos pronto!
+
+═══════════════════════════════════════════════════════════
+© 2025-2026 Waldos Barber Shop. Todos los derechos reservados.
+Este es un correo automático, por favor no respondas a este mensaje.
+ID de referencia: WB-${id}
+═══════════════════════════════════════════════════════════
+EOF
 }
 
 # ============================================================================
-# FUNCIONES DE ENVÍO
+# FUNCIONES DE ENVÍO COMPLETAS
 # ============================================================================
 
 enviar_email_gmail() {
@@ -122,12 +382,49 @@ enviar_email_gmail() {
   fi
 }
 
+# Función para obtener datos adicionales de la cita
 obtener_datos_cita() {
-  # ... (mantener tu función igual)
+  local cita_id="$1"
+  local servicio_id="$2"
+  local barbero_id="$3"
+  
+  local servicio_nombre="Corte de cabello"
+  local barbero_nombre="Nuestro barbero"
+  local duracion="30 minutos"
+  
+  # Obtener datos del servicio si existe
+  if [ -n "$servicio_id" ] && [ "$servicio_id" != "null" ]; then
+    local servicio_data=$(curl -s -X GET \
+      "$SUPABASE_URL/rest/v1/servicios?id=eq.$servicio_id&select=nombre,duracion" \
+      -H "apikey: $SUPABASE_KEY" \
+      -H "Authorization: Bearer $SUPABASE_KEY" \
+      -H "Content-Type: application/json" | jq -r '.[0] // empty')
+    
+    if [ -n "$servicio_data" ]; then
+      servicio_nombre=$(echo "$servicio_data" | jq -r '.nombre // "Corte de cabello"')
+      local duracion_min=$(echo "$servicio_data" | jq -r '.duracion // 30')
+      duracion="${duracion_min} minutos"
+    fi
+  fi
+  
+  # Obtener datos del barbero si existe
+  if [ -n "$barbero_id" ] && [ "$barbero_id" != "null" ]; then
+    local barbero_data=$(curl -s -X GET \
+      "$SUPABASE_URL/rest/v1/barberos?id=eq.$barbero_id&select=nombre" \
+      -H "apikey: $SUPABASE_KEY" \
+      -H "Authorization: Bearer $SUPABASE_KEY" \
+      -H "Content-Type: application/json" | jq -r '.[0] // empty')
+    
+    if [ -n "$barbero_data" ]; then
+      barbero_nombre=$(echo "$barbero_data" | jq -r '.nombre // "Nuestro barbero"')
+    fi
+  fi
+  
+  echo "$servicio_nombre|$barbero_nombre|$duracion"
 }
 
 # ============================================================================
-# FUNCIÓN PRINCIPAL - MODIFICADA PARA MEJOR MANEJO DE BD
+# FUNCIÓN PRINCIPAL - COMPLETA
 # ============================================================================
 
 main() {
@@ -305,7 +602,7 @@ main() {
       
       # Crear templates
       ASUNTO="Recordatorio: Tu cita hoy a las $HORA_CITA - Waldos Barber-Shop"
-      HTML_CONTENT=$(crear_template_html "$NOMBRE_CLIENTE" "$FECHA_BONITA" "$HORA_CITA" "$MINUTOS" "$ID" "$SERVICIO_NOMBRE" "$BARBERO_NOMBRE" "$DURACION_SERVICIO")
+      HTML_CONTENT=$(crear_template_html "$NOMBRE_CLIENTE" "$FECHA_BONita" "$HORA_CITA" "$MINUTOS" "$ID" "$SERVICIO_NOMBRE" "$BARBERO_NOMBRE" "$DURACION_SERVICIO")
       TEXTO_CONTENT=$(crear_template_texto "$NOMBRE_CLIENTE" "$FECHA_BONITA" "$HORA_CITA" "$MINUTOS" "$ID" "$SERVICIO_NOMBRE" "$BARBERO_NOMBRE" "$DURACION_SERVICIO")
       
       # Enviar email
