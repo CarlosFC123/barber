@@ -30,8 +30,8 @@ actualizar_cita_enviada() {
   
   echo "🗃️  Intentando actualizar cita $cita_id..."
   
-  # Preparar datos para el PATCH
-  local json_data="{\"recordatorio_enviado\": true, \"hora_recordatorio_enviado\": \"${hora_actual}:00\", \"metodo_envio\": \"${metodo}\"}"
+  # Preparar datos para el PATCH - SIN metodo_envio
+  local json_data="{\"recordatorio_enviado\": true, \"hora_recordatorio_enviado\": \"${hora_actual}:00\"}"
   echo "   JSON a enviar: $json_data"
   
   # Enviar solicitud PATCH con más detalles
