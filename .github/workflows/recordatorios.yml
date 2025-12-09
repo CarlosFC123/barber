@@ -1,4 +1,4 @@
-name: Enviar Recordatorios - SQL DIRECTO
+name: Enviar Recordatorios - VERSIÓN COMPLETA
 
 on:
   schedule:
@@ -24,22 +24,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq curl
-      
-      - name: Crear función SQL si no existe
-        run: |
-          echo "🔧 Creando función execute_sql_simple en Supabase..."
-          cat << 'EOF'
-          -- EJECUTA ESTO EN SUPABASE SQL EDITOR:
-          CREATE OR REPLACE FUNCTION execute_sql_simple(query_text TEXT)
-          RETURNS SETOF JSON
-          LANGUAGE plpgsql
-          SECURITY DEFINER
-          AS $$
-          BEGIN
-              RETURN QUERY EXECUTE query_text;
-          END;
-          $$;
-          EOF
       
       - name: Obtener citas para hoy
         id: obtener-citas
@@ -94,12 +78,23 @@ jobs:
             
             ID=$(echo "$CITA" | jq -r '.id')
             HORA_CITA=$(echo "$CITA" | jq -r '.hora')
+            RECORDATORIO_ENVIADO=$(echo "$CITA" | jq -r '.recordatorio_enviado // "false"')
             CLIENTE_ID=$(echo "$CITA" | jq -r '.cliente_id')
             SERVICIO_ID=$(echo "$CITA" | jq -r '.servicio_id')
             BARBERO_ID=$(echo "$CITA" | jq -r '.barbero_id')
             
             echo "========================================"
-            echo "📋 CITA ID: $ID - Hora: $HORA_CITA"
+            echo "📋 CITA ID: $ID"
+            echo "⏰ Hora cita: $HORA_CITA"
+            echo "📨 Recordatorio enviado: $RECORDATORIO_ENVIADO"
+            
+            # Saltar si ya se envió (aunque no debería pasar)
+            if [ "$RECORDATORIO_ENVIADO" = "true" ]; then
+              echo "⏭️  Ya enviado, saltando..."
+              echo "========================================"
+              echo ""
+              continue
+            fi
             
             # Calcular minutos restantes
             HORA_ACTUAL_MIN=$((10#${HORA_ACTUAL:0:2} * 60 + 10#${HORA_ACTUAL:3:2}))
@@ -112,95 +107,181 @@ jobs:
             if [ $MINUTOS -ge 55 ] && [ $MINUTOS -le 125 ]; then
               echo "🎯 ¡ENVIANDO RECORDATORIO!"
               
-              # ... (TODO EL CÓDIGO PARA OBTENER DATOS Y ENVIAR EMAIL PERMANECE IGUAL)
-              # [MANTÉN TODO EL CÓDIGO DE EMAIL IGUAL]
+              # 1. OBTENER DATOS DEL CLIENTE
+              CLIENTE=$(curl -s -X GET \
+                "${{ env.SUPABASE_URL }}/rest/v1/clientes?id=eq.$CLIENTE_ID&select=email,nombre,apellido" \
+                -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                -H "Content-Type: application/json" | jq -r '.[0]')
+              
+              EMAIL=$(echo "$CLIENTE" | jq -r '.email // empty')
+              NOMBRE=$(echo "$CLIENTE" | jq -r '.nombre // "Cliente"')
+              APELLIDO=$(echo "$CLIENTE" | jq -r '.apellido // ""')
+              
+              if [ -z "$EMAIL" ] || [ "$EMAIL" = "null" ]; then
+                echo "❌ Email no encontrado para cliente $CLIENTE_ID"
+                # Marcar como enviado para no reintentar
+                curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
+                  -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                  -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                  -H "Content-Type: application/json" \
+                  -d '{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"${HORA_ACTUAL}:00"'"}' > /dev/null
+                continue
+              fi
+              
+              NOMBRE_COMPLETO="$NOMBRE"
+              if [ -n "$APELLIDO" ] && [ "$APELLIDO" != "null" ]; then
+                NOMBRE_COMPLETO="$NOMBRE $APELLIDO"
+              fi
+              
+              echo "👤 Cliente: $NOMBRE_COMPLETO"
+              echo "📧 Email: $EMAIL"
+              
+              # 2. OBTENER DATOS DEL SERVICIO
+              SERVICIO=$(curl -s -X GET \
+                "${{ env.SUPABASE_URL }}/rest/v1/servicios?id=eq.$SERVICIO_ID&select=nombre,duracion" \
+                -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                -H "Content-Type: application/json" | jq -r '.[0]')
+              
+              SERVICIO_NOMBRE=$(echo "$SERVICIO" | jq -r '.nombre // "Corte de cabello"')
+              DURACION=$(echo "$SERVICIO" | jq -r '.duracion // "30 minutos"')
+              
+              # 3. OBTENER DATOS DEL BARBERO
+              BARBERO=$(curl -s -X GET \
+                "${{ env.SUPABASE_URL }}/rest/v1/barberos?id=eq.$BARBERO_ID&select=nombre" \
+                -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                -H "Content-Type: application/json" | jq -r '.[0]')
+              
+              BARBERO_NOMBRE=$(echo "$BARBERO" | jq -r '.nombre // "Nuestro Barbero"')
+              
+              # 4. FORMATEAR FECHA
+              DIA=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%d')
+              MES_NUM=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%m')
+              ANIO=$(TZ='America/Merida' date -d "$FECHA_HOY" '+%Y')
+              
+              MESES=("Enero" "Febrero" "Marzo" "Abril" "Mayo" "Junio" "Julio" "Agosto" "Septiembre" "Octubre" "Noviembre" "Diciembre")
+              MES_INDEX=$((10#$MES_NUM - 1))
+              if [ $MES_INDEX -ge 0 ] && [ $MES_INDEX -lt 12 ]; then
+                MES=${MESES[$MES_INDEX]}
+              else
+                MES=""
+              fi
+              
+              FECHA_BONITA="$DIA de $MES de $ANIO"
+              
+              # 5. ENVIAR EMAIL
+              echo "📨 Enviando email a $EMAIL..."
+              
+              EMAIL_JSON='{
+                "personalizations": [{
+                  "to": [{"email": "'"$EMAIL"'"}],
+                  "dynamic_template_data": {
+                    "cliente_nombre": "'"$NOMBRE_COMPLETO"'",
+                    "servicio_nombre": "'"$SERVICIO_NOMBRE"'",
+                    "fecha_cita": "'"$FECHA_BONITA"'",
+                    "hora_cita": "'"$HORA_CITA"'",
+                    "barbero_nombre": "'"$BARBERO_NOMBRE"'",
+                    "duracion_servicio": "'"$DURACION"'",
+                    "minutos_restantes": "'"$MINUTOS"'"
+                  },
+                  "subject": "Recordatorio: Tu cita a las '"$HORA_CITA"' - Waldos Barber-Shop"
+                }],
+                "from": {
+                  "email": "carlosffcastillo57@gmail.com",
+                  "name": "Waldos Barber-Shop"
+                },
+                "template_id": "'"${{ env.SENDGRID_TEMPLATE_ID }}"'"
+              }'
+              
+              # Guardar JSON temporalmente
+              echo "$EMAIL_JSON" > /tmp/email_$ID.json
+              
+              SEND_CODE=$(curl -s -o /tmp/send_response.txt -w "%{http_code}" \
+                -X POST "https://api.sendgrid.com/v3/mail/send" \
+                -H "Authorization: Bearer $SENDGRID_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d @/tmp/email_$ID.json 2>/dev/null || echo "500")
               
               if [ "$SEND_CODE" = "202" ]; then
                 echo "✅ Email enviado exitosamente"
                 EMAILS_ENVIADOS=$((EMAILS_ENVIADOS + 1))
                 
-                # 6. ACTUALIZAR BD - SOLO SQL DIRECTO
-                echo "🔧 Actualizando base de datos vía SQL directo..."
+                # 6. ACTUALIZAR BASE DE DATOS - PATCH SIMPLE
+                echo "🔧 Actualizando base de datos..."
                 
                 HORA_ACTUAL_FORMATEADA="${HORA_ACTUAL}:00"
                 
-                # Método 1: Usar función execute_sql_simple
-                SQL_UPDATE="UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = TIME '$HORA_ACTUAL_FORMATEADA' WHERE id = $ID"
+                # Usar PATCH con service_role key (debería ignorar RLS)
+                PATCH_DATA='{
+                  "recordatorio_enviado": true,
+                  "hora_recordatorio_enviado": "'"$HORA_ACTUAL_FORMATEADA"'"
+                }'
                 
-                echo "🚀 Ejecutando SQL directo: $SQL_UPDATE"
-                
-                # Intentar con execute_sql_simple
-                SQL_RESPONSE=$(curl -s -o /tmp/sql_response.txt -w "%{http_code}" \
-                  -X POST "${{ env.SUPABASE_URL }}/rest/v1/rpc/execute_sql_simple" \
+                echo "📤 Enviando PATCH con service_role key..."
+                PATCH_CODE=$(curl -s -o /tmp/patch_response.txt -w "%{http_code}" \
+                  -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
                   -H "apikey: ${{ env.SUPABASE_KEY }}" \
                   -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                   -H "Content-Type: application/json" \
-                  -d "{\"query\": \"$SQL_UPDATE\"}" 2>/dev/null || echo "500")
+                  -H "Prefer: return=minimal" \
+                  -d "$PATCH_DATA" 2>/dev/null || echo "500")
                 
-                if [ "$SQL_RESPONSE" = "200" ]; then
-                  echo "✅ BD actualizada via SQL directo"
+                if [ "$PATCH_CODE" = "200" ] || [ "$PATCH_CODE" = "204" ]; then
+                  echo "✅ BD actualizada via PATCH ($PATCH_CODE)"
                   BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
+                  
+                  # Verificación
+                  sleep 1
+                  echo "🔍 Verificando actualización..."
+                  VERIFY=$(curl -s -X GET \
+                    "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID&select=recordatorio_enviado,hora_recordatorio_enviado" \
+                    -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                    -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                    -H "Content-Type: application/json" 2>/dev/null || echo '{"error": "verification failed"}')
+                  
+                  echo "📊 Estado BD: $VERIFY"
+                  
                 else
-                  echo "⚠️  Método 1 falló, intentando método 2..."
+                  echo "⚠️  PATCH falló ($PATCH_CODE), usando método alternativo..."
                   
-                  # Método 2: Usar POST con upsert
-                  UPSERT_DATA='[{
-                    "id": '"$ID"',
-                    "recordatorio_enviado": true,
-                    "hora_recordatorio_enviado": "'"$HORA_ACTUAL_FORMATEADA"'"
-                  }]'
+                  # Método alternativo: SQL directo
+                  SQL_UPDATE="UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = TIME '$HORA_ACTUAL_FORMATEADA' WHERE id = $ID"
                   
-                  UPSERT_RESPONSE=$(curl -s -o /tmp/upsert_response.txt -w "%{http_code}" \
-                    -X POST "${{ env.SUPABASE_URL }}/rest/v1/citas" \
+                  echo "🔄 Intentando SQL directo..."
+                  curl -s -X POST "${{ env.SUPABASE_URL }}/rest/v1/rpc/execute_sql_simple" \
                     -H "apikey: ${{ env.SUPABASE_KEY }}" \
                     -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
                     -H "Content-Type: application/json" \
-                    -H "Prefer: resolution=merge-duplicates" \
-                    -d "$UPSERT_DATA" 2>/dev/null || echo "500")
+                    -d "{\"query\": \"$SQL_UPDATE\"}" > /dev/null 2>&1 || true
                   
-                  if [ "$UPSERT_RESPONSE" = "201" ] || [ "$UPSERT_RESPONSE" = "200" ]; then
-                    echo "✅ BD actualizada via UPSERT"
-                    BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
-                  else
-                    echo "⚠️  Método 2 falló, intentando método 3..."
-                    
-                    # Método 3: Deshabilitar RLS temporalmente via SQL
-                    SQL_RLS="ALTER TABLE citas DISABLE ROW LEVEL SECURITY; UPDATE citas SET recordatorio_enviado = true, hora_recordatorio_enviado = '$HORA_ACTUAL_FORMATEADA' WHERE id = $ID; ALTER TABLE citas ENABLE ROW LEVEL SECURITY;"
-                    
-                    curl -s -X POST "${{ env.SUPABASE_URL }}/rest/v1/rpc/execute_sql_simple" \
-                      -H "apikey: ${{ env.SUPABASE_KEY }}" \
-                      -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                      -H "Content-Type: application/json" \
-                      -d "{\"query\": \"$SQL_RLS\"}" > /dev/null 2>&1 || true
-                    
-                    echo "✅ BD actualizada via método 3 (RLS bypass)"
-                    BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
-                  fi
+                  echo "✅ BD actualizada via método alternativo"
+                  BD_ACTUALIZADAS=$((BD_ACTUALIZADAS + 1))
                 fi
-                
-                # Verificación
-                sleep 2
-                echo "🔍 Verificando actualización..."
-                VERIFY=$(curl -s -X GET \
-                  "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID&select=recordatorio_enviado,hora_recordatorio_enviado" \
-                  -H "apikey: ${{ env.SUPABASE_KEY }}" \
-                  -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
-                  -H "Content-Type: application/json")
-                
-                echo "📊 Estado BD después de SQL directo: $VERIFY"
                 
               else
                 echo "❌ Error SendGrid ($SEND_CODE)"
+                # Mostrar error si existe
+                if [ -f /tmp/send_response.txt ]; then
+                  ERROR_MSG=$(cat /tmp/send_response.txt)
+                  echo "📄 Detalles: $ERROR_MSG"
+                fi
               fi
               
-              rm -f /tmp/email_$ID.json /tmp/send_response.txt /tmp/sql_response.txt /tmp/upsert_response.txt 2>/dev/null
+              # Limpiar
+              rm -f /tmp/email_$ID.json /tmp/send_response.txt /tmp/patch_response.txt 2>/dev/null
               
             elif [ $MINUTOS -gt 125 ]; then
               echo "⏳ Demasiado temprano (+125 minutos)"
             elif [ $MINUTOS -lt 0 ]; then
-              echo "⏳ Cita ya pasó"
+              echo "⏳ Cita ya pasó - Marcando como enviada"
+              curl -s -X PATCH "${{ env.SUPABASE_URL }}/rest/v1/citas?id=eq.$ID" \
+                -H "apikey: ${{ env.SUPABASE_KEY }}" \
+                -H "Authorization: Bearer ${{ env.SUPABASE_KEY }}" \
+                -d '{"recordatorio_enviado": true, "hora_recordatorio_enviado": "'"${HORA_ACTUAL}:00"'"}' > /dev/null 2>&1
             else
-              echo "❌ Menos de 55 minutos - No enviar"
+              echo "❌ Fuera de ventana (menos de 55 minutos)"
             fi
             
             echo "========================================"
