@@ -1,39 +1,63 @@
-- name: Eliminar citas expiradas
-  env:
-    SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
-    SUPABASE_SERVICE_KEY: '${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}'  # GUÁRDALA EN SECRETS
-  run: |
-    echo "🗑️ Eliminando citas expiradas..."
-    echo "🕐 Hora actual del servidor: $(date)"
+name: Limpieza Automática de Citas
+
+on:
+  schedule:
+    # Ejecutar cada 5 minutos
+    - cron: '*/5 * * * *'
+  
+  # Permitir ejecución manual desde GitHub
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
     
-    # Primero, probar que la conexión funciona
-    echo "🔗 Probando conexión con Supabase..."
-    test_response=$(curl -s -w "\n%{http_code}" -X GET \
-      "$SUPABASE_URL/rest/v1/citas?select=count&estado=eq.completada" \
-      -H "apikey: $SUPABASE_SERVICE_KEY" \
-      -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
+    steps:
+    - name: Verificar hora de ejecución
+      run: echo "🕐 Iniciando limpieza - $(date '+%Y-%m-%d %H:%M:%S')"
     
-    test_http_code=$(echo "$test_response" | tail -n1)
-    test_body=$(echo "$test_response" | sed '$d')
-    echo "📊 Test conexión - Código HTTP: $test_http_code"
-    echo "📊 Test conexión - Respuesta: $test_body"
+    - name: Eliminar citas expiradas
+      env:
+        SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
+        SUPABASE_SERVICE_KEY: '${{ secrets.SUPABASE_SERVICE_KEY }}'  # ¡IMPORTANTE! Nombre del secret
+      run: |
+        echo "🗑️ Eliminando citas expiradas..."
+        echo "🕐 Hora actual del servidor: $(date)"
+        
+        # Primero, probar que la conexión funciona
+        echo "🔗 Probando conexión con Supabase..."
+        test_response=$(curl -s -w "\n%{http_code}" -X GET \
+          "$SUPABASE_URL/rest/v1/citas?select=count&estado=eq.completada&limit=1" \
+          -H "apikey: $SUPABASE_SERVICE_KEY" \
+          -H "Authorization: Bearer $SUPABASE_SERVICE_KEY")
+        
+        test_http_code=$(echo "$test_response" | tail -n1)
+        test_body=$(echo "$test_response" | sed '$d')
+        echo "📊 Test conexión - Código HTTP: $test_http_code"
+        echo "📊 Test conexión - Respuesta: $test_body"
+        
+        # Ahora ejecutar la función
+        echo "🔄 Ejecutando función de limpieza..."
+        response=$(curl -s -w "\n%{http_code}" -X POST \
+          "$SUPABASE_URL/functions/v1/cleanup-expired-appointments" \
+          -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{}')
+        
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | sed '$d')
+        
+        echo "📊 Código HTTP: $http_code"
+        echo "📦 Resultado: $body"
+        
+        # Si hay error, mostrar más detalles
+        if [ "$http_code" != "200" ]; then
+          echo "❌ ERROR en la ejecución"
+          exit 1
+        fi
     
-    # Ahora ejecutar la función
-    echo "🔄 Ejecutando función de limpieza..."
-    response=$(curl -s -w "\n%{http_code}" -X POST \
-      "$SUPABASE_URL/functions/v1/cleanup-expired-appointments" \
-      -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
-      -H "Content-Type: application/json" \
-      -d '{}')
-    
-    http_code=$(echo "$response" | tail -n1)
-    body=$(echo "$response" | sed '$d')
-    
-    echo "📊 Código HTTP: $http_code"
-    echo "📦 Resultado: $body"
-    
-    # Si hay error, mostrar más detalles
-    if [ "$http_code" != "200" ]; then
-      echo "❌ ERROR en la ejecución"
-      exit 1
-    fi
+    - name: Mostrar resumen
+      if: always()
+      run: |
+        echo "📋 Workflow completado - Ver logs arriba para detalles"
+        echo "⏰ Próxima ejecución en 5 minutos"
