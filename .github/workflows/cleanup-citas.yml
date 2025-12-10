@@ -11,7 +11,7 @@
     test_response=$(curl -s -w "\n%{http_code}" -X GET \
       "$SUPABASE_URL/rest/v1/citas?select=count&estado=eq.completada" \
       -H "apikey: $SUPABASE_SERVICE_KEY" \
-      -H "Authorization: Bearer $SUPABASE_SERVICE_KEY")
+      -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
     
     test_http_code=$(echo "$test_response" | tail -n1)
     test_body=$(echo "$test_response" | sed '$d')
