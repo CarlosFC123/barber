@@ -1,7 +1,7 @@
 - name: Eliminar citas expiradas
   env:
     SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
-    SUPABASE_SERVICE_KEY: 'tu_service_role_key'  # ¡REEMPLAZA CON TU SERVICE KEY REAL!
+    SUPABASE_SERVICE_KEY: '${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}'  # GUÁRDALA EN SECRETS
   run: |
     echo "🗑️ Eliminando citas expiradas..."
     echo "🕐 Hora actual del servidor: $(date)"
