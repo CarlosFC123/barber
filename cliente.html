@@ -1479,9 +1479,10 @@ setInterval(async () => {
 
         // ==================== FUNCIONES NUEVAS PARA SINCRONIZACIÓN ====================
 
-        function iniciarSincronizacionHoras() {
+function iniciarSincronizacionHoras() {
     console.log('🔄 Iniciando sincronización de horas...');
     
+    // Limpiar intervalo anterior si existe
     if (intervaloActualizacion) {
         clearInterval(intervaloActualizacion);
     }
@@ -1492,14 +1493,34 @@ setInterval(async () => {
         const hayFechaSeleccionada = selectedDate !== null;
         
         if (ahoraEnPestanaAgendar && hayFechaSeleccionada) {
-            // Sincronizar cada 3 segundos cuando estamos viendo horas
-            await obtenerSolicitudesPendientes();
-            await generateHoras(selectedDate); // Forzar regeneración
+            console.log('🔄 Ejecutando sincronización...');
             
-            // DEBUG
-            console.log(`🔄 Sincronización completada. Solicitudes activas: ${solicitudesPendientes.size}`);
+            try {
+                // 1. Obtener solicitudes actualizadas
+                await obtenerSolicitudesPendientes();
+                
+                // 2. Actualizar visualización inmediata
+                await actualizarVisualHorasReservadas();
+                
+                // 3. Solo regenerar completamente si es necesario
+                const horasGrid = document.getElementById('horasGrid');
+                const necesitaRegeneracion = 
+                    horasGrid.children.length === 0 || 
+                    horasGrid.querySelector('.loading') ||
+                    horasGrid.querySelector('.no-horas-disponibles');
+                
+                if (necesitaRegeneracion) {
+                    await generateHoras(selectedDate);
+                }
+                
+                // DEBUG
+                console.log(`✅ Sincronización completada. Solicitudes activas: ${solicitudesPendientes.size}`);
+                
+            } catch (error) {
+                console.error('❌ Error en sincronización:', error);
+            }
         }
-    }, 2000); // Cada 3 segundos (reducido de 5 segundos)
+    }, 2000); // Cada 2 segundos
 }
 
 async function sincronizarHorasEnTiempoReal() {
@@ -1548,6 +1569,9 @@ async function sincronizarHorasEnTiempoReal() {
 
         async function obtenerSolicitudesPendientes() {
     try {
+        console.log('🔄 Obteniendo solicitudes pendientes...');
+        console.log('📋 Mi usuario ID:', miUsuarioId);
+        
         const { data: solicitudes, error } = await supabase
             .from('solicitudes_temporales')
             .select('*')
@@ -1555,25 +1579,25 @@ async function sincronizarHorasEnTiempoReal() {
             
         if (error) throw error;
         
-        // IMPORTANTE: Limpiar y actualizar completamente
-        const nuevoMapa = new Map();
+        console.log('📊 Solicitudes encontradas:', solicitudes);
+        
+        // IMPORTANTE: Mostrar cada solicitud con su usuario_id
+        solicitudes.forEach((sol, index) => {
+            console.log(`  ${index + 1}. Fecha: ${sol.fecha}, Hora: ${sol.hora}, Usuario: ${sol.usuario_id}, Expira: ${sol.expira_en}`);
+        });
+        
+        // Actualizar mapa
+        solicitudesPendientes.clear();
         solicitudes.forEach(sol => {
             const clave = `${sol.fecha}_${sol.hora}`;
-            nuevoMapa.set(clave, {
+            solicitudesPendientes.set(clave, {
                 usuarioId: sol.usuario_id,
                 timestamp: new Date(sol.creado_en),
                 expira_en: new Date(sol.expira_en)
             });
         });
         
-        // Reemplazar el mapa completo, no solo agregar
-        solicitudesPendientes.clear();
-        nuevoMapa.forEach((valor, clave) => {
-            solicitudesPendientes.set(clave, valor);
-        });
-        
-        // DEBUG: Mostrar cuántas solicitudes hay
-        console.log(`🔄 Solicitudes pendientes sincronizadas: ${solicitudesPendientes.size}`);
+        console.log('✅ Solicitudes en mapa:', solicitudesPendientes.size);
         
     } catch (error) {
         console.error('❌ Error obteniendo solicitudes:', error);
@@ -1900,15 +1924,29 @@ async function generateHoras(selectedDateObj) {
         });
         
         // 2. Horas en proceso de reserva
-        solicitudesPendientes.forEach((info, clave) => {
-            const [fecha, horaRes] = clave.split('_');
-            if (fecha === fechaSeleccionadaFormateada) {
-                // Verificar si la solicitud es de otro usuario
-                if (info.usuarioId !== miUsuarioId) {
-                    horasReservadas.add(horaRes);
-                }
-            }
-        });
+        // 2. Horas en proceso de reserva - CON DEBUG
+console.log('🔍 Verificando solicitudes pendientes para fecha:', fechaSeleccionadaFormateada);
+console.log('📋 Total de solicitudes en mapa:', solicitudesPendientes.size);
+
+solicitudesPendientes.forEach((info, clave) => {
+    const [fecha, horaRes] = clave.split('_');
+    console.log(`  - Clave: ${clave}, Fecha: ${fecha}, Hora: ${horaRes}, Usuario: ${info.usuarioId}, MiUsuario: ${miUsuarioId}`);
+    
+    if (fecha === fechaSeleccionadaFormateada) {
+        console.log(`  ✅ Coincide fecha!`);
+        console.log(`     ¿Es de otro usuario? ${info.usuarioId} !== ${miUsuarioId} = ${info.usuarioId !== miUsuarioId}`);
+        
+        // Verificar si la solicitud es de otro usuario
+        if (info.usuarioId !== miUsuarioId) {
+            console.log(`  🚨 Agregando hora reservada: ${horaRes} por usuario ${info.usuarioId}`);
+            horasReservadas.add(horaRes);
+        } else {
+            console.log(`  ✅ Es mi propia reserva, ignorando: ${horaRes}`);
+        }
+    }
+});
+
+console.log('📊 Horas reservadas encontradas:', Array.from(horasReservadas));
 
         horasGrid.innerHTML = '';
         let horasDisponibles = 0;
@@ -2090,6 +2128,67 @@ async function generateHoras(selectedDateObj) {
     }
 }
 
+// Función para actualizar visualmente las horas reservadas
+async function actualizarVisualHorasReservadas() {
+    if (!selectedDate) return;
+    
+    console.log('🎨 Actualizando visualización de horas reservadas...');
+    
+    const año = selectedDate.getFullYear();
+    const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const dia = String(selectedDate.getDate()).padStart(2, '0');
+    const fechaSeleccionadaFormateada = `${año}-${mes}-${dia}`;
+    
+    // Obtener todos los botones de hora
+    const botonesHora = document.querySelectorAll('.hora-btn');
+    
+    botonesHora.forEach(btn => {
+        const horaStr = btn.dataset.hora;
+        const fechaBtn = btn.dataset.fecha;
+        
+        // Solo procesar si es la misma fecha
+        if (fechaBtn === fechaSeleccionadaFormateada) {
+            const clave = `${fechaSeleccionadaFormateada}_${horaStr}`;
+            const reservaInfo = solicitudesPendientes.get(clave);
+            
+            if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
+                console.log(`🎨 Aplicando estilo a hora reservada: ${horaStr}`);
+                
+                // Aplicar estilo visual
+                btn.disabled = true;
+                btn.classList.add('ocupada');
+                btn.style.background = '#8B4513';
+                btn.style.borderColor = '#D2691E';
+                btn.style.color = '#FFFFFF';
+                btn.style.boxShadow = '0 0 8px rgba(139, 69, 19, 0.8)';
+                btn.style.fontWeight = 'bold';
+                btn.title = 'Hora siendo reservada por otro usuario';
+                
+                // Calcular tiempo restante
+                const ahora = new Date();
+                const tiempoRestante = reservaInfo.expira_en - ahora;
+                const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
+                
+                // Actualizar HTML con contador
+                btn.innerHTML = `
+                    ${horaStr}
+                    <br>
+                    <small style="
+                        font-size: 11px; 
+                        background: rgba(255, 255, 255, 0.2); 
+                        padding: 2px 6px; 
+                        border-radius: 4px;
+                        display: inline-block;
+                        margin-top: 3px;
+                        border: 1px solid rgba(255, 255, 255, 0.3);
+                    ">
+                        ⏳ ${segundos}s
+                    </small>
+                `;
+            }
+        }
+    });
+}
         async function cargarBarberoFijo() {
             try {
                 const { data: barberos, error } = await supabase
