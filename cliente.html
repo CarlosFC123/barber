@@ -724,7 +724,8 @@
                 color: #d4af37;
                 margin-right: 8px;
             }
-            .hora-btn[disabled].procesando {
+/* Agregar al final de tu archivo CSS */
+.hora-btn[disabled].en-proceso {
     background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
     border-color: #FF8C00 !important;
     color: #000000 !important;
@@ -732,15 +733,43 @@
     font-weight: bold !important;
     cursor: not-allowed !important;
     opacity: 0.8 !important;
+    position: relative;
 }
 
-.hora-btn.procesando-propia {
-    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
+.hora-btn.en-proceso::after {
+    content: "EN PROCESO";
+    position: absolute;
+    bottom: 5px;
+    left: 0;
+    right: 0;
+    font-size: 9px;
+    color: #000;
+    background: rgba(255, 255, 255, 0.7);
+    padding: 1px 3px;
+    border-radius: 3px;
+}
+
+.hora-btn.mi-reserva {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
     border-color: #FF8C00 !important;
     color: #000000 !important;
-    box-shadow: 0 0 10px rgba(255, 140, 0, 0.7) !important;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.7) !important;
     font-weight: bold !important;
     cursor: pointer !important;
+}
+
+.hora-btn.mi-reserva::after {
+    content: "TU SELECCIÓN";
+    position: absolute;
+    bottom: 5px;
+    left: 0;
+    right: 0;
+    font-size: 9px;
+    color: #000;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-weight: bold;
 }
             
         }
@@ -872,13 +901,16 @@
     }
 
     function startApplication(supabase) {
-        document.addEventListener('click', async (e) => {
+      document.addEventListener('click', async (e) => {
     // Si el usuario hace click en una hora deshabilitada (en proceso)
-    if (e.target.classList.contains('hora-btn') && 
-        e.target.disabled && 
-        e.target.style.background.includes('#FFA500')) {
+    const btn = e.target;
+    if (btn.classList.contains('hora-btn') && 
+        btn.disabled && 
+        (btn.style.background.includes('#FFA500') || btn.style.background.includes('FF8C00'))) {
         
-        showAlert('🔄 Sincronizando disponibilidad de horas...', 'info');
+        showAlert('⚠️ Esta hora está siendo procesada por otro usuario. Espere unos segundos.', 'warning');
+        
+        // Forzar sincronización inmediata
         await sincronizarHorasEnTiempoReal();
     }
 });
@@ -1372,7 +1404,8 @@ setInterval(async () => {
 
                 // Programar verificaciones periódicas
                 setInterval(verificarYActualizarEstadosCitas, 1 * 60 * 1000);
-                
+                setInterval(limpiarSolicitudesExpiradas, 10000);
+                setInterval(verificarEstadoHorasPeriodicamente, 5000);
                 // Ejecutar inmediatamente
                 await verificarYActualizarEstadosCitas();
 
@@ -1660,6 +1693,12 @@ async function sincronizarHorasEnTiempoReal() {
        async function reservarHoraTemporalmente(horaStr, fechaStr, btn) {
     if (bloqueoLlamadaEnProgreso) return;
     
+    // Verificar visualmente si el botón está en proceso
+    if (btn.classList.contains('en-proceso')) {
+        showAlert('⏳ Esta hora está siendo reservada por otro usuario. Por favor, intente en unos segundos o seleccione otra hora.', 'warning');
+        return;
+    }
+    
     bloqueoLlamadaEnProgreso = true;
     
     try {
@@ -1746,6 +1785,26 @@ async function sincronizarHorasEnTiempoReal() {
         }, 500);
     }
 }
+
+        // AGREGAR FUNCIÓN PARA LIMPIAR SOLICITUDES EXPIRADAS
+async function limpiarSolicitudesExpiradas() {
+    try {
+        const ahora = new Date().toISOString();
+        
+        const { error } = await supabase
+            .from('solicitudes_temporales')
+            .delete()
+            .lt('expira_en', ahora);
+            
+        if (error) {
+            console.error('❌ Error limpiando solicitudes expiradas:', error);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error en limpieza automática:', error);
+    }
+}
+
 
         // Función para cancelar reserva anterior
         async function cancelarReservaAnterior() {
@@ -2037,39 +2096,28 @@ async function generateHoras(selectedDateObj) {
                 
             } else if (horaEnProceso) {
                 // HORA EN PROCESO - COLOR NARANJA PARA TODOS
-                if (esMiReserva) {
-                    // Si es nuestra reserva, la dejamos seleccionable
-                    btn.onclick = async () => {
-                        // Re-seleccionar nuestra hora ya reservada
-                        document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
-                        btn.classList.add('selected');
-                        document.getElementById('hora').value = horaStr;
-                    };
-                    
-                    // Estilo para nuestra propia reserva (un poco diferente)
-                    btn.style.background = 'linear-gradient(135deg, #FFA500 0%, #FF8C00 100%)';
-                    btn.style.borderColor = '#FF8C00';
-                    btn.style.color = '#000000';
-                    btn.style.boxShadow = '0 0 10px rgba(255, 140, 0, 0.7)';
-                    btn.style.fontWeight = 'bold';
-                    btn.innerHTML = `${horaStr}<br><small style="font-size: 11px; color: #000;">Tu selección</small>`;
-                    
-                } else {
-                    // Hora siendo procesada por OTRO usuario
-                    btn.disabled = true;
-                    btn.title = 'Hora siendo procesada por otro usuario';
-                    btn.style.background = 'linear-gradient(135deg, #FFA500 0%, #FF8C00 100%)';
-                    btn.style.borderColor = '#FF8C00';
-                    btn.style.color = '#000000';
-                    btn.style.boxShadow = '0 0 10px rgba(255, 140, 0, 0.5)';
-                    btn.style.fontWeight = 'bold';
-                    btn.innerHTML = `${horaStr}<br><small style="font-size: 11px; color: #000;">En proceso...</small>`;
-                    
-                    // Agregar tooltip más informativo
-                    btn.setAttribute('data-tooltip', 'Otro usuario está reservando esta hora. Espere unos segundos.');
-                }
-                
-            } else {
+if (esMiReserva) {
+    // Si es nuestra reserva
+    btn.onclick = async () => {
+        document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        document.getElementById('hora').value = horaStr;
+    };
+    
+    // Agregar clase CSS específica para nuestra reserva
+    btn.classList.add('mi-reserva');
+    btn.innerHTML = `${horaStr}<br><small style="font-size: 11px; color: #000;">Tu selección</small>`;
+    
+} else {
+    // Hora siendo procesada por OTRO usuario
+    btn.disabled = true;
+    btn.title = 'Hora siendo procesada por otro usuario';
+    btn.classList.add('en-proceso');
+    btn.innerHTML = `${horaStr}<br><small style="font-size: 11px; color: #000;">En proceso...</small>`;
+    
+    // Agregar tooltip más informativo
+    btn.setAttribute('data-tooltip', 'Otro usuario está reservando esta hora. Espere unos segundos.');
+}} else {
                 // HORA DISPONIBLE
                 btn.onclick = async () => {
                     // Intentar reservar la hora
@@ -2109,6 +2157,27 @@ async function generateHoras(selectedDateObj) {
         horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
     }
 }
+
+// Agregar esta función para verificar estado de horas periódicamente
+async function verificarEstadoHorasPeriodicamente() {
+    if (selectedDate && document.getElementById('agendar').classList.contains('active')) {
+        // Verificar si nuestras reservas siguen activas
+        if (reservaActiva) {
+            const clave = `${reservaActiva.fecha}_${reservaActiva.hora}`;
+            if (!solicitudesPendientes.has(clave)) {
+                // Nuestra reserva fue eliminada (posiblemente por timeout)
+                showAlert('⚠️ Tu reserva temporal ha expirado. Por favor, selecciona nuevamente.', 'warning');
+                reservaActiva = null;
+                await generateHoras(selectedDate);
+            }
+        }
+        
+        // Verificar si hay horas que ya no están en proceso
+        await sincronizarHoras();
+    }
+}
+
+
 
         async function cargarBarberoFijo() {
             try {
