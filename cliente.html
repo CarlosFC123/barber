@@ -1638,7 +1638,7 @@ async function sincronizarHorasEnTiempoReal() {
                 };
                 
                 // 4. Actualizar UI
-                actualizarUIReservaActiva(btn, horaStr, 15); // 30 segundos iniciales
+                actualizarUIReservaActiva(btn, horaStr, 30); // 30 segundos iniciales
                 
                 // 5. Guardar selección
                 document.getElementById('hora').value = horaStr;
@@ -1649,7 +1649,7 @@ async function sincronizarHorasEnTiempoReal() {
                     resetearUIReserva(btn, horaStr);
                     showAlert('⏰ Reserva liberada automáticamente', 'info');
                     reservaActiva = null;
-                },5000); // 30 segundos máximo
+                },30000); // 30 segundos máximo
                 
                 // 7. Configurar listeners para liberación automática
                 configurarListenersLiberacion(fechaStr, horaStr, btn);
