@@ -901,12 +901,15 @@
     }
 
     function startApplication(supabase) {
-      document.addEventListener('click', async (e) => {
+
+document.addEventListener('click', async (e) => {
     // Si el usuario hace click en una hora deshabilitada (en proceso)
     const btn = e.target;
     if (btn.classList.contains('hora-btn') && 
         btn.disabled && 
-        (btn.style.background.includes('#FFA500') || btn.style.background.includes('FF8C00'))) {
+        (btn.classList.contains('en-proceso') || 
+         btn.style.background.includes('FFA500') || 
+         btn.style.background.includes('#FFA500'))) {
         
         showAlert('⚠️ Esta hora está siendo procesada por otro usuario. Espere unos segundos.', 'warning');
         
