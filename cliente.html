@@ -2089,28 +2089,39 @@ async function generateHoras(selectedDateObj) {
                 
             } else if (horaEnProceso) {
                 // HORA EN PROCESO - COLOR NARANJA PARA TODOS
-if (esMiReserva) {
-    // Si es nuestra reserva
-    btn.onclick = async () => {
-        document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        document.getElementById('hora').value = horaStr;
-    };
-    
-    // Agregar clase CSS específica para nuestra reserva
-    btn.classList.add('mi-reserva');
-    btn.innerHTML = `${horaStr}<br><small style="font-size: 11px; color: #000;">Tu selección</small>`;
-    
-} else {
-    // Hora siendo procesada por OTRO usuario
-    btn.disabled = true;
-    btn.title = 'Hora siendo procesada por otro usuario';
-    btn.classList.add('en-proceso');
-    btn.innerHTML = `${horaStr}<br><small style="font-size: 11px; color: #000;">En proceso...</small>`;
-    
-    // Agregar tooltip más informativo
-    btn.setAttribute('data-tooltip', 'Otro usuario está reservando esta hora. Espere unos segundos.');
-}} else {
+                if (esMiReserva) {
+                    // Si es nuestra reserva, la dejamos seleccionable
+                    btn.onclick = async () => {
+                        // Re-seleccionar nuestra hora ya reservada
+                        document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
+                        btn.classList.add('selected');
+                        document.getElementById('hora').value = horaStr;
+                    };
+                    
+                    // Estilo para nuestra propia reserva (un poco diferente)
+                    btn.style.background = 'linear-gradient(135deg, #FFA500 0%, #FF8C00 100%)';
+                    btn.style.borderColor = '#FF8C00';
+                    btn.style.color = '#000000';
+                    btn.style.boxShadow = '0 0 10px rgba(255, 140, 0, 0.7)';
+                    btn.style.fontWeight = 'bold';
+                    btn.innerHTML = `${horaStr}<br><small style="font-size: 11px; color: #000;">Tu selección</small>`;
+                    
+                } else {
+                    // Hora siendo procesada por OTRO usuario
+                    btn.disabled = true;
+                    btn.title = 'Hora siendo procesada por otro usuario';
+                    btn.style.background = 'linear-gradient(135deg, #FFA500 0%, #FF8C00 100%)';
+                    btn.style.borderColor = '#FF8C00';
+                    btn.style.color = '#000000';
+                    btn.style.boxShadow = '0 0 10px rgba(255, 140, 0, 0.5)';
+                    btn.style.fontWeight = 'bold';
+                    btn.innerHTML = `${horaStr}<br><small style="font-size: 11px; color: #000;">En proceso...</small>`;
+                    
+                    // Agregar tooltip más informativo
+                    btn.setAttribute('data-tooltip', 'Otro usuario está reservando esta hora. Espere unos segundos.');
+                }
+                
+            } else {
                 // HORA DISPONIBLE
                 btn.onclick = async () => {
                     // Intentar reservar la hora
