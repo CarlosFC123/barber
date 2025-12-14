@@ -724,24 +724,6 @@
                 color: #d4af37;
                 margin-right: 8px;
             }
-            .hora-btn[disabled].procesando {
-    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
-    border-color: #FF8C00 !important;
-    color: #000000 !important;
-    box-shadow: 0 0 10px rgba(255, 140, 0, 0.5) !important;
-    font-weight: bold !important;
-    cursor: not-allowed !important;
-    opacity: 0.8 !important;
-}
-
-.hora-btn.procesando-propia {
-    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
-    border-color: #FF8C00 !important;
-    color: #000000 !important;
-    box-shadow: 0 0 10px rgba(255, 140, 0, 0.7) !important;
-    font-weight: bold !important;
-    cursor: pointer !important;
-}
             
         }
     </style>
@@ -1497,47 +1479,29 @@ setInterval(async () => {
 
         // ==================== FUNCIONES NUEVAS PARA SINCRONIZACIÓN ====================
 
-       function iniciarSincronizacionHoras() {
+        function iniciarSincronizacionHoras() {
     console.log('🔄 Iniciando sincronización de horas...');
     
     if (intervaloActualizacion) {
         clearInterval(intervaloActualizacion);
     }
     
-    // Polling optimizado: más frecuente cuando hay horas en proceso
+    // Polling más frecuente cuando hay actividad
     intervaloActualizacion = setInterval(async () => {
         const ahoraEnPestanaAgendar = document.getElementById('agendar').classList.contains('active');
         const hayFechaSeleccionada = selectedDate !== null;
         
         if (ahoraEnPestanaAgendar && hayFechaSeleccionada) {
-            // Verificar si hay horas en proceso
-            let hayHorasEnProceso = false;
-            solicitudesPendientes.forEach((info, clave) => {
-                const [fecha] = clave.split('_');
-                const fechaFormateada = selectedDate.toISOString().split('T')[0];
-                if (fecha === fechaFormateada) {
-                    hayHorasEnProceso = true;
-                }
-            });
+            // Sincronizar cada 3 segundos cuando estamos viendo horas
+            await obtenerSolicitudesPendientes();
+            await generateHoras(selectedDate); // Forzar regeneración
             
-            // Si hay horas en proceso, sincronizar más rápido
-            const intervalo = hayHorasEnProceso ? 2000 : 5000; // 2 seg vs 5 seg
-            
-            if (Date.now() - ultimaActualizacionHoras >= intervalo) {
-                await obtenerSolicitudesPendientes();
-                await precargarCitasFuturas();
-                
-                // Solo regenerar UI si hay cambios reales
-                const container = document.getElementById('horasGrid');
-                if (container.children.length > 0 && !container.querySelector('.loading')) {
-                    await generateHoras(selectedDate);
-                }
-                
-                ultimaActualizacionHoras = Date.now();
-            }
+            // DEBUG
+            console.log(`🔄 Sincronización completada. Solicitudes activas: ${solicitudesPendientes.size}`);
         }
-    }, 1000); // Verificar cada segundo si necesita sincronizar
+    }, 2000); // Cada 3 segundos (reducido de 5 segundos)
 }
+
 async function sincronizarHorasEnTiempoReal() {
     if (!selectedDate) return;
     
@@ -1647,95 +1611,58 @@ async function sincronizarHorasEnTiempoReal() {
         }
 
         // Función para reservar hora temporalmente
-       async function reservarHoraTemporalmente(horaStr, fechaStr, btn) {
-    if (bloqueoLlamadaEnProgreso) return;
-    
-    bloqueoLlamadaEnProgreso = true;
-    
-    try {
-        // 1. Verificar si la hora está siendo procesada por otro usuario
-        const clave = `${fechaStr}_${horaStr}`;
-        
-        if (solicitudesPendientes.has(clave)) {
-            const solicitud = solicitudesPendientes.get(clave);
+        async function reservarHoraTemporalmente(horaStr, fechaStr, btn) {
+            if (bloqueoLlamadaEnProgreso) return;
             
-            // Solo mostrar alerta si es de OTRO usuario
-            if (solicitud.usuarioId !== miUsuarioId) {
-                showAlert('⚠️ Esta hora está siendo procesada por otro usuario. Por favor, espere unos 15 segundos y vuelva a intentar.', 'warning');
+            bloqueoLlamadaEnProgreso = true;
+            
+            try {
+                // 1. Cancelar cualquier reserva anterior
+                await cancelarReservaAnterior();
                 
-                // Programar una actualización automática en 15 segundos
-                setTimeout(async () => {
-                    await sincronizarHorasEnTiempoReal();
-                    showAlert('🔄 Se ha actualizado la disponibilidad de horas. Verifique nuevamente.', 'info');
-                }, 15000);
+                // 2. Registrar nueva reserva
+                const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
                 
-                return;
+                if (!resultado) {
+                    showAlert('Esta hora ya está siendo reservada por otro usuario', 'error');
+                    await sincronizarHoras();
+                    return;
+                }
+                
+                // 3. Guardar referencia de la reserva activa
+                reservaActiva = {
+                    fecha: fechaStr,
+                    hora: horaStr,
+                    boton: btn,
+                    inicio: Date.now()
+                };
+                
+                // 4. Actualizar UI
+                actualizarUIReservaActiva(btn, horaStr, 30); // 30 segundos iniciales
+                
+                // 5. Guardar selección
+                document.getElementById('hora').value = horaStr;
+                
+                // 6. Iniciar contador de 30 segundos (máximo si no cancela)
+                timeoutReserva = setTimeout(async () => {
+                    await liberarReserva(fechaStr, horaStr);
+                    resetearUIReserva(btn, horaStr);
+                    showAlert('⏰ Reserva liberada automáticamente', 'info');
+                    reservaActiva = null;
+                }, 30000); // 30 segundos máximo
+                
+                // 7. Configurar listeners para liberación automática
+                configurarListenersLiberacion(fechaStr, horaStr, btn);
+                
+            } catch (error) {
+                console.error('❌ Error reservando hora:', error);
+                showAlert('Error al reservar la hora', 'error');
+            } finally {
+                setTimeout(() => {
+                    bloqueoLlamadaEnProgreso = false;
+                }, 500);
             }
         }
-        
-        // 2. Cancelar cualquier reserva anterior
-        await cancelarReservaAnterior();
-        
-        // 3. Registrar nueva reserva
-        const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
-        
-        if (!resultado) {
-            showAlert('⚠️ Esta hora ya está siendo reservada por otro usuario', 'warning');
-            await sincronizarHorasEnTiempoReal();
-            return;
-        }
-        
-        // 4. Guardar referencia de la reserva activa
-        reservaActiva = {
-            fecha: fechaStr,
-            hora: horaStr,
-            boton: btn,
-            inicio: Date.now()
-        };
-        
-        // 5. Actualizar UI (solo para mostrar que está seleccionada)
-        document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        btn.style.background = 'linear-gradient(135deg, #FFA500 0%, #FF8C00 100%)';
-        btn.style.borderColor = '#FF8C00';
-        btn.style.color = '#000000';
-        btn.style.boxShadow = '0 0 10px rgba(255, 140, 0, 0.7)';
-        btn.innerHTML = `${horaStr}<br><small style="font-size: 11px; color: #000;">Tu selección</small>`;
-        
-        // 6. Guardar selección
-        document.getElementById('hora').value = horaStr;
-        
-        // 7. Iniciar temporizador de 30 segundos para liberar automáticamente
-        timeoutReserva = setTimeout(async () => {
-            await liberarReserva(fechaStr, horaStr);
-            
-            // Restaurar UI del botón
-            btn.classList.remove('selected');
-            btn.style.background = '';
-            btn.style.borderColor = '';
-            btn.style.color = '';
-            btn.style.boxShadow = '';
-            btn.innerHTML = horaStr;
-            
-            showAlert('⏰ Reserva liberada automáticamente después de 30 segundos', 'info');
-            reservaActiva = null;
-            
-            // Forzar sincronización para que todos vean el cambio
-            await sincronizarHorasEnTiempoReal();
-        }, 30000); // 30 segundos máximo
-        
-        // 8. Configurar listeners para liberación
-        configurarListenersLiberacion(fechaStr, horaStr, btn);
-        
-    } catch (error) {
-        console.error('❌ Error reservando hora:', error);
-        showAlert('Error al reservar la hora', 'error');
-    } finally {
-        setTimeout(() => {
-            bloqueoLlamadaEnProgreso = false;
-        }, 500);
-    }
-}
 
         // Función para cancelar reserva anterior
         async function cancelarReservaAnterior() {
