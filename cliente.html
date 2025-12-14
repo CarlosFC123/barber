@@ -1543,63 +1543,118 @@ setInterval(async () => {
 
         // ==================== FUNCIONES NUEVAS PARA SINCRONIZACIÓN ====================
 
-       function iniciarSincronizacionHoras() {
-    console.log('🔄 Iniciando sincronización de horas...');
+      function iniciarSincronizacionHoras() {
+    console.log('🔄 Iniciando sincronización optimizada de horas...');
     
     if (intervaloActualizacion) {
         clearInterval(intervaloActualizacion);
     }
     
-    // Polling optimizado: más frecuente cuando hay horas en proceso
+    // Polling más inteligente: verificar estado de horas en proceso
     intervaloActualizacion = setInterval(async () => {
         const ahoraEnPestanaAgendar = document.getElementById('agendar').classList.contains('active');
         const hayFechaSeleccionada = selectedDate !== null;
         
         if (ahoraEnPestanaAgendar && hayFechaSeleccionada) {
-            // Verificar si hay horas en proceso
-            let hayHorasEnProceso = false;
-            solicitudesPendientes.forEach((info, clave) => {
-                const [fecha] = clave.split('_');
-                const fechaFormateada = selectedDate.toISOString().split('T')[0];
-                if (fecha === fechaFormateada) {
-                    hayHorasEnProceso = true;
-                }
-            });
+            // Verificar si hay horas en proceso actualmente visibles
+            const hayHorasEnProcesoVisibles = document.querySelectorAll('.hora-btn.en-proceso, .hora-btn.mi-reserva').length > 0;
             
-            // Si hay horas en proceso, sincronizar más rápido
-            const intervalo = hayHorasEnProceso ? 2000 : 5000; // 2 seg vs 5 seg
+            // Si hay horas en proceso visibles, sincronizar más rápido
+            const intervalo = hayHorasEnProcesoVisibles ? 3000 : 8000; // 3 seg vs 8 seg
             
             if (Date.now() - ultimaActualizacionHoras >= intervalo) {
-                await obtenerSolicitudesPendientes();
-                await precargarCitasFuturas();
-                
-                // Solo regenerar UI si hay cambios reales
-                const container = document.getElementById('horasGrid');
-                if (container.children.length > 0 && !container.querySelector('.loading')) {
-                    await generateHoras(selectedDate);
-                }
-                
+                await sincronizarHorasEnTiempoReal();
                 ultimaActualizacionHoras = Date.now();
             }
         }
-    }, 1000); // Verificar cada segundo si necesita sincronizar
+    }, 1000); // Verificar cada segundo
 }
 async function sincronizarHorasEnTiempoReal() {
     if (!selectedDate) return;
     
-    console.log('⚡ Sincronización inmediata de horas...');
+    console.log('⚡ Sincronización específica de horas...');
     
-    // 1. Obtener solicitudes más recientes
+    const año = selectedDate.getFullYear();
+    const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const dia = String(selectedDate.getDate()).padStart(2, '0');
+    const fechaSeleccionadaFormateada = `${año}-${mes}-${dia}`;
+    
     await obtenerSolicitudesPendientes();
     
-    // 2. Obtener citas actualizadas
-    await precargarCitasFuturas();
+    // Obtener solicitudes para esta fecha específica
+    const solicitudesParaEstaFecha = new Map();
+    solicitudesPendientes.forEach((info, clave) => {
+        const [fecha, horaRes] = clave.split('_');
+        if (fecha === fechaSeleccionadaFormateada) {
+            solicitudesParaEstaFecha.set(clave, info);
+        }
+    });
     
-    // 3. Regenerar horas
-    await generateHoras(selectedDate);
+    // Obtener horas ocupadas permanentemente
+    const citasDelDiaSeleccionado = todasLasCitasFuturasCache.filter(cita => {
+        return cita.fecha === fechaSeleccionadaFormateada;
+    });
+    const horasOcupadas = new Set(citasDelDiaSeleccionado.map(cita => cita.hora));
     
-    // 4. Mostrar estadísticas
-    console.log(`📊 Estado actual: ${solicitudesPendientes.size} reservas temporales activas`);
+    // Actualizar cada hora que podría estar en proceso
+    solicitudesParaEstaFecha.forEach((info, clave) => {
+        const [fecha, hora] = clave.split('_');
+        
+        // Verificar si la hora está ocupada permanentemente
+        if (horasOcupadas.has(hora)) {
+            // No hacer nada si ya está ocupada permanentemente
+            return;
+        }
+        
+        const esMiReserva = info.usuarioId === miUsuarioId;
+        const estado = esMiReserva ? 'mi-reserva' : 'en-proceso';
+        
+        // Llamar a la función para actualizar el botón específico
+        actualizarBotonHoraEspecifico(fecha, hora, estado);
+    });
+    
+    // Verificar horas que YA NO están en proceso
+    const botonesHora = document.querySelectorAll('.hora-btn');
+    botonesHora.forEach(btn => {
+        const horaStr = btn.dataset.hora;
+        const clave = `${fechaSeleccionadaFormateada}_${horaStr}`;
+        
+        // Si el botón está marcado como en proceso pero ya no está en solicitudes
+        if ((btn.classList.contains('en-proceso') || btn.classList.contains('mi-reserva')) && 
+            !solicitudesParaEstaFecha.has(clave) && 
+            !horasOcupadas.has(horaStr)) {
+            
+            // Restaurar a disponible
+            actualizarBotonHoraEspecifico(fechaSeleccionadaFormateada, horaStr, 'disponible');
+        }
+    });
+    
+    actualizarContadoresHorasEnProceso();
+} 
+
+function actualizarContadoresHorasEnProceso() {
+    const ahora = Date.now();
+    const botonesEnProceso = document.querySelectorAll('.hora-btn.en-proceso, .hora-btn.mi-reserva');
+    
+    botonesEnProceso.forEach(btn => {
+        const horaStr = btn.dataset.hora;
+        const fechaStr = btn.dataset.fecha;
+        const clave = `${fechaStr}_${horaStr}`;
+        
+        if (solicitudesPendientes.has(clave)) {
+            const solicitud = solicitudesPendientes.get(clave);
+            const tiempoRestante = new Date(solicitud.expira_en || 0).getTime() - ahora;
+            const segundosRestantes = Math.max(0, Math.floor(tiempoRestante / 1000));
+            
+            if (segundosRestantes > 0) {
+                // Actualizar texto del contador solo
+                const smallElement = btn.querySelector('small');
+                if (smallElement) {
+                    smallElement.textContent = segundosRestantes > 30 ? 'En proceso...' : `Expira en ${segundosRestantes}s`;
+                }
+            }
+        }
+    });
 }
         // Función principal de sincronización
         async function sincronizarHoras() {
@@ -1628,37 +1683,53 @@ async function sincronizarHorasEnTiempoReal() {
             }
         }
 
-        async function obtenerSolicitudesPendientes() {
+       async function obtenerSolicitudesPendientes() {
     try {
-        console.log('🔄 Obteniendo solicitudes pendientes...');
-        console.log('📋 Mi usuario ID:', miUsuarioId);
-        
-        const { data: solicitudes, error } = await supabase
+        // Solo obtener solicitudes para la fecha seleccionada si hay una
+        let query = supabase
             .from('solicitudes_temporales')
             .select('*')
             .gte('expira_en', new Date().toISOString());
+        
+        if (selectedDate) {
+            const año = selectedDate.getFullYear();
+            const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const dia = String(selectedDate.getDate()).padStart(2, '0');
+            const fechaSeleccionadaFormateada = `${año}-${mes}-${dia}`;
+            
+            query = query.eq('fecha', fechaSeleccionadaFormateada);
+        }
+        
+        const { data: solicitudes, error } = await query;
             
         if (error) throw error;
         
-        console.log('📊 Solicitudes encontradas:', solicitudes);
-        
-        // IMPORTANTE: Mostrar cada solicitud con su usuario_id
-        solicitudes.forEach((sol, index) => {
-            console.log(`  ${index + 1}. Fecha: ${sol.fecha}, Hora: ${sol.hora}, Usuario: ${sol.usuario_id}, Expira: ${sol.expira_en}`);
-        });
-        
-        // Actualizar mapa
-        solicitudesPendientes.clear();
-        solicitudes.forEach(sol => {
-            const clave = `${sol.fecha}_${sol.hora}`;
-            solicitudesPendientes.set(clave, {
-                usuarioId: sol.usuario_id,
-                timestamp: new Date(sol.creado_en),
-                expira_en: new Date(sol.expira_en)
+        // Actualizar mapa SOLO para la fecha seleccionada
+        if (selectedDate) {
+            const fechaSeleccionada = `${año}-${mes}-${dia}`;
+            
+            // Eliminar solo las solicitudes de esta fecha
+            const clavesAEliminar = [];
+            solicitudesPendientes.forEach((info, clave) => {
+                const [fecha] = clave.split('_');
+                if (fecha === fechaSeleccionada) {
+                    clavesAEliminar.push(clave);
+                }
             });
-        });
-        
-        console.log('✅ Solicitudes en mapa:', solicitudesPendientes.size);
+            clavesAEliminar.forEach(clave => solicitudesPendientes.delete(clave));
+            
+            // Agregar las nuevas
+            if (solicitudes) {
+                solicitudes.forEach(sol => {
+                    const clave = `${sol.fecha}_${sol.hora}`;
+                    solicitudesPendientes.set(clave, {
+                        usuarioId: sol.usuario_id,
+                        timestamp: new Date(sol.creado_en),
+                        expira_en: new Date(sol.expira_en)
+                    });
+                });
+            }
+        }
         
     } catch (error) {
         console.error('❌ Error obteniendo solicitudes:', error);
@@ -1733,9 +1804,15 @@ async function sincronizarHorasEnTiempoReal() {
         
         if (!resultado) {
             showAlert('⚠️ Esta hora ya está siendo reservada por otro usuario', 'warning');
+            
+            // Actualizar solo este botón específico
+            actualizarBotonHoraEspecifico(fechaStr, horaStr, 'en-proceso');
+            
             await sincronizarHorasEnTiempoReal();
             return;
         }
+                actualizarBotonHoraEspecifico(fechaStr, horaStr, 'mi-reserva');
+
         
         // 4. Guardar referencia de la reserva activa
         reservaActiva = {
@@ -1818,6 +1895,9 @@ async function limpiarSolicitudesExpiradas() {
                     clearTimeout(timeoutReserva);
                     timeoutReserva = null;
                 }
+                
+                actualizarBotonHoraEspecifico(reservaActiva.fecha, reservaActiva.hora, 'disponible');
+
                 
                 // Restaurar UI del botón anterior
                 if (reservaActiva.boton) {
@@ -1904,6 +1984,9 @@ async function limpiarSolicitudesExpiradas() {
         // Limpiar cache local
         const clave = `${fecha}_${hora}`;
         solicitudesPendientes.delete(clave);
+
+        actualizarBotonHoraEspecifico(fecha, hora, 'disponible');
+
         
         // Si estamos en la vista de agendar, actualizar UI
         if (selectedDate && document.getElementById('agendar').classList.contains('active')) {
@@ -2068,22 +2151,25 @@ async function generateHoras(selectedDateObj) {
         horasGrid.innerHTML = '';
         let horasDisponibles = 0;
 
-        horas.forEach(({ hora: h, minutos: m }) => {
-            const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'hora-btn';
-            btn.dataset.hora = horaStr;
-            btn.dataset.fecha = fechaSeleccionadaFormateada;
+       horas.forEach(({ hora: h, minutos: m }) => {
+        const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'hora-btn';
+        btn.dataset.hora = horaStr;
+        btn.dataset.fecha = fechaSeleccionadaFormateada;
+        // Agregar ID único
+        btn.id = `hora-btn-${fechaSeleccionadaFormateada}-${horaStr.replace(':', '-')}`;
+
             
             const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
             const horaOcupada = horasOcupadas.has(horaStr);
             const horaEnProceso = horasEnProceso.has(horaStr);
             
             // Verificar si esta hora es nuestra reserva activa
-            const esMiReserva = reservaActiva && 
-                               reservaActiva.fecha === fechaSeleccionadaFormateada && 
-                               reservaActiva.hora === horaStr;
+            // const esMiReserva = reservaActiva && 
+            //                    reservaActiva.fecha === fechaSeleccionadaFormateada && 
+            //                    reservaActiva.hora === horaStr;
             
             if (horaPasada || horaOcupada) {
                 btn.disabled = true;
@@ -2098,14 +2184,18 @@ async function generateHoras(selectedDateObj) {
                 btn.textContent = horaStr;
                 
             } else if (horaEnProceso) {
+                const clave = `${fechaSeleccionadaFormateada}_${horaStr}`;
+        const solicitud = solicitudesPendientes.get(clave);
+        const esMiReserva = solicitud && solicitud.usuarioId === miUsuarioId;
+        
+        // Usar la función para establecer el estado inicial
+        const estadoInicial = esMiReserva ? 'mi-reserva' : 'en-proceso';
                 // HORA EN PROCESO - COLOR NARANJA PARA TODOS
 if (esMiReserva) {
     // Si es nuestra reserva
     btn.onclick = async () => {
-        document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        document.getElementById('hora').value = horaStr;
-    };
+    await manejarClicHora(horaStr, fechaSeleccionadaFormateada, btn);
+};
     
     // Agregar clase CSS específica para nuestra reserva
     btn.classList.add('mi-reserva');
@@ -2158,6 +2248,57 @@ if (esMiReserva) {
     } catch (error) {
         console.error('❌ Error generando horas:', error);
         horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
+    }
+}
+
+async function manejarClicHora(horaStr, fechaStr, btn) {
+    // Verificar si ya está en proceso (excepto si es nuestra)
+    const clave = `${fechaStr}_${horaStr}`;
+    const estaEnProceso = solicitudesPendientes.has(clave);
+    
+    if (estaEnProceso) {
+        const solicitud = solicitudesPendientes.get(clave);
+        if (solicitud.usuarioId !== miUsuarioId) {
+            // Ya está siendo procesada por otro usuario
+            actualizarBotonHoraEspecifico(fechaStr, horaStr, 'en-proceso');
+            showAlert('⚠️ Esta hora está siendo procesada por otro usuario.', 'warning');
+            return;
+        }
+    }
+    
+    // Si llegamos aquí, la hora está disponible o es nuestra
+    await reservarHoraTemporalmente(horaStr, fechaStr, btn);
+}
+
+function actualizarBotonHoraEspecifico(fecha, hora, estado) {
+    const btnId = `hora-btn-${fecha}-${hora.replace(':', '-')}`;
+    const btn = document.getElementById(btnId);
+    
+    if (!btn) return false;
+    
+    switch(estado) {
+        case 'en-proceso':
+            btn.classList.add('en-proceso');
+            btn.classList.remove('mi-reserva');
+            btn.disabled = true;
+            btn.innerHTML = `${hora}<br><small style="font-size: 11px; color: #000;">En proceso...</small>`;
+            return true;
+            
+        case 'mi-reserva':
+            btn.classList.remove('en-proceso');
+            btn.classList.add('mi-reserva');
+            btn.disabled = false;
+            btn.innerHTML = `${hora}<br><small style="font-size: 11px; color: #000;">Tu selección</small>`;
+            return true;
+            
+        case 'disponible':
+            btn.classList.remove('en-proceso', 'mi-reserva');
+            btn.disabled = false;
+            btn.textContent = hora;
+            return true;
+            
+        default:
+            return false;
     }
 }
 
