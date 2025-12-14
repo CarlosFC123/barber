@@ -724,8 +724,7 @@
                 color: #d4af37;
                 margin-right: 8px;
             }
-/* Agregar al final de tu archivo CSS */
-.hora-btn[disabled].en-proceso {
+            .hora-btn[disabled].procesando {
     background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
     border-color: #FF8C00 !important;
     color: #000000 !important;
@@ -733,43 +732,15 @@
     font-weight: bold !important;
     cursor: not-allowed !important;
     opacity: 0.8 !important;
-    position: relative;
 }
 
-.hora-btn.en-proceso::after {
-    content: "EN PROCESO";
-    position: absolute;
-    bottom: 5px;
-    left: 0;
-    right: 0;
-    font-size: 9px;
-    color: #000;
-    background: rgba(255, 255, 255, 0.7);
-    padding: 1px 3px;
-    border-radius: 3px;
-}
-
-.hora-btn.mi-reserva {
-    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
+.hora-btn.procesando-propia {
+    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
     border-color: #FF8C00 !important;
     color: #000000 !important;
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.7) !important;
+    box-shadow: 0 0 10px rgba(255, 140, 0, 0.7) !important;
     font-weight: bold !important;
     cursor: pointer !important;
-}
-
-.hora-btn.mi-reserva::after {
-    content: "TU SELECCIÓN";
-    position: absolute;
-    bottom: 5px;
-    left: 0;
-    right: 0;
-    font-size: 9px;
-    color: #000;
-    background: rgba(255, 255, 255, 0.9);
-    padding: 1px 3px;
-    border-radius: 3px;
-    font-weight: bold;
 }
             
         }
@@ -901,19 +872,6 @@
     }
 
     function startApplication(supabase) {
-      document.addEventListener('click', async (e) => {
-    // Si el usuario hace click en una hora deshabilitada (en proceso)
-    const btn = e.target;
-    if (btn.classList.contains('hora-btn') && 
-        btn.disabled && 
-        (btn.style.background.includes('#FFA500') || btn.style.background.includes('FF8C00'))) {
-        
-        showAlert('⚠️ Esta hora está siendo procesada por otro usuario. Espere unos segundos.', 'warning');
-        
-        // Forzar sincronización inmediata
-        await sincronizarHorasEnTiempoReal();
-    }
-});
         let usuarioActual = null;
         let selectedDate = null;
         let currentMonth = new Date();
@@ -1404,7 +1362,7 @@ setInterval(async () => {
 
                 // Programar verificaciones periódicas
                 setInterval(verificarYActualizarEstadosCitas, 1 * 60 * 1000);
-                setInterval(limpiarSolicitudesExpiradas, 10000);
+                
                 // Ejecutar inmediatamente
                 await verificarYActualizarEstadosCitas();
 
@@ -1779,26 +1737,6 @@ async function sincronizarHorasEnTiempoReal() {
     }
 }
 
-        // AGREGAR FUNCIÓN PARA LIMPIAR SOLICITUDES EXPIRADAS
-async function limpiarSolicitudesExpiradas() {
-    try {
-        const ahora = new Date().toISOString();
-        
-        const { error } = await supabase
-            .from('solicitudes_temporales')
-            .delete()
-            .lt('expira_en', ahora);
-            
-        if (error) {
-            console.error('❌ Error limpiando solicitudes expiradas:', error);
-        }
-        
-    } catch (error) {
-        console.error('❌ Error en limpieza automática:', error);
-    }
-}
-
-
         // Función para cancelar reserva anterior
         async function cancelarReservaAnterior() {
             if (reservaActiva) {
@@ -1881,32 +1819,24 @@ async function limpiarSolicitudesExpiradas() {
 
         // Función para liberar reserva
         async function liberarReserva(fecha, hora) {
-    try {
-        const { error } = await supabase
-            .from('solicitudes_temporales')
-            .delete()
-            .eq('fecha', fecha)
-            .eq('hora', hora)
-            .eq('usuario_id', miUsuarioId);
-            
-        if (error) throw error;
-        
-        // Limpiar cache local
-        const clave = `${fecha}_${hora}`;
-        solicitudesPendientes.delete(clave);
-        
-        // Si estamos en la vista de agendar, actualizar UI
-        if (selectedDate && document.getElementById('agendar').classList.contains('active')) {
-            const fechaFormateada = selectedDate.toISOString().split('T')[0];
-            if (fecha === fechaFormateada) {
-                await generateHoras(selectedDate);
+            try {
+                const { error } = await supabase
+                    .from('solicitudes_temporales')
+                    .delete()
+                    .eq('fecha', fecha)
+                    .eq('hora', hora)
+                    .eq('usuario_id', miUsuarioId);
+                    
+                if (error) throw error;
+                
+                // Limpiar cache local
+                const clave = `${fecha}_${hora}`;
+                solicitudesPendientes.delete(clave);
+                
+            } catch (error) {
+                console.error('❌ Error liberando reserva:', error);
             }
         }
-        
-    } catch (error) {
-        console.error('❌ Error liberando reserva:', error);
-    }
-}
 
         // Función para actualizar UI durante reserva
         function actualizarUIReservaActiva(btn, horaStr, segundosRestantes) {
