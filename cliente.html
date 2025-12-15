@@ -1077,7 +1077,7 @@
                 console.error('Error en polling automático:', error);
             }
         }
-    }, 1000); // Cada segundo
+    }, 3000); // Cada segundo
     
     // Polling secundario cada 3 segundos para notificaciones
     const intervaloSecundario = setInterval(async () => {
@@ -1092,7 +1092,7 @@
                 console.error('Error en polling secundario:', error);
             }
         }
-    },1000);
+    },3000);
     
     // Detener polling cuando cambia de pestaña
     document.addEventListener('visibilitychange', () => {
@@ -1321,7 +1321,7 @@ async function actualizarHoraEspecificaInmediata(fecha, hora) {
                     console.log(`   ❌ Error enviando recordatorio`);
                 }
                 
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 3000));
             } else if (tiempoParaCita > 0) {
                 console.log(`   ⏳ Cita ${cita.id}: ${minutosParaCita} minutos - Fuera de ventana (55-65 min)`);
             } else {
@@ -1534,7 +1534,7 @@ async function actualizarHoraEspecificaInmediata(fecha, hora) {
             if (document.getElementById('agendar').classList.contains('active') && selectedDate) {
                 setTimeout(async () => {
                     await obtenerSolicitudesPendientes();
-                }, 1000);
+                }, 3000);
             }
         });
 
@@ -1552,7 +1552,7 @@ document.addEventListener('click', async (e) => {
         // Pequeño delay para evitar demasiadas llamadas
         setTimeout(async () => {
             await sincronizarHorasEnTiempoReal();
-        }, 1000);
+        }, 3000);
     }
 });
 
@@ -1561,7 +1561,7 @@ setInterval(async () => {
     if (document.getElementById('agendar').classList.contains('active') && selectedDate) {
         await obtenerSolicitudesPendientes();
     }
-}, 1000);
+},3000);
                 optimizarSincronizacion();
                 configurarLiberacionCambioPestana();
                 configurarLimpiadorAutomatico();
@@ -1732,7 +1732,7 @@ function iniciarSincronizacionHoras() {
         if (selectedDate && document.getElementById('agendar').classList.contains('active')) {
             await ejecutarSincronizacionAutomatica();
         }
-    }, 1000);
+    }, 3000);
 }
 
 async function ejecutarSincronizacionAutomatica() {
@@ -2182,7 +2182,7 @@ async function verificarDisponibilidadInstantanea(fecha, hora) {
                 } else {
                     btn.querySelector('small').textContent = `${contador}s`;
                 }
-            }, 1000);
+            }, 3000);
             
             btn.dataset.intervaloContador = intervalo;
         }
