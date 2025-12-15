@@ -1737,6 +1737,7 @@ function iniciarSincronizacionHoras() {
 
 async function ejecutarSincronizacionAutomatica() {
     try {
+        mostrarIndicadorActualizacion();
         // 1. Obtener solicitudes pendientes
         await obtenerSolicitudesPendientes();
         
