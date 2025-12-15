@@ -1111,7 +1111,7 @@
 }
 
 
-        async function sincronizarEstadosHoras() {
+       async function sincronizarEstadosHoras() {
     // NO sincronizar si hay una reserva activa
     if (reservaActiva) {
         console.log('⏸️ Saltando sincronización durante reserva activa');
@@ -1124,29 +1124,32 @@
         const fechaFormateada = formatDate(selectedDate);
         const ahora = Date.now();
         
-        // Solo sincronizar si han pasado al menos 2 segundos
-        if (ahora - ultimaSincronizacionHoras < 2000) {
+        // Solo sincronizar si han pasado al menos 500ms
+        if (ahora - ultimaSincronizacionHoras < 500) {
             return;
         }
         
         ultimaSincronizacionHoras = ahora;
         
-        // 1. Obtener citas actualizadas
+        console.log(`🔄 Sincronizando estado de horas para: ${fechaFormateada}`);
+        
+        // 1. Obtener citas actualizadas (FORZAR actualización)
         await precargarCitasFuturas();
         
-        // 2. Obtener solicitudes pendientes
+        // 2. Obtener solicitudes pendientes (FORZAR actualización)
         await obtenerSolicitudesPendientes();
         
         // 3. Verificar notificaciones de cambios
         await verificarNotificacionesCambios();
         
-        // 4. Actualizar UI solo si hay cambios
-        if (hayCambiosRelevantes()) {
-            await generateHoras(selectedDate);
-        }
+        // 4. Forzar actualización completa de UI
+        await generateHoras(selectedDate);
+        
+        // 5. Limpiar caché viejo
+        limpiarCacheExpirado();
         
     } catch (error) {
-        console.error('Error sincronizando estados:', error);
+        console.error('❌ Error sincronizando estados:', error);
     }
 }
 
@@ -1933,43 +1936,53 @@
         }
 
         async function actualizarHoraEspecifica(fecha, hora) {
-            try {
-                const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
-                if (!horaBtn) return;
-                
-                // Verificar estado actual
-                const { data: citaExistente } = await supabase
-                    .from('citas')
-                    .select('id')
-                    .eq('fecha', fecha)
-                    .eq('hora', hora)
-                    .eq('barbero_id', barberoFijo.id)
-                    .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                    .maybeSingle();
-                    
-                const claveReserva = `${fecha}_${hora}`;
-                const tieneReserva = solicitudesPendientes.has(claveReserva);
-                const reservaInfo = tieneReserva ? solicitudesPendientes.get(claveReserva) : null;
-                const esMiReserva = reservaInfo && reservaInfo.usuarioId === miUsuarioId;
-                
-                if (citaExistente) {
-                    // Actualizar a ocupada
-                    configurarBotonOcupada(horaBtn, hora);
-                    actualizarCacheLocal(fecha, hora, 'ocupada', null);
-                } else if (tieneReserva && !esMiReserva) {
-                    // Actualizar a reservando
-                    configurarBotonReservando(horaBtn, hora, fecha);
-                    actualizarCacheLocal(fecha, hora, 'reservando', reservaInfo.usuarioId);
-                } else if (horaBtn.disabled && !citaExistente && !tieneReserva) {
-                    // Restaurar a disponible
-                    configurarBotonDisponible(horaBtn, hora, fecha);
-                    actualizarCacheLocal(fecha, hora, 'disponible', null);
-                }
-                
-            } catch (error) {
-                console.error('❌ Error actualizando hora específica:', error);
-            }
+    try {
+        console.log(`🔄 Actualizando hora específica: ${fecha} ${hora}`);
+        
+        // Forzar limpieza de caché para esta hora
+        const claveCache = `${fecha}_${hora}`;
+        cacheEstadosHoras.delete(claveCache);
+        
+        // Verificar estado actual
+        const { data: citaExistente } = await supabase
+            .from('citas')
+            .select('id, estado')
+            .eq('fecha', fecha)
+            .eq('hora', hora)
+            .eq('barbero_id', barberoFijo.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .maybeSingle();
+            
+        const claveReserva = `${fecha}_${hora}`;
+        const tieneReserva = solicitudesPendientes.has(claveReserva);
+        const reservaInfo = tieneReserva ? solicitudesPendientes.get(claveReserva) : null;
+        const esMiReserva = reservaInfo && reservaInfo.usuarioId === miUsuarioId;
+        
+        // Encontrar el botón
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+        if (!horaBtn) return;
+        
+        if (citaExistente) {
+            // Actualizar a ocupada
+            configurarBotonOcupada(horaBtn, hora);
+            actualizarCacheLocal(fecha, hora, 'ocupada', null);
+            console.log(`✅ ${hora} marcada como OCUPADA`);
+        } else if (tieneReserva && !esMiReserva) {
+            // Actualizar a reservando
+            configurarBotonReservando(horaBtn, hora, fecha);
+            actualizarCacheLocal(fecha, hora, 'reservando', reservaInfo.usuarioId);
+            console.log(`✅ ${hora} marcada como RESERVANDO por otro usuario`);
+        } else if (horaBtn.disabled) {
+            // Restaurar a disponible
+            configurarBotonDisponible(horaBtn, hora, fecha);
+            actualizarCacheLocal(fecha, hora, 'disponible', null);
+            console.log(`✅ ${hora} marcada como DISPONIBLE`);
         }
+        
+    } catch (error) {
+        console.error('❌ Error actualizando hora específica:', error);
+    }
+}
 
         // ============ FUNCIONES EXISTENTES (MANTENIDAS) ============
 
@@ -2083,38 +2096,44 @@
             generateCalendar(currentMonth);
         }
 
-        async function precargarCitasFuturas() {
-            try {
-                if (!barberoFijo) return;
-                
-                const ahora = new Date();
-                const año = ahora.getFullYear();
-                const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-                const dia = String(ahora.getDate()).padStart(2, '0');
-                const fechaActual = `${año}-${mes}-${dia}`;
-                
-                const { data: citas, error } = await supabase
-                    .from('citas')
-                    .select('id, fecha, hora, estado, cliente_id, barbero_id')
-                    .eq('barbero_id', barberoFijo.id)
-                    .gte('fecha', fechaActual)
-                    .in('estado', ['aceptada', 'pendiente', 'confirmada']);
+       async function precargarCitasFuturas() {
+    try {
+        if (!barberoFijo) return;
+        
+        // Limpiar caché anterior
+        todasLasCitasFuturasCache = [];
+        cacheEstadosHoras.clear();
+        
+        const ahora = new Date();
+        const año = ahora.getFullYear();
+        const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+        const dia = String(ahora.getDate()).padStart(2, '0');
+        const fechaActual = `${año}-${mes}-${dia}`;
+        
+        const { data: citas, error } = await supabase
+            .from('citas')
+            .select('id, fecha, hora, estado, cliente_id, barbero_id')
+            .eq('barbero_id', barberoFijo.id)
+            .gte('fecha', fechaActual)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada']);
 
-                if (error) throw error;
-                
-                todasLasCitasFuturasCache = citas || [];
-                
-                // Actualizar caché local
-                if (citas) {
-                    citas.forEach(cita => {
-                        actualizarCacheLocal(cita.fecha, cita.hora, 'ocupada', cita.cliente_id);
-                    });
-                }
-                
-            } catch (error) {
-                console.error('❌ Error precargando citas futuras:', error);
-            }
+        if (error) throw error;
+        
+        todasLasCitasFuturasCache = citas || [];
+        
+        // Actualizar caché local
+        if (citas) {
+            citas.forEach(cita => {
+                actualizarCacheLocal(cita.fecha, cita.hora, 'ocupada', cita.cliente_id);
+            });
         }
+        
+        console.log(`📊 ${todasLasCitasFuturasCache.length} citas futuras precargadas`);
+        
+    } catch (error) {
+        console.error('❌ Error precargando citas futuras:', error);
+    }
+}
 
         async function cargarBarberoFijo() {
             try {
@@ -2309,6 +2328,7 @@
                 habilitarCalendario();
                 currentMonth = new Date();
                 generateCalendar(currentMonth);
+                await limpiarCacheDespuesDeAgendar();
                 
                 await cargarMisCitas();
                 cambiarPestana('mis-citas');
@@ -2531,6 +2551,108 @@
             }
         }
 
+        async function limpiarCacheDespuesDeAgendar() {
+    // Limpiar caché de citas futuras
+    todasLasCitasFuturasCache = [];
+    cacheEstadosHoras.clear();
+    ultimasNotificacionesProcesadas.clear();
+    
+    // Forzar recarga
+    await precargarCitasFuturas();
+    await obtenerSolicitudesPendientes();
+    
+    // Notificar a todos los usuarios
+    if (selectedDate) {
+        const fechaFormateada = formatDate(selectedDate);
+        await notificarCambioCita(fechaFormateada, 'all', 'cita_agendada');
+    }
+}
+
+        function iniciarContadoresCitas() {
+    // Limpiar intervalos anteriores
+    for (const id in intervalosContador) {
+        clearInterval(intervalosContador[id]);
+    }
+    intervalosContador = {};
+
+    // Iniciar contadores para cada cita
+    document.querySelectorAll('.cita-card').forEach(citaCard => {
+        const citaId = citaCard.dataset.citaId;
+        const expiraStr = citaCard.dataset.expira;
+        
+        if (!expiraStr || expiraStr === 'null' || expiraStr === '') {
+            return;
+        }
+
+        const fechaExpira = new Date(expiraStr);
+        const ahora = new Date();
+        
+        if (fechaExpira <= ahora) {
+            // La cita ya expiró, mostrar opción de eliminar
+            const contadorDiv = document.getElementById(`contador-eliminar-${citaId}`);
+            if (contadorDiv) {
+                contadorDiv.innerHTML = `
+                    <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                        ✅ Esta cita ya expiró y puede ser eliminada
+                    </p>
+                `;
+            }
+            return;
+        }
+
+        // Calcular tiempo restante
+        const actualizarContador = () => {
+            const ahora = new Date();
+            const tiempoRestante = fechaExpira.getTime() - ahora.getTime();
+            
+            if (tiempoRestante <= 0) {
+                clearInterval(intervalosContador[citaId]);
+                delete intervalosContador[citaId];
+                
+                // Actualizar UI para mostrar que se puede eliminar
+                const contadorDiv = document.getElementById(`contador-${citaId}`);
+                const contadorEliminarDiv = document.getElementById(`contador-eliminar-${citaId}`);
+                
+                if (contadorDiv) {
+                    contadorDiv.innerHTML = `
+                        <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                            ✅ Esta cita ya expiró y puede ser eliminada
+                        </p>
+                    `;
+                }
+                
+                if (contadorEliminarDiv) {
+                    contadorEliminarDiv.innerHTML = `
+                        <button class="btn btn-secondary" onclick="app.eliminarCita('${citaId}')" style="margin-top: 10px;">
+                            🗑️ Eliminar ahora
+                        </button>
+                    `;
+                }
+                
+                return;
+            }
+
+            const horas = Math.floor(tiempoRestante / (1000 * 60 * 60));
+            const minutos = Math.floor((tiempoRestante % (1000 * 60 * 60)) / (1000 * 60));
+            const segundos = Math.floor((tiempoRestante % (1000 * 60)) / 1000);
+
+            const contadorDiv = document.getElementById(`contador-${citaId}`);
+            if (contadorDiv) {
+                contadorDiv.innerHTML = `
+                    <p style="color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                        ⏳ Esta cita se eliminará automáticamente en: 
+                        ${horas}h ${minutos}m ${segundos}s
+                    </p>
+                `;
+            }
+        };
+
+        // Ejecutar inmediatamente y luego cada segundo
+        actualizarContador();
+        intervalosContador[citaId] = setInterval(actualizarContador, 1000);
+    });
+}
+
         async function cancelarCita(citaId) {
             try {
                 const { data: cita, error: errorCita } = await supabase
@@ -2583,7 +2705,7 @@
                 if (error) throw error;
 
                 showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
-                
+                await limpiarCacheDespuesDeAgendar();
                 await precargarCitasFuturas();
                 await cargarMisCitas();
                 await notificarCambioCita(cita.fecha, cita.hora, 'cita_cancelada');
