@@ -1048,30 +1048,210 @@
         }
 
         function configurarPollingOptimizado() {
-    let ultimaSincronizacion = 0;
-    const INTERVALO_SINCRONIZACION = 2000; // 2 segundos
+    console.log('⚡ Iniciando polling automático...');
     
-    setInterval(async () => {
-        const ahora = Date.now();
-        if (ahora - ultimaSincronizacion < INTERVALO_SINCRONIZACION) return;
+    // Variable para controlar el estado del polling
+    let pollingActivo = true;
+    
+    // Polling principal cada segundo
+    const intervaloPrincipal = setInterval(async () => {
+        if (!pollingActivo) return;
         
         const estaEnPestanaAgendar = document.getElementById('agendar').classList.contains('active');
         const hayFechaSeleccionada = selectedDate !== null;
         
         if (estaEnPestanaAgendar && hayFechaSeleccionada) {
-            ultimaSincronizacion = ahora;
-            
             try {
-                // Sincronización ligera (solo obtener cambios)
+                console.log('🔄 Polling automático ejecutándose...');
+                
+                // 1. Obtener solicitudes pendientes
                 await obtenerSolicitudesPendientes();
+                
+                // 2. Verificar y procesar cambios
                 await verificarYProcesarCambios();
+                
+                // 3. Actualizar contadores de reservas
+                await actualizarContadoresReservas();
+                
             } catch (error) {
-                console.error('Error en polling optimizado:', error);
+                console.error('Error en polling automático:', error);
             }
         }
-    }, 1000); // Verificar cada segundo
+    }, 1000); // Cada segundo
+    
+    // Polling secundario cada 3 segundos para notificaciones
+    const intervaloSecundario = setInterval(async () => {
+        if (!pollingActivo) return;
+        
+        // Solo ejecutar si estamos en la pestaña de agendar
+        if (document.getElementById('agendar').classList.contains('active')) {
+            try {
+                // Verificar notificaciones específicas
+                await verificarNotificacionesEspecificas();
+            } catch (error) {
+                console.error('Error en polling secundario:', error);
+            }
+        }
+    },1000);
+    
+    // Detener polling cuando cambia de pestaña
+    document.addEventListener('visibilitychange', () => {
+        pollingActivo = !document.hidden;
+        if (pollingActivo) {
+            console.log('👀 Pestaña visible - reactivando polling');
+        }
+    });
+    
+    // Limpiar intervalos al cerrar
+    window.addEventListener('beforeunload', () => {
+        clearInterval(intervaloPrincipal);
+        clearInterval(intervaloSecundario);
+    });
 }
 
+async function verificarNotificacionesEspecificas() {
+    try {
+        mostrarIndicadorActualizacion();
+        const ahora = new Date();
+        const fechaLimite = new Date(ahora.getTime() - 5000); // Últimos 5 segundos
+        
+        // Obtener notificaciones MUY recientes
+        const { data: notificacionesRecientes, error } = await supabase
+            .from('notificaciones_cambios')
+            .select('*')
+            .gt('creado_en', fechaLimite.toISOString())
+            .neq('usuario_id', miUsuarioId)
+            .order('creado_en', { ascending: false });
+            
+        if (error) throw error;
+        
+        if (!notificacionesRecientes || notificacionesRecientes.length === 0) return;
+        
+        console.log(`🔔 ${notificacionesRecientes.length} notificaciones recientes detectadas`);
+        
+        // Procesar cada notificación inmediatamente
+        for (const notif of notificacionesRecientes) {
+            const claveNotif = `${notif.fecha}_${notif.hora}_${notif.usuario_id}`;
+            
+            if (ultimasNotificacionesProcesadas.has(claveNotif)) {
+                continue;
+            }
+            
+            // Marcar como procesada
+            ultimasNotificacionesProcesadas.add(claveNotif);
+            
+            // Verificar si estamos viendo esa fecha
+            if (selectedDate) {
+                const fechaActual = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+                
+                if (notif.fecha === fechaActual) {
+                    console.log(`⚡ Actualización inmediata para: ${notif.hora}`);
+                    
+                    // Actualizar INMEDIATAMENTE esa hora
+                    await actualizarHoraEspecificaInmediata(notif.fecha, notif.hora);
+                    
+                    // Mostrar notificación (opcional)
+                    mostrarNotificacionCambio(notif.fecha, notif.hora);
+                }
+            }
+        }
+        
+        // Limpiar notificaciones antiguas del set
+        if (ultimasNotificacionesProcesadas.size > 50) {
+            const primerElemento = ultimasNotificacionesProcesadas.values().next().value;
+            ultimasNotificacionesProcesadas.delete(primerElemento);
+        }
+        
+    } catch (error) {
+        console.error('Error verificando notificaciones:', error);
+    }
+}
+
+async function actualizarHoraEspecificaInmediata(fecha, hora) {
+    try {
+        console.log(`⚡ Actualización inmediata: ${fecha} ${hora}`);
+        
+        // Buscar el botón en el DOM actual
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+        
+        if (!horaBtn) {
+            console.log('Botón no encontrado en el DOM actual');
+            return;
+        }
+        
+        // Verificar estado ACTUAL en la base de datos (sin delay)
+        const { data: citaExistente, error: errorCita } = await supabase
+            .from('citas')
+            .select('id')
+            .eq('fecha', fecha)
+            .eq('hora', hora)
+            .eq('barbero_id', barberoFijo.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .maybeSingle();
+            
+        if (errorCita) {
+            console.error('Error verificando cita:', errorCita);
+            return;
+        }
+        
+        // Si existe la cita, actualizar a ROJO inmediatamente
+        if (citaExistente) {
+            console.log(`❌ Hora ${hora} ocupada - actualizando inmediatamente`);
+            
+            // Actualizar UI inmediatamente
+            horaBtn.disabled = true;
+            horaBtn.classList.remove('reservando', 'available');
+            horaBtn.classList.add('ocupada');
+            
+            // Aplicar estilo ROJO intenso INMEDIATAMENTE
+            horaBtn.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+            horaBtn.style.borderColor = '#bd2130';
+            horaBtn.style.color = '#FFFFFF';
+            horaBtn.style.boxShadow = '0 0 10px rgba(220, 53, 69, 0.7)';
+            horaBtn.style.fontWeight = 'bold';
+            
+            // Agregar animación de alerta
+            horaBtn.style.animation = 'alerta-roja 0.5s ease-in-out 2';
+            
+            // Actualizar contenido
+            horaBtn.innerHTML = `
+                ${hora}
+                <br>
+                <small style="
+                    font-size: 10px;
+                    background: rgba(255, 255, 255, 0.2);
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    display: inline-block;
+                    margin-top: 3px;
+                ">
+                    🔒 Ocupada
+                </small>
+            `;
+            
+            // Actualizar tooltip
+            horaBtn.title = 'Hora ocupada - Recién reservada';
+            horaBtn.setAttribute('data-tooltip', '🛑 Esta hora acaba de ser reservada');
+            
+            // Remover evento click
+            horaBtn.onclick = null;
+            
+            // Actualizar caché local
+            todasLasCitasFuturasCache.push({
+                id: citaExistente.id,
+                fecha: fecha,
+                hora: hora,
+                estado: 'aceptada',
+                barbero_id: barberoFijo.id
+            });
+            
+            console.log(`✅ Hora ${hora} actualizada inmediatamente`);
+        }
+        
+    } catch (error) {
+        console.error('Error en actualización inmediata:', error);
+    }
+}
         // FUNCIÓN CORREGIDA PARA VERIFICAR RECORDATORIOS (CON CONTROL DE EJECUCIÓN)
        async function verificarYProgramarRecordatorios() {
     try {
@@ -1526,31 +1706,87 @@ setInterval(async () => {
         // ==================== FUNCIONES NUEVAS PARA SINCRONIZACIÓN ====================
 // Modificar la función de polling principal
 function iniciarSincronizacionHoras() {
-    console.log('🚀 Iniciando sincronización optimizada...');
+    console.log('🚀 Iniciando sistema de sincronización automática...');
     
     if (intervaloActualizacion) {
         clearInterval(intervaloActualizacion);
     }
     
-    // Polling cada 2 segundos
+    // Polling automático cada 2 segundos (INCLUSO SIN INTERACCIÓN)
     intervaloActualizacion = setInterval(async () => {
         const estaEnPestanaAgendar = document.getElementById('agendar').classList.contains('active');
         const hayFechaSeleccionada = selectedDate !== null;
         
         if (estaEnPestanaAgendar && hayFechaSeleccionada) {
             try {
-                // 1. Verificar cambios de otros usuarios
-                await verificarYProcesarCambios();
-                
-                // 2. Actualizar reservas temporales (para contadores)
-                await actualizarContadoresReservas();
-                
+                // Ejecutar incluso si el usuario no interactúa
+                await ejecutarSincronizacionAutomatica();
             } catch (error) {
-                console.error('Error en sincronización:', error);
+                console.error('Error en sincronización automática:', error);
             }
         }
     }, 2000); // Cada 2 segundos
+    
+    // También ejecutar inmediatamente
+    setTimeout(async () => {
+        if (selectedDate && document.getElementById('agendar').classList.contains('active')) {
+            await ejecutarSincronizacionAutomatica();
+        }
+    }, 1000);
 }
+
+async function ejecutarSincronizacionAutomatica() {
+    try {
+        // 1. Obtener solicitudes pendientes
+        await obtenerSolicitudesPendientes();
+        
+        // 2. Verificar cambios de otros usuarios
+        await verificarYProcesarCambios();
+        
+        // 3. Actualizar contadores de reservas
+        await actualizarContadoresReservas();
+        
+        // 4. Verificar citas recientes
+        await verificarCitasRecientes();
+        
+    } catch (error) {
+        console.error('Error en sincronización automática:', error);
+    }
+}
+// Función para mostrar indicador de actualización
+function mostrarIndicadorActualizacion() {
+    // Crear o actualizar indicador
+    let indicador = document.getElementById('indicador-actualizacion');
+    
+    if (!indicador) {
+        indicador = document.createElement('div');
+        indicador.id = 'indicador-actualizacion';
+        indicador.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #28a745;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 9999;
+            opacity: 0.8;
+            display: none;
+        `;
+        document.body.appendChild(indicador);
+    }
+    
+    // Mostrar indicador
+    indicador.textContent = '🔄 Actualizando...';
+    indicador.style.display = 'block';
+    
+    // Ocultar después de 1.5 segundos
+    setTimeout(() => {
+        indicador.style.display = 'none';
+    }, 1500);
+}
+
 
 // Función para actualizar contadores de reservas en tiempo real
 async function actualizarContadoresReservas() {
@@ -2951,9 +3187,11 @@ function iniciarContadoresCitas() {
 let ultimasNotificacionesProcesadas = new Set();
 
 async function verificarYProcesarCambios() {
+
     try {
+        mostrarIndicadorActualizacion();
         const ahora = new Date();
-        const fechaLimite = new Date(ahora.getTime() - 10000); // Últimos 10 segundos
+        const fechaLimite = new Date(ahora.getTime() - 15000); // Últimos 15 segundos
         
         // Obtener notificaciones recientes
         const { data: notificaciones, error } = await supabase
@@ -2965,7 +3203,13 @@ async function verificarYProcesarCambios() {
             
         if (error) throw error;
         
-        if (!notificaciones || notificaciones.length === 0) return;
+        if (!notificaciones || notificaciones.length === 0) {
+            // Si no hay notificaciones, igual verificar citas recientes
+            await verificarCitasRecientes();
+            return;
+        }
+        
+        console.log(`🔄 Procesando ${notificaciones.length} cambios...`);
         
         // Procesar cada notificación nueva
         for (const notif of notificaciones) {
@@ -2992,20 +3236,61 @@ async function verificarYProcesarCambios() {
                 const fechaActual = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
                 
                 if (notif.fecha === fechaActual) {
-                    // Actualizar SOLO esa hora específica
-                    await actualizarHoraEspecifica(notif.fecha, notif.hora);
+                    // Forzar actualización INMEDIATA
+                    await actualizarHoraEspecificaInmediata(notif.fecha, notif.hora);
                     
-                    // Mostrar notificación sutil (opcional)
+                    // Mostrar notificación sutil
                     mostrarNotificacionCambio(notif.fecha, notif.hora);
                 }
             }
             
             // Actualizar caché global
             await precargarCitasFuturas();
+
         }
         
     } catch (error) {
         console.error('Error procesando cambios:', error);
+    }
+}
+
+async function verificarCitasRecientes() {
+    try {
+        if (!selectedDate) return;
+        
+        const fechaActual = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+        
+        // Obtener citas MUY recientes (últimos 30 segundos)
+        const fechaLimite = new Date();
+        fechaLimite.setSeconds(fechaLimite.getSeconds() - 30);
+        
+        const { data: citasRecientes, error } = await supabase
+            .from('citas')
+            .select('fecha, hora')
+            .eq('fecha', fechaActual)
+            .eq('barbero_id', barberoFijo.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .gt('creado_en', fechaLimite.toISOString());
+            
+        if (error) throw error;
+        
+        if (!citasRecientes || citasRecientes.length === 0) return;
+        
+        console.log(`📅 ${citasRecientes.length} citas recientes encontradas`);
+        
+        // Verificar cada cita reciente
+        for (const cita of citasRecientes) {
+            // Buscar el botón en el DOM
+            const horaBtn = document.querySelector(`.hora-btn[data-fecha="${cita.fecha}"][data-hora="${cita.hora}"]`);
+            
+            if (horaBtn && !horaBtn.classList.contains('ocupada')) {
+                console.log(`⚡ Actualizando cita reciente: ${cita.hora}`);
+                await actualizarHoraEspecificaInmediata(cita.fecha, cita.hora);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error verificando citas recientes:', error);
     }
 }
 
