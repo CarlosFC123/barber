@@ -1382,57 +1382,42 @@
         console.log('   - Ahora:', ahora.toLocaleString('es-MX'));
         console.log('   - Expira en:', expiraEn.toLocaleString('es-MX'));
         
-        // 1. Primero verificar si existe una reserva reciente (últimos 5 segundos)
-        const hace5Segundos = new Date(Date.now() - 5000).toISOString();
+        // 1. Verificar si ya existe una reserva reciente de otro usuario
+        const hace30Segundos = new Date(Date.now() - 30000).toISOString();
         
-        const { data: reservasRecientes, error: errorCheck } = await supabase
+        const { data: reservasExistentes, error: errorCheck } = await supabase
             .from('solicitudes_temporales')
-            .select('usuario_id, creado_en')
+            .select('usuario_id, creado_en, expira_en')
             .eq('fecha', fecha)
             .eq('hora', hora)
-            .gt('creado_en', hace5Segundos)
-            .order('creado_en', { ascending: false })
-            .limit(1);
+            .gt('expira_en', ahora.toISOString()) // Solo reservas que no han expirado
+            .order('creado_en', { ascending: false });
             
         if (errorCheck) {
             console.error('Error verificando reservas:', errorCheck);
             throw errorCheck;
         }
         
-        if (reservasRecientes && reservasRecientes.length > 0) {
-            const reserva = reservasRecientes[0];
-            console.log('⚠️ Reserva reciente encontrada:', reserva);
+        // 2. Si hay reservas existentes
+        if (reservasExistentes && reservasExistentes.length > 0) {
+            const reservasOtrosUsuarios = reservasExistentes.filter(
+                r => r.usuario_id !== miUsuarioId
+            );
             
-            if (reserva.usuario_id !== miUsuarioId) {
-                console.log('❌ Ya existe una reserva de otro usuario');
+            // Si otro usuario ya tiene una reserva activa
+            if (reservasOtrosUsuarios.length > 0) {
+                console.log('❌ Ya existe una reserva activa de otro usuario:', reservasOtrosUsuarios[0]);
                 return false;
             }
-        }
-        
-        // 2. Eliminar cualquier reserva anterior (limpia duplicados)
-        await supabase
-            .from('solicitudes_temporales')
-            .delete()
-            .eq('fecha', fecha)
-            .eq('hora', hora)
-            .eq('usuario_id', miUsuarioId);
-        
-        // 3. Insertar nueva reserva con hora actual
-        const { error } = await supabase
-            .from('solicitudes_temporales')
-            .insert([{
-                fecha: fecha,
-                hora: hora,
-                usuario_id: miUsuarioId,
-                creado_en: ahora.toISOString(),
-                expira_en: expiraEn.toISOString()
-            }]);
             
-        if (error) {
-            console.error('Error insertando reserva:', error);
+            // Si YO ya tengo una reserva, la actualizo
+            const miReservaExistente = reservasExistentes.find(
+                r => r.usuario_id === miUsuarioId
+            );
             
-            // Si es error de duplicado, intentar actualizar
-            if (error.code === '23505') {
+            if (miReservaExistente) {
+                console.log('🔄 Actualizando mi reserva existente');
+                
                 const { error: updateError } = await supabase
                     .from('solicitudes_temporales')
                     .update({
@@ -1447,9 +1432,52 @@
                     console.error('Error actualizando reserva:', updateError);
                     throw updateError;
                 }
-            } else {
-                throw error;
+                
+                console.log('✅ Reserva actualizada exitosamente');
+                return true;
             }
+        }
+        
+        // 3. Si no hay reservas existentes, insertar nueva
+        console.log('➕ Insertando nueva reserva...');
+        
+        const { data, error } = await supabase
+            .from('solicitudes_temporales')
+            .insert([{
+                fecha: fecha,
+                hora: hora,
+                usuario_id: miUsuarioId,
+                creado_en: ahora.toISOString(),
+                expira_en: expiraEn.toISOString()
+            }])
+            .select();
+            
+        if (error) {
+            // Si es error de duplicado pero ya verificamos, intentar actualizar
+            if (error.code === '23505') {
+                console.log('⚠️ Error de duplicado, intentando actualizar...');
+                
+                const { error: updateError } = await supabase
+                    .from('solicitudes_temporales')
+                    .update({
+                        creado_en: ahora.toISOString(),
+                        expira_en: expiraEn.toISOString()
+                    })
+                    .eq('fecha', fecha)
+                    .eq('hora', hora)
+                    .eq('usuario_id', miUsuarioId);
+                    
+                if (updateError) {
+                    console.error('Error actualizando reserva duplicada:', updateError);
+                    return false;
+                }
+                
+                console.log('✅ Reserva duplicada actualizada exitosamente');
+                return true;
+            }
+            
+            console.error('❌ Error insertando reserva:', error);
+            throw error;
         }
         
         // 4. Actualizar estructuras locales
@@ -1463,11 +1491,7 @@
         // 5. Actualizar caché local
         actualizarCacheLocal(fecha, hora, 'reservando', miUsuarioId);
         
-        // 6. Forzar actualización de UI inmediata
-        if (reservaActiva && reservaActiva.boton) {
-            await sincronizarEstadosHoras();
-        }
-        
+        console.log('✅ Nueva reserva creada exitosamente:', data);
         return true;
         
     } catch (error) {
