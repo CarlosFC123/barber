@@ -370,12 +370,12 @@
             box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
         }
 
-        .hora-btn.selected {
+        /* .hora-btn.selected {
             background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
             color: #000000;
             border-color: #d4af37;
             box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
-        }
+        } */
 
         .hora-btn:disabled {
             background: #333;
@@ -743,12 +743,12 @@
         animation: pulse-marron 2s infinite;
     }
 
-    .hora-btn.mi-reserva-activa {
+    /* .hora-btn.mi-reserva-activa {
         background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
         border-color: #1e7e34 !important;
         color: white !important;
         animation: pulse-verde 1.5s infinite;
-    }
+    } */
 
     @keyframes pulse-marron {
         0% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
@@ -756,11 +756,35 @@
         100% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
     }
 
-    @keyframes pulse-verde {
+    /* @keyframes pulse-verde {
         0% { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
         50% { box-shadow: 0 0 20px rgba(40, 167, 69, 0.9); }
         100% { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
-    }
+    } */
+
+    /* Estilos para el botón de reserva activa */
+.hora-btn.mi-reserva-activa {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+    border-color: #1e7e34 !important;
+    color: white !important;
+    box-shadow: 0 0 20px rgba(40, 167, 69, 0.7) !important;
+    font-weight: bold !important;
+    animation: pulse-verde 1.5s infinite !important;
+    cursor: default !important;
+}
+
+.hora-btn.selected {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%) !important;
+    border-color: #d4af37 !important;
+    color: #000000 !important;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.5) !important;
+}
+
+@keyframes pulse-verde {
+    0% { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
+    50% { box-shadow: 0 0 20px rgba(40, 167, 69, 0.9); }
+    100% { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
+}
             
         }
     </style>
@@ -1035,29 +1059,29 @@
         // ============ SISTEMA DE POLLING INTELIGENTE ============
 
         function iniciarPollingInteligente() {
-            if (intervaloPolling) {
-                clearInterval(intervaloPolling);
+    if (intervaloPolling) {
+        clearInterval(intervaloPolling);
+    }
+    
+    intervaloPolling = setInterval(async () => {
+        try {
+            const estaEnAgendar = document.getElementById('agendar').classList.contains('active');
+            const hayFechaSeleccionada = selectedDate !== null;
+            
+            if (estaEnAgendar && hayFechaSeleccionada) {
+                await sincronizarEstadosHoras();
             }
             
-            intervaloPolling = setInterval(async () => {
-                try {
-                    const estaEnAgendar = document.getElementById('agendar').classList.contains('active');
-                    const hayFechaSeleccionada = selectedDate !== null;
-                    
-                    if (estaEnAgendar && hayFechaSeleccionada) {
-                        await sincronizarEstadosHoras();
-                    }
-                    
-                    // Limpiar caché expirado periódicamente
-                    if (Date.now() % 10000 < 500) {
-                        limpiarCacheExpirado();
-                    }
-                    
-                } catch (error) {
-                    console.error('Error en polling:', error);
-                }
-            }, CONFIG.pollingFechaActual);
+            // Limpiar caché expirado periódicamente
+            if (Date.now() % 10000 < 500) {
+                limpiarCacheExpirado();
+            }
+            
+        } catch (error) {
+            console.error('Error en polling:', error);
         }
+    }, 1000); // 1 segundo en lugar de 500ms para reducir carga
+}
 
         async function sincronizarEstadosHoras() {
             try {
@@ -1157,70 +1181,76 @@
         // ============ SISTEMA DE RESERVAS ============
 
         async function reservarHoraTemporalmente(horaStr, fechaStr, btn) {
-            if (bloqueoLlamadaEnProgreso) return;
-            
-            bloqueoLlamadaEnProgreso = true;
-            
-            try {
-                // 1. Verificación ultra-rápida
-                const verificacion = await verificarDisponibilidadInstantanea(fechaStr, horaStr);
-                
-                if (!verificacion.disponible) {
-                    if (verificacion.razon === 'ocupada') {
-                        showAlert('❌ Esta hora acaba de ser ocupada por otro usuario', 'error');
-                        await actualizarHoraEspecifica(fechaStr, horaStr);
-                    } else {
-                        showAlert('⏳ Esta hora está siendo reservada por otro usuario', 'warning');
-                    }
-                    return;
-                }
-                
-                // 2. Cancelar reserva anterior si existe
-                if (reservaActiva) {
-                    await liberarReserva(reservaActiva.fecha, reservaActiva.hora);
-                }
-                
-                // 3. Registrar nueva reserva
-                const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
-                
-                if (!resultado) {
-                    showAlert('Esta hora ya está siendo reservada por otro usuario', 'error');
-                    return;
-                }
-                
-                // 4. Configurar reserva activa
-                reservaActiva = {
-                    fecha: fechaStr,
-                    hora: horaStr,
-                    boton: btn,
-                    inicio: Date.now()
-                };
-                
-                // 5. Actualizar UI
-                actualizarUIReservaActiva(btn, horaStr, 30);
-                
-                // 6. Configurar timeout de liberación
-                timeoutReserva = setTimeout(async () => {
-                    await liberarReserva(fechaStr, horaStr);
-                    resetearUIReserva(btn, horaStr);
-                    showAlert('⏰ Reserva liberada automáticamente', 'info');
-                    reservaActiva = null;
-                }, CONFIG.timeoutReserva);
-                
-                // 7. Notificar a otros usuarios
-                await notificarCambioCita(fechaStr, horaStr, 'reservando');
-                
-                console.log(`✅ Hora ${horaStr} reservada temporalmente`);
-                
-            } catch (error) {
-                console.error('❌ Error reservando hora:', error);
-                showAlert('Error al reservar la hora', 'error');
-            } finally {
-                setTimeout(() => {
-                    bloqueoLlamadaEnProgreso = false;
-                }, 500);
+    if (bloqueoLlamadaEnProgreso) return;
+    
+    bloqueoLlamadaEnProgreso = true;
+    
+    try {
+        // 1. Verificación ultra-rápida
+        const verificacion = await verificarDisponibilidadInstantanea(fechaStr, horaStr);
+        
+        if (!verificacion.disponible) {
+            if (verificacion.razon === 'ocupada') {
+                showAlert('❌ Esta hora acaba de ser ocupada por otro usuario', 'error');
+                await actualizarHoraEspecifica(fechaStr, horaStr);
+            } else {
+                showAlert('⏳ Esta hora está siendo reservada por otro usuario', 'warning');
             }
+            bloqueoLlamadaEnProgreso = false;
+            return;
         }
+        
+        // 2. Cancelar reserva anterior si existe
+        if (reservaActiva) {
+            await liberarReserva(reservaActiva.fecha, reservaActiva.hora);
+        }
+        
+        // 3. Registrar nueva reserva (sin session_id)
+        const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
+        
+        if (!resultado) {
+            showAlert('Esta hora ya está siendo reservada por otro usuario', 'error');
+            bloqueoLlamadaEnProgreso = false;
+            return;
+        }
+        
+        // 4. Configurar reserva activa
+        reservaActiva = {
+            fecha: fechaStr,
+            hora: horaStr,
+            boton: btn,
+            inicio: Date.now()
+        };
+        
+        // 5. Guardar selección
+        const horaInput = document.getElementById('hora');
+        if (horaInput) horaInput.value = horaStr;
+        
+        // 6. Actualizar UI
+        actualizarUIReservaActiva(btn, horaStr, 30);
+        
+        // 7. Configurar timeout de liberación (30 segundos)
+        timeoutReserva = setTimeout(async () => {
+            await liberarReserva(fechaStr, horaStr);
+            resetearUIReserva(btn, horaStr);
+            showAlert('⏰ Reserva liberada automáticamente', 'info');
+            reservaActiva = null;
+        }, 30000);
+        
+        // 8. Notificar a otros usuarios
+        await notificarCambioCita(fechaStr, horaStr, 'reservando');
+        
+        console.log(`✅ Hora ${horaStr} reservada temporalmente`);
+        
+    } catch (error) {
+        console.error('❌ Error reservando hora:', error);
+        showAlert('Error al reservar la hora', 'error');
+    } finally {
+        setTimeout(() => {
+            bloqueoLlamadaEnProgreso = false;
+        }, 500);
+    }
+}
 
         async function verificarDisponibilidadInstantanea(fecha, hora) {
             try {
@@ -1276,79 +1306,133 @@
             }
         }
 
-        async function registrarSolicitudTemporal(fecha, hora) {
-            try {
-                // Verificar si ya existe una reserva
-                const clave = `${fecha}_${hora}`;
-                
-                if (solicitudesPendientes.has(clave)) {
-                    const solicitud = solicitudesPendientes.get(clave);
-                    if (solicitud.usuarioId !== miUsuarioId) {
-                        return false;
-                    }
+       async function registrarSolicitudTemporal(fecha, hora) {
+    try {
+        // Crear expiración (30 segundos desde ahora en hora Yucatán)
+        const ahoraYucatan = new Date();
+        
+        // Calcular expiración (30 segundos)
+        const expiraEn = new Date(ahoraYucatan.getTime() + 30000);
+        
+        // Formatear fechas en hora Yucatán
+        const añoCreacion = ahoraYucatan.getFullYear();
+        const mesCreacion = String(ahoraYucatan.getMonth() + 1).padStart(2, '0');
+        const diaCreacion = String(ahoraYucatan.getDate()).padStart(2, '0');
+        const horaCreacion = String(ahoraYucatan.getHours()).padStart(2, '0');
+        const minutoCreacion = String(ahoraYucatan.getMinutes()).padStart(2, '0');
+        const segundoCreacion = String(ahoraYucatan.getSeconds()).padStart(2, '0');
+        
+        const creadoEnStr = `${añoCreacion}-${mesCreacion}-${diaCreacion} ${horaCreacion}:${minutoCreacion}:${segundoCreacion}`;
+        
+        const añoExpira = expiraEn.getFullYear();
+        const mesExpira = String(expiraEn.getMonth() + 1).padStart(2, '0');
+        const diaExpira = String(expiraEn.getDate()).padStart(2, '0');
+        const horaExpira = String(expiraEn.getHours()).padStart(2, '0');
+        const minutoExpira = String(expiraEn.getMinutes()).padStart(2, '0');
+        const segundoExpira = String(expiraEn.getSeconds()).padStart(2, '0');
+        
+        const expiraEnStr = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
+        
+        console.log('🕐 Creando reserva temporal:');
+        console.log('   - Fecha:', fecha);
+        console.log('   - Hora:', hora);
+        console.log('   - Creado en (Yucatán):', creadoEnStr);
+        console.log('   - Expira en (Yucatán):', expiraEnStr);
+        
+        // Primero verificar si ya existe una reserva activa
+        const { data: reservasExistentes, error: errorCheck } = await supabase
+            .from('solicitudes_temporales')
+            .select('usuario_id')
+            .eq('fecha', fecha)
+            .eq('hora', hora)
+            .gte('expira_en', creadoEnStr);
+            
+        if (errorCheck) throw errorCheck;
+        
+        if (reservasExistentes && reservasExistentes.length > 0) {
+            for (const reserva of reservasExistentes) {
+                if (reserva.usuario_id !== miUsuarioId) {
+                    console.log('⚠️ Ya existe una reserva de otro usuario');
+                    return false;
                 }
-                
-                // Crear expiración
-                const expiraEn = new Date();
-                expiraEn.setSeconds(expiraEn.getSeconds() + 30);
-                
-                const { error } = await supabase
-                    .from('solicitudes_temporales')
-                    .upsert({
-                        fecha: fecha,
-                        hora: hora,
-                        usuario_id: miUsuarioId,
-                        session_id: miSessionId,
-                        creado_en: new Date().toISOString(),
-                        expira_en: expiraEn.toISOString()
-                    }, {
-                        onConflict: 'fecha,hora'
-                    });
-                    
-                if (error) throw error;
-                
-                // Actualizar estructuras locales
-                solicitudesPendientes.set(clave, {
-                    usuarioId: miUsuarioId,
-                    timestamp: new Date(),
-                    expira_en: expiraEn
-                });
-                
-                actualizarCacheLocal(fecha, hora, 'reservando', miUsuarioId);
-                
-                return true;
-                
-            } catch (error) {
-                console.error('❌ Error registrando solicitud temporal:', error);
-                return false;
             }
         }
+        
+        // Insertar nueva reserva
+        const { error } = await supabase
+            .from('solicitudes_temporales')
+            .insert([{
+                fecha: fecha,
+                hora: hora,
+                usuario_id: miUsuarioId,
+                creado_en: creadoEnStr,
+                expira_en: expiraEnStr
+            }]);
+            
+        if (error) {
+            // Si es error de duplicado, intentar actualizar
+            if (error.code === '23505') { // Violación de unique constraint
+                const { error: updateError } = await supabase
+                    .from('solicitudes_temporales')
+                    .update({
+                        usuario_id: miUsuarioId,
+                        creado_en: creadoEnStr,
+                        expira_en: expiraEnStr
+                    })
+                    .eq('fecha', fecha)
+                    .eq('hora', hora);
+                    
+                if (updateError) throw updateError;
+            } else {
+                throw error;
+            }
+        }
+        
+        // Actualizar estructuras locales
+        const clave = `${fecha}_${hora}`;
+        solicitudesPendientes.set(clave, {
+            usuarioId: miUsuarioId,
+            timestamp: ahoraYucatan,
+            expira_en: expiraEn
+        });
+        
+        actualizarCacheLocal(fecha, hora, 'reservando', miUsuarioId);
+        
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Error registrando solicitud temporal:', error);
+        return false;
+    }
+}
 
         async function liberarReserva(fecha, hora) {
-            try {
-                const { error } = await supabase
-                    .from('solicitudes_temporales')
-                    .delete()
-                    .eq('fecha', fecha)
-                    .eq('hora', hora)
-                    .eq('usuario_id', miUsuarioId);
-                    
-                if (error) throw error;
-                
-                // Limpiar estructuras locales
-                const clave = `${fecha}_${hora}`;
-                solicitudesPendientes.delete(clave);
-                actualizarCacheLocal(fecha, hora, 'disponible', null);
-                
-                if (timeoutReserva) {
-                    clearTimeout(timeoutReserva);
-                    timeoutReserva = null;
-                }
-                
-            } catch (error) {
-                console.error('❌ Error liberando reserva:', error);
-            }
+    try {
+        const { error } = await supabase
+            .from('solicitudes_temporales')
+            .delete()
+            .eq('fecha', fecha)
+            .eq('hora', hora)
+            .eq('usuario_id', miUsuarioId);
+            
+        if (error) throw error;
+        
+        // Limpiar estructuras locales
+        const clave = `${fecha}_${hora}`;
+        solicitudesPendientes.delete(clave);
+        actualizarCacheLocal(fecha, hora, 'disponible', null);
+        
+        if (timeoutReserva) {
+            clearTimeout(timeoutReserva);
+            timeoutReserva = null;
         }
+        
+        console.log(`✅ Reserva liberada: ${fecha} ${hora}`);
+        
+    } catch (error) {
+        console.error('❌ Error liberando reserva:', error);
+    }
+}
 
         async function cancelarReservaAnterior() {
             if (reservaActiva) {
@@ -1365,46 +1449,88 @@
         // ============ UI PARA RESERVAS ============
 
         function actualizarUIReservaActiva(btn, horaStr, segundosRestantes) {
-            document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected', 'mi-reserva-activa');
-            
-            btn.innerHTML = `
-                ${horaStr}
-                <br>
-                <small style="font-size: 11px; background: rgba(255, 215, 0, 0.3); padding: 2px 5px; border-radius: 3px; color: #ffd700;">
-                    ${segundosRestantes}s
-                </small>
-            `;
-            
-            // Contador descendente
-            let contador = segundosRestantes;
-            const intervalo = setInterval(() => {
-                contador--;
-                if (contador <= 0) {
-                    clearInterval(intervalo);
-                    if (btn.querySelector('small')) {
-                        btn.querySelector('small').textContent = '0s';
-                    }
-                } else if (btn.querySelector('small')) {
-                    btn.querySelector('small').textContent = `${contador}s`;
-                }
-            }, 1000);
-            
-            if (btn.dataset.intervaloContador) {
-                clearInterval(btn.dataset.intervaloContador);
+    // Limpiar selección anterior
+    document.querySelectorAll('.hora-btn').forEach(b => {
+        b.classList.remove('selected', 'mi-reserva-activa');
+        b.classList.remove('selected'); // Asegurar que se quite la clase
+    });
+    
+    // Aplicar estilo al botón seleccionado
+    btn.classList.add('selected', 'mi-reserva-activa');
+    
+    // Aplicar estilos directamente
+    btn.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+    btn.style.borderColor = '#1e7e34';
+    btn.style.color = 'white';
+    btn.style.boxShadow = '0 0 20px rgba(40, 167, 69, 0.7)';
+    btn.style.fontWeight = 'bold';
+    
+    btn.innerHTML = `
+        ${horaStr}
+        <br>
+        <small style="
+            font-size: 11px; 
+            background: rgba(255, 255, 255, 0.3); 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            color: white;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 3px;
+        ">
+            ⭐ ${segundosRestantes}s
+        </small>
+    `;
+    
+    // Contador descendente
+    let contador = segundosRestantes;
+    
+    // Limpiar intervalo anterior si existe
+    if (btn.dataset.intervaloContador) {
+        clearInterval(btn.dataset.intervaloContador);
+    }
+    
+    const intervalo = setInterval(() => {
+        contador--;
+        if (contador <= 0) {
+            clearInterval(intervalo);
+            if (btn.querySelector('small')) {
+                btn.querySelector('small').textContent = '⭐ 0s';
+                btn.querySelector('small').style.background = 'rgba(255, 0, 0, 0.3)';
             }
-            btn.dataset.intervaloContador = intervalo;
+        } else if (btn.querySelector('small')) {
+            btn.querySelector('small').textContent = `⭐ ${contador}s`;
+            
+            // Cambiar color cuando quedan pocos segundos
+            if (contador <= 10) {
+                btn.querySelector('small').style.background = 'rgba(255, 0, 0, 0.3)';
+            } else if (contador <= 20) {
+                btn.querySelector('small').style.background = 'rgba(255, 165, 0, 0.3)';
+            }
         }
+    }, 1000);
+    
+    btn.dataset.intervaloContador = intervalo;
+}
 
         function resetearUIReserva(btn, horaStr) {
-            btn.classList.remove('selected', 'mi-reserva-activa');
-            btn.textContent = horaStr;
-            
-            if (btn.dataset.intervaloContador) {
-                clearInterval(btn.dataset.intervaloContador);
-                delete btn.dataset.intervaloContador;
-            }
-        }
+    btn.classList.remove('selected', 'mi-reserva-activa');
+    
+    // Restaurar estilos por defecto
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+    btn.style.boxShadow = '';
+    btn.style.fontWeight = '';
+    
+    btn.textContent = horaStr;
+    
+    if (btn.dataset.intervaloContador) {
+        clearInterval(btn.dataset.intervaloContador);
+        delete btn.dataset.intervaloContador;
+    }
+}
+
 
         // ============ GENERACIÓN DE HORAS MEJORADA ============
 
@@ -2443,84 +2569,85 @@
         // ============ INICIALIZACIÓN ============
 
         async function verificarAutenticacion() {
-            try {
-                const { data: { session }, error } = await supabase.auth.getSession();
-                
-                if (error) throw error;
-                
-                if (!session) {
-                    window.location.href = 'index.html';
-                    return;
-                }
-
-                usuarioActual = session.user;
-                miUsuarioId = usuarioActual.id;
-                miSessionId = `${usuarioActual.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                
-                await cargarBarberoFijo();
-                await cargarServicios();
-                await cargarMisCitas();
-                await precargarCitasFuturas();
-                
-                currentMonth = new Date();
-                generateCalendar(currentMonth);
-                habilitarCalendario();
-
-                inicializarEmailJSCuentaActual();
-                iniciarPollingInteligente();
-
-                // Configurar eventos
-                document.addEventListener('visibilitychange', async () => {
-                    if (!document.hidden && selectedDate) {
-                        await sincronizarEstadosHoras();
-                    }
-                });
-
-                // Event listeners para botones
-                const prevMonthBtn = document.getElementById('prevMonth');
-                const nextMonthBtn = document.getElementById('nextMonth');
-                const logoutBtn = document.getElementById('logoutBtn');
-                const btnAgendarCita = document.getElementById('btnAgendarCita');
-                
-                if (prevMonthBtn) {
-                    prevMonthBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        if (!calendarioHabilitado) return;
-                        currentMonth.setMonth(currentMonth.getMonth() - 1);
-                        generateCalendar(currentMonth);
-                    });
-                }
-                
-                if (nextMonthBtn) {
-                    nextMonthBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        if (!calendarioHabilitado) return;
-                        currentMonth.setMonth(currentMonth.getMonth() + 1);
-                        generateCalendar(currentMonth);
-                    });
-                }
-                
-                if (logoutBtn) {
-                    logoutBtn.addEventListener('click', cerrarSesion);
-                }
-                
-                if (btnAgendarCita) {
-                    btnAgendarCita.addEventListener('click', agendarCita);
-                }
-                
-                document.querySelectorAll('.nav-tab').forEach(tab => {
-                    tab.addEventListener('click', function() {
-                        cambiarPestana(this.dataset.tab);
-                    });
-                });
-
-                console.log('✅ Sistema de sincronización iniciado correctamente');
-
-            } catch (error) {
-                console.error('Error de autenticación:', error);
-                window.location.href = 'index.html';
-            }
+    try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+        
+        if (!session) {
+            window.location.href = 'index.html';
+            return;
         }
+
+        usuarioActual = session.user;
+        miUsuarioId = usuarioActual.id;
+        miSessionId = null; // NO usar session_id
+        
+        await cargarBarberoFijo();
+        await cargarServicios();
+        await cargarMisCitas();
+        await precargarCitasFuturas();
+        
+        currentMonth = new Date();
+        generateCalendar(currentMonth);
+        habilitarCalendario();
+
+        inicializarEmailJSCuentaActual();
+        iniciarPollingInteligente();
+
+        // Configurar eventos
+        document.addEventListener('visibilitychange', async () => {
+            if (!document.hidden && selectedDate) {
+                console.log('👀 Pestaña visible - sincronizando...');
+                await sincronizarEstadosHoras();
+            }
+        });
+
+        // Event listeners para botones
+        const prevMonthBtn = document.getElementById('prevMonth');
+        const nextMonthBtn = document.getElementById('nextMonth');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const btnAgendarCita = document.getElementById('btnAgendarCita');
+        
+        if (prevMonthBtn) {
+            prevMonthBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!calendarioHabilitado) return;
+                currentMonth.setMonth(currentMonth.getMonth() - 1);
+                generateCalendar(currentMonth);
+            });
+        }
+        
+        if (nextMonthBtn) {
+            nextMonthBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!calendarioHabilitado) return;
+                currentMonth.setMonth(currentMonth.getMonth() + 1);
+                generateCalendar(currentMonth);
+            });
+        }
+        
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', cerrarSesion);
+        }
+        
+        if (btnAgendarCita) {
+            btnAgendarCita.addEventListener('click', agendarCita);
+        }
+        
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                cambiarPestana(this.dataset.tab);
+            });
+        });
+
+        console.log('✅ Sistema de sincronización iniciado correctamente');
+
+    } catch (error) {
+        console.error('Error de autenticación:', error);
+        window.location.href = 'index.html';
+    }
+}
 
         // ============ API PÚBLICA ============
 
