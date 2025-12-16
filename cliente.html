@@ -1213,73 +1213,57 @@
 
         // ============ SISTEMA DE RESERVAS ============
 
-       async function reservarHoraTemporalmente(horaStr, fechaStr, btn) {
-    const claveReserva = `${fechaStr}_${horaStr}`;
-    
-    // Evitar múltiples clics en la misma hora
-    if (reservasEnProgreso.has(claveReserva)) {
-        console.log('⏳ Ya hay una reserva en progreso para esta hora...');
+        async function reservarHoraTemporalmente(horaStr, fechaStr, btn) {
+    if (bloqueoLlamadaEnProgreso) {
+        console.log('⏳ Ya hay una reserva en progreso...');
         return;
     }
     
-    reservasEnProgreso.set(claveReserva, true);
+    bloqueoLlamadaEnProgreso = true;
     
     try {
         console.log(`🔄 Intentando reservar: ${fechaStr} ${horaStr}`);
         
-        // 1. Actualizar UI INMEDIATAMENTE (feedback visual instantáneo)
-        btn.classList.add('selected', 'reservando-temp');
-        btn.style.background = 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)';
-        btn.style.borderColor = '#e0a800';
-        btn.style.color = 'white';
-        btn.style.cursor = 'wait';
-        btn.innerHTML = `${horaStr}<br><small style="font-size: 10px;">⏳ Procesando...</small>`;
-        
-        // 2. Verificación ultra-rápida
+        // 1. Verificación ultra-rápida
         const verificacion = await verificarDisponibilidadInstantanea(fechaStr, horaStr);
         
         if (!verificacion.disponible) {
-            // Revertir cambios en UI
-            resetearUIReserva(btn, horaStr);
-            
             if (verificacion.razon === 'ocupada') {
                 showAlert('❌ Esta hora acaba de ser ocupada por otro usuario', 'error');
-                // Actualizar esta hora específica
-                await actualizarHoraEspecifica(fechaStr, horaStr);
+                await sincronizarEstadosHoras();
             } else {
                 showAlert('⏳ Esta hora está siendo reservada por otro usuario', 'warning');
             }
+            bloqueoLlamadaEnProgreso = false;
             return;
         }
         
-        // 3. Cancelar reserva anterior si existe
+        // 2. Cancelar reserva anterior si existe
         if (reservaActiva) {
             console.log('🔄 Cancelando reserva anterior...');
             await cancelarReservaAnterior();
         }
         
-        // 4. Desactivar polling temporalmente
+        // 3. Desactivar polling temporalmente para evitar conflictos
         pollingActivo = false;
         if (intervaloPolling) {
             clearInterval(intervaloPolling);
             console.log('⏸️ Polling pausado durante reserva');
         }
         
-        // 5. Registrar nueva reserva
+        // 4. Registrar nueva reserva
         const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
         
         if (!resultado) {
+            showAlert('❌ Esta hora ya está siendo reservada por otro usuario', 'error');
             // Reactivar polling
             pollingActivo = true;
             iniciarPollingInteligente();
-            
-            // Revertir UI
-            resetearUIReserva(btn, horaStr);
-            showAlert('❌ Esta hora ya está siendo reservada por otro usuario', 'error');
+            bloqueoLlamadaEnProgreso = false;
             return;
         }
         
-        // 6. Configurar reserva activa
+        // 5. Configurar reserva activa
         reservaActiva = {
             fecha: fechaStr,
             hora: horaStr,
@@ -1288,10 +1272,14 @@
             timeoutId: null
         };
         
-        // 7. Actualizar UI con contador
+        // 6. Guardar selección
+        const horaInput = document.getElementById('hora');
+        if (horaInput) horaInput.value = horaStr;
+        
+        // 7. Actualizar UI INMEDIATAMENTE
         actualizarUIReservaActiva(btn, horaStr, 30);
         
-        // 8. Configurar timeout de liberación
+        // 8. Configurar timeout de liberación (30 segundos)
         timeoutReserva = setTimeout(async () => {
             console.log('⏰ Timeout de reserva alcanzado');
             await liberarReserva(fechaStr, horaStr);
@@ -1316,11 +1304,10 @@
         // Reactivar polling en caso de error
         pollingActivo = true;
         iniciarPollingInteligente();
-        resetearUIReserva(btn, horaStr);
     } finally {
         setTimeout(() => {
-            reservasEnProgreso.delete(claveReserva);
-        }, 1000);
+            bloqueoLlamadaEnProgreso = false;
+        }, 300);
     }
 }
 
