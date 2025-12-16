@@ -2240,129 +2240,154 @@
         }
 
         async function agendarCita(e) {
-            if (e) e.preventDefault();
+    if (e) e.preventDefault();
+    
+    const servicioInput = document.getElementById('servicio');
+    const horaInput = document.getElementById('hora');
+    const notasInput = document.getElementById('notas');
+    
+    if (!servicioInput || !horaInput || !notasInput) return;
+    
+    const servicioId = servicioInput.value;
+    const hora = horaInput.value;
+    const notas = notasInput.value;
+
+    if (!servicioId || !selectedDate || !hora) {
+        showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
+        return;
+    }
+
+    const fechaFormateada = formatDate(selectedDate);
+    
+    try {
+        if (!reservaActiva || reservaActiva.fecha !== fechaFormateada || reservaActiva.hora !== hora) {
+            showAlert('Por favor, selecciona una hora primero', 'error');
+            return;
+        }
+
+        const citaExistenteCache = todasLasCitasFuturasCache.some(cita => 
+            cita.fecha === fechaFormateada && cita.hora === hora
+        );
+
+        if (citaExistenteCache) {
+            showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
+            await cancelarReservaAnterior();
+            await generateHoras(selectedDate);
+            return;
+        }
+
+        // Verificación final
+        const { data: verificacionFinal } = await supabase
+            .from('citas')
+            .select('id')
+            .eq('fecha', fechaFormateada)
+            .eq('hora', hora)
+            .eq('barbero_id', barberoFijo.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .single();
             
-            const servicioInput = document.getElementById('servicio');
-            const horaInput = document.getElementById('hora');
-            const notasInput = document.getElementById('notas');
-            
-            if (!servicioInput || !horaInput || !notasInput) return;
-            
-            const servicioId = servicioInput.value;
-            const hora = horaInput.value;
-            const notas = notasInput.value;
+        if (verificacionFinal) {
+            showAlert('❌ Esta hora ya fue tomada. Por favor selecciona otra.', 'error');
+            await cancelarReservaAnterior();
+            await generateHoras(selectedDate);
+            return;
+        }
 
-            if (!servicioId || !selectedDate || !hora) {
-                showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
-                return;
-            }
+        const timestampLocal = getCurrentTimeYucatan();
+        
+        // Configurar expiración (2 horas después de la cita)
+        const [year, month, day] = fechaFormateada.split('-');
+        const [hour, minute] = hora.split(':');
+        const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
+        
+        // Expirar 2 horas después de la hora de la cita
+        const fechaExpira = new Date(fechaCita.getTime() + (2 * 60 * 60 * 1000));
+        
+        const añoExpira = fechaExpira.getFullYear();
+        const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
+        const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
+        const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
+        const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
+        const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
+        
+        const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
 
-            const fechaFormateada = formatDate(selectedDate);
-            
-            try {
-                if (!reservaActiva || reservaActiva.fecha !== fechaFormateada || reservaActiva.hora !== hora) {
-                    showAlert('Por favor, selecciona una hora primero', 'error');
-                    return;
-                }
+        const { data, error } = await supabase
+            .from('citas')
+            .insert([{
+                cliente_id: usuarioActual.id,
+                servicio_id: servicioId,
+                barbero_id: barberoFijo.id,
+                fecha: fechaFormateada,
+                hora: hora,
+                notas: notas,
+                estado: 'aceptada',
+                creado_en: timestampLocal,
+                actualizado_en: timestampLocal,
+                expira_en: timestampExpira // ¡IMPORTANTE! Establecer expiración
+            }])
+            .select(`
+                *,
+                servicios(nombre, precio),
+                barberos(nombre)
+            `);
 
-                const citaExistenteCache = todasLasCitasFuturasCache.some(cita => 
-                    cita.fecha === fechaFormateada && cita.hora === hora
-                );
+        if (error) throw error;
 
-                if (citaExistenteCache) {
-                    showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
-                    await cancelarReservaAnterior();
-                    await generateHoras(selectedDate);
-                    return;
-                }
-
-                // Verificación final
-                const { data: verificacionFinal } = await supabase
-                    .from('citas')
-                    .select('id')
-                    .eq('fecha', fechaFormateada)
-                    .eq('hora', hora)
-                    .eq('barbero_id', barberoFijo.id)
-                    .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                    .single();
-                    
-                if (verificacionFinal) {
-                    showAlert('❌ Esta hora ya fue tomada. Por favor selecciona otra.', 'error');
-                    await cancelarReservaAnterior();
-                    await generateHoras(selectedDate);
-                    return;
-                }
-
-                const timestampLocal = getCurrentTimeYucatan();
-
-                const { data, error } = await supabase
-                    .from('citas')
-                    .insert([{
-                        cliente_id: usuarioActual.id,
-                        servicio_id: servicioId,
-                        barbero_id: barberoFijo.id,
-                        fecha: fechaFormateada,
-                        hora: hora,
-                        notas: notas,
-                        estado: 'aceptada',
-                        creado_en: timestampLocal,
-                        actualizado_en: timestampLocal
-                    }])
-                    .select(`
-                        *,
-                        servicios(nombre, precio),
-                        barberos(nombre)
-                    `);
-
-                if (error) throw error;
-
-                console.log('✅ Cita agendada exitosamente');
-                
-                // Limpiar reserva y actualizar
-                await cancelarReservaAnterior();
-                await precargarCitasFuturas();
-                await notificarCambioCita(fechaFormateada, hora, 'cita_confirmada');
-                
-                // Enviar correo de confirmación
-                if (data && data[0]) {
-                    const correoEnviado = await enviarNotificacionCita(data[0]);
-                    if (correoEnviado) {
-                        showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
-                    } else {
-                        showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
-                    }
-                }
-                
-                // Limpiar formulario
-                document.querySelectorAll('.servicio-option').forEach(opt => {
-                    opt.classList.remove('selected');
-                });
-                if (servicioInput) servicioInput.value = '';
-                if (horaInput) horaInput.value = '';
-                if (notasInput) notasInput.value = '';
-                
-                selectedDate = null;
-                const selectedDateDisplay = document.getElementById('selectedDateDisplay');
-                if (selectedDateDisplay) selectedDateDisplay.textContent = 'Selecciona una fecha';
-                
-                const horasContainer = document.getElementById('horasContainer');
-                if (horasContainer) horasContainer.style.display = 'none';
-                
-                calendarioHabilitado = false;
-                habilitarCalendario();
-                currentMonth = new Date();
-                generateCalendar(currentMonth);
-                await limpiarCacheDespuesDeAgendar();
-                
-                await cargarMisCitas();
-                cambiarPestana('mis-citas');
-
-            } catch (error) {
-                await cancelarReservaAnterior();
-                console.error('❌ Error agendando cita:', error);
-                showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
+        console.log('✅ Cita agendada exitosamente con expiración:', timestampExpira);
+        
+        // Limpiar reserva y actualizar
+        await cancelarReservaAnterior();
+        await precargarCitasFuturas();
+        await notificarCambioCita(fechaFormateada, hora, 'cita_confirmada');
+        
+        // Enviar correo de confirmación
+        if (data && data[0]) {
+            const correoEnviado = await enviarNotificacionCita(data[0]);
+            if (correoEnviado) {
+                showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
+            } else {
+                showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
             }
         }
+        
+        // Limpiar formulario
+        document.querySelectorAll('.servicio-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        if (servicioInput) servicioInput.value = '';
+        if (horaInput) horaInput.value = '';
+        if (notasInput) notasInput.value = '';
+        
+        selectedDate = null;
+        const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+        if (selectedDateDisplay) selectedDateDisplay.textContent = 'Selecciona una fecha';
+        
+        const horasContainer = document.getElementById('horasContainer');
+        if (horasContainer) horasContainer.style.display = 'none';
+        
+        calendarioHabilitado = false;
+        habilitarCalendario();
+        currentMonth = new Date();
+        generateCalendar(currentMonth);
+        await limpiarCacheDespuesDeAgendar();
+        
+        // Recargar citas y reiniciar contadores
+        await cargarMisCitas();
+        
+        // Asegurar que los contadores se inicien
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 500);
+        
+        cambiarPestana('mis-citas');
+
+    } catch (error) {
+        await cancelarReservaAnterior();
+        console.error('❌ Error agendando cita:', error);
+        showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
+    }
+}
 
         // ============ FUNCIONES DE EMAILJS ============
 
@@ -2469,113 +2494,131 @@
 
         // ============ FUNCIONES DE CITAS ============
 
-        async function cargarMisCitas() {
-            try {
-                const { data: citas, error } = await supabase
-                    .from('citas')
-                    .select(`
-                        *,
-                        servicios(nombre, precio),
-                        barberos(nombre)
-                    `)
-                    .eq('cliente_id', usuarioActual.id)
-                    .order('fecha', { ascending: false });
+       async function cargarMisCitas() {
+    try {
+        const { data: citas, error } = await supabase
+            .from('citas')
+            .select(`
+                *,
+                servicios(nombre, precio),
+                barberos(nombre)
+            `)
+            .eq('cliente_id', usuarioActual.id)
+            .order('fecha', { ascending: false });
 
-                if (error) throw error;
+        if (error) throw error;
 
-                const listaCitas = document.getElementById('listaCitas');
-                if (!listaCitas) return;
-                
-                if (!citas || citas.length === 0) {
-                    listaCitas.innerHTML = `
-                        <div class="empty-state">
-                            <div>📅</div>
-                            <h3>No tienes citas agendadas</h3>
-                            <p>¡Agenda tu primera cita ahora!</p>
-                            <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
-                        </div>
-                    `;
-                } else {
-                    listaCitas.innerHTML = `
-                        <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
-                            <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
-                            <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 24px;">
-                                📅 Agendar Nueva Cita
-                            </button>
-                        </div>
-                    ` + citas.map(cita => {
-                        let fechaCreadoStr = 'N/A';
-                        if (cita.creado_en) {
-                            if (cita.creado_en.includes('T')) {
-                                fechaCreadoStr = new Date(cita.creado_en).toLocaleString('es-MX');
-                            } else {
-                                fechaCreadoStr = cita.creado_en;
-                            }
-                        }
-                        
-                        const ahora = new Date();
-                        const [year, month, day] = cita.fecha.split('-');
-                        const [hour, minute] = cita.hora.split(':');
-                        const fechaCitaYucatan = new Date(year, month - 1, day, hour, minute, 0, 0);
-                        
-                        const citaPasada = fechaCitaYucatan < ahora;
-                        const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
-                        const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
-                        const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
-                                            (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
-                        
-                        const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
-                        
-                        let mensajeCancelacionHTML = '';
-                        if (!citaPasada && tiempoParaCita > 0 && faltaMenosDeUnaHora) {
-                            mensajeCancelacionHTML = `
-                                <p class="mensaje-cancelacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                                    ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
-                                </p>
-                            `;
-                        }
-                        
-                        return `
-                            <div class="cita-card ${cita.estado}" id="cita-${cita.id}" data-cita-id="${cita.id}" data-fecha="${cita.fecha}" data-hora="${cita.hora}" data-expira="${cita.expira_en || ''}">
-                                <div class="cita-header">
-                                    <h3>${cita.servicios.nombre}</h3>
-                                    <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
-                                </div>
-                                <div class="cita-detalles">
-                                    <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
-                                    <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
-                                    <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
-                                    ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                                    <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
-                                    <div id="contador-${cita.id}" class="contador-cita"></div>
-                                    <div id="contador-eliminar-${cita.id}" class="contador-eliminar"></div>
-                                    ${mensajeCancelacionHTML}
-                                </div>
-                                <div class="cita-acciones">
-                                    ${puedeCancelar ? `
-                                        <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
-                                    ` : ''}
-                                    ${!puedeCancelar && !citaPasada && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
-                                        <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
-                                    ` : ''}
-                                    ${puedeEliminar ? `
-                                        <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        `;
-                    }).join('');    
+        const listaCitas = document.getElementById('listaCitas');
+        if (!listaCitas) return;
+        
+        if (!citas || citas.length === 0) {
+            listaCitas.innerHTML = `
+                <div class="empty-state">
+                    <div>📅</div>
+                    <h3>No tienes citas agendadas</h3>
+                    <p>¡Agenda tu primera cita ahora!</p>
+                    <button class="btn btn-primary" onclick="cambiarPestana('agendar')">Agendar Cita</button>
+                </div>
+            `;
+        } else {
+            // Primero crear el encabezado
+            let htmlContent = `
+                <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
+                    <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
+                    <button class="btn btn-primary" onclick="cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 24px;">
+                        📅 Agendar Nueva Cita
+                    </button>
+                </div>
+            `;
+            
+            // Luego agregar cada cita
+            citas.forEach(cita => {
+                let fechaCreadoStr = 'N/A';
+                if (cita.creado_en) {
+                    if (cita.creado_en.includes('T')) {
+                        fechaCreadoStr = new Date(cita.creado_en).toLocaleString('es-MX');
+                    } else {
+                        fechaCreadoStr = cita.creado_en;
+                    }
                 }
                 
-                setTimeout(() => {
-                    iniciarContadoresCitas();
-                }, 100);
-
-            } catch (error) {
-                console.error('Error cargando citas:', error);
-                showAlert('Error al cargar tus citas', 'error');
-            }
+                const ahora = new Date();
+                const [year, month, day] = cita.fecha.split('-');
+                const [hour, minute] = cita.hora.split(':');
+                const fechaCitaYucatan = new Date(year, month - 1, day, hour, minute, 0, 0);
+                
+                const citaPasada = fechaCitaYucatan < ahora;
+                const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+                const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+                const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
+                                    (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
+                
+                const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
+                
+                let mensajeCancelacionHTML = '';
+                if (!citaPasada && tiempoParaCita > 0 && faltaMenosDeUnaHora) {
+                    mensajeCancelacionHTML = `
+                        <p class="mensaje-cancelacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
+                            ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
+                        </p>
+                    `;
+                }
+                
+                htmlContent += `
+                    <div class="cita-card ${cita.estado}" id="cita-${cita.id}" data-cita-id="${cita.id}" data-fecha="${cita.fecha}" data-hora="${cita.hora}" data-expira="${cita.expira_en || ''}">
+                        <div class="cita-header">
+                            <h3>${cita.servicios.nombre}</h3>
+                            <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
+                        </div>
+                        <div class="cita-detalles">
+                            <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
+                            <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
+                            <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
+                            ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                            <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
+                            <div id="contador-${cita.id}" class="contador-cita"></div>
+                            <div id="contador-eliminar-${cita.id}" class="contador-eliminar"></div>
+                            ${mensajeCancelacionHTML}
+                        </div>
+                        <div class="cita-acciones">
+                            ${puedeCancelar ? `
+                                <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
+                            ` : ''}
+                            ${!puedeCancelar && !citaPasada && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
+                                <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
+                            ` : ''}
+                            ${puedeEliminar ? `
+                                <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            listaCitas.innerHTML = htmlContent;
         }
+
+        // Iniciar contadores después de cargar el HTML
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 100);
+
+    } catch (error) {
+        console.error('❌ Error cargando citas:', error);
+        // Mostrar error en la UI
+        const listaCitas = document.getElementById('listaCitas');
+        if (listaCitas) {
+            listaCitas.innerHTML = `
+                <div class="alert alert-error">
+                    <h3>Error al cargar citas</h3>
+                    <p>${error.message || 'No se pudieron cargar tus citas. Por favor, recarga la página.'}</p>
+                    <button class="btn btn-primary" onclick="app.cargarMisCitas()">Reintentar</button>
+                </div>
+            `;
+        }
+        showAlert('Error al cargar tus citas', 'error');
+    }
+}
 
         async function limpiarCacheDespuesDeAgendar() {
     // Limpiar caché de citas futuras
@@ -2594,154 +2637,351 @@
     }
 }
 
-        function iniciarContadoresCitas() {
-    // Limpiar intervalos anteriores
-    for (const id in intervalosContador) {
-        clearInterval(intervalosContador[id]);
-    }
-    intervalosContador = {};
-
-    // Iniciar contadores para cada cita
-    document.querySelectorAll('.cita-card').forEach(citaCard => {
-        const citaId = citaCard.dataset.citaId;
-        const expiraStr = citaCard.dataset.expira;
+function iniciarContadoresCitas() {
+    try {
+        console.log('⏰ Iniciando contadores de citas...');
         
-        if (!expiraStr || expiraStr === 'null' || expiraStr === '') {
-            return;
+        // Limpiar intervalos anteriores
+        for (const id in intervalosContador) {
+            if (intervalosContador[id]) {
+                clearInterval(intervalosContador[id]);
+            }
         }
+        intervalosContador = {};
 
-        const fechaExpira = new Date(expiraStr);
         const ahora = new Date();
         
-        if (fechaExpira <= ahora) {
-            // La cita ya expiró, mostrar opción de eliminar
-            const contadorDiv = document.getElementById(`contador-eliminar-${citaId}`);
-            if (contadorDiv) {
-                contadorDiv.innerHTML = `
-                    <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                        ✅ Esta cita ya expiró y puede ser eliminada
-                    </p>
-                `;
-            }
-            return;
-        }
-
-        // Calcular tiempo restante
-        const actualizarContador = () => {
-            const ahora = new Date();
-            const tiempoRestante = fechaExpira.getTime() - ahora.getTime();
-            
-            if (tiempoRestante <= 0) {
-                clearInterval(intervalosContador[citaId]);
-                delete intervalosContador[citaId];
+        // Iniciar contadores para cada cita
+        document.querySelectorAll('.cita-card').forEach(citaCard => {
+            try {
+                const citaId = citaCard.dataset.citaId;
+                const expiraStr = citaCard.dataset.expira;
+                const fechaStr = citaCard.dataset.fecha;
+                const horaStr = citaCard.dataset.hora;
                 
-                // Actualizar UI para mostrar que se puede eliminar
+                console.log(`📋 Procesando cita ${citaId}: fecha=${fechaStr}, hora=${horaStr}, expira=${expiraStr}`);
+                
+                // Obtener elementos del DOM
                 const contadorDiv = document.getElementById(`contador-${citaId}`);
                 const contadorEliminarDiv = document.getElementById(`contador-eliminar-${citaId}`);
                 
-                if (contadorDiv) {
-                    contadorDiv.innerHTML = `
-                        <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                            ✅ Esta cita ya expiró y puede ser eliminada
-                        </p>
-                    `;
+                if (!contadorDiv) {
+                    console.log(`❌ No se encontró contador para cita ${citaId}`);
+                    return;
                 }
                 
-                if (contadorEliminarDiv) {
-                    contadorEliminarDiv.innerHTML = `
-                        <button class="btn btn-secondary" onclick="app.eliminarCita('${citaId}')" style="margin-top: 10px;">
-                            🗑️ Eliminar ahora
-                        </button>
-                    `;
+                // 1. Verificar si la cita ya pasó (estado completada)
+                const estado = citaCard.className.includes('completada') ? 'completada' : 
+                             citaCard.className.includes('cancelada') ? 'cancelada' :
+                             citaCard.className.includes('aceptada') ? 'aceptada' : 'pendiente';
+                
+                if (estado === 'completada' || estado === 'cancelada') {
+                    // Mostrar opción de eliminar manualmente para citas completadas o canceladas
+                    if (contadorEliminarDiv) {
+                        contadorEliminarDiv.innerHTML = `
+                            <button class="btn btn-secondary" onclick="eliminarCita('${citaId}')" style="margin-top: 10px;">
+                                🗑️ Eliminar esta cita
+                            </button>
+                        `;
+                    }
+                    return;
                 }
                 
-                return;
-            }
-
-            const horas = Math.floor(tiempoRestante / (1000 * 60 * 60));
-            const minutos = Math.floor((tiempoRestante % (1000 * 60 * 60)) / (1000 * 60));
-            const segundos = Math.floor((tiempoRestante % (1000 * 60)) / 1000);
-
-            const contadorDiv = document.getElementById(`contador-${citaId}`);
-            if (contadorDiv) {
-                contadorDiv.innerHTML = `
-                    <p style="color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                        ⏳ Esta cita se eliminará automáticamente en: 
-                        ${horas}h ${minutos}m ${segundos}s
-                    </p>
-                `;
-            }
-        };
-
-        // Ejecutar inmediatamente y luego cada segundo
-        actualizarContador();
-        intervalosContador[citaId] = setInterval(actualizarContador, 1000);
-    });
-}
-
-        async function cancelarCita(citaId) {
-            try {
-                const { data: cita, error: errorCita } = await supabase
-                    .from('citas')
-                    .select('fecha, hora, estado')
-                    .eq('id', citaId)
-                    .single();
-
-                if (errorCita) throw errorCita;
-
-                const ahora = new Date();
-                const [year, month, day] = cita.fecha.split('-');
-                const [hour, minute] = cita.hora.split(':');
-                const fechaCitaYucatan = new Date(year, month - 1, day, hour, minute, 0, 0);
-                const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
-                const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
-
-                if (faltaMenosDeUnaHora) {
-                    showAlert('❌ No puedes cancelar la cita cuando faltan menos de 1 hora', 'error');
-                    await cargarMisCitas();
+                // 2. Verificar si la hora de la cita ya pasó
+                if (fechaStr && horaStr) {
+                    const [year, month, day] = fechaStr.split('-');
+                    const [hour, minute] = horaStr.split(':');
+                    const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
+                    
+                    if (fechaCita < ahora) {
+                        // La cita ya pasó, cambiar estado a completada
+                        if (contadorDiv) {
+                            contadorDiv.innerHTML = `
+                                <p style="color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                    ✅ Esta cita ya se realizó. Puedes eliminarla del historial.
+                                </p>
+                            `;
+                        }
+                        
+                        if (contadorEliminarDiv) {
+                            contadorEliminarDiv.innerHTML = `
+                                <button class="btn btn-secondary" onclick="marcarComoCompletada('${citaId}')" style="margin-top: 10px; margin-right: 10px;">
+                                    ✅ Marcar como completada
+                                </button>
+                                <button class="btn btn-secondary" onclick="eliminarCita('${citaId}')" style="margin-top: 10px;">
+                                    🗑️ Eliminar del historial
+                                </button>
+                            `;
+                        }
+                        return;
+                    }
+                }
+                
+                // 3. Manejar expiración si existe
+                if (!expiraStr || expiraStr === 'null' || expiraStr === '' || expiraStr === 'undefined') {
+                    console.log(`⏭️ Cita ${citaId} sin expiración, mostrando estado normal...`);
+                    
+                    if (contadorDiv) {
+                        contadorDiv.innerHTML = `
+                            <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                ✅ Cita activa y confirmada
+                            </p>
+                        `;
+                    }
                     return;
                 }
 
-                if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
+                const fechaExpira = new Date(expiraStr);
+                
+                // Verificar si la fecha es válida
+                if (isNaN(fechaExpira.getTime())) {
+                    console.error(`❌ Fecha de expiración inválida para cita ${citaId}: ${expiraStr}`);
                     return;
                 }
-
-                const fechaExpira = new Date();
-                fechaExpira.setHours(fechaExpira.getHours() + 2);
                 
-                const añoExpira = fechaExpira.getFullYear();
-                const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
-                const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
-                const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
-                const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
-                const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
+                console.log(`📅 Cita ${citaId}: ahora=${ahora.toISOString()}, expira=${fechaExpira.toISOString()}`);
                 
-                const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
-                const timestampActual = getCurrentTimeYucatan();
+                // Calcular tiempo restante
+                const actualizarContador = () => {
+                    try {
+                        const ahora = new Date();
+                        const tiempoRestante = fechaExpira.getTime() - ahora.getTime();
+                        
+                        if (tiempoRestante <= 0) {
+                            // La cita ya expiró
+                            if (intervalosContador[citaId]) {
+                                clearInterval(intervalosContador[citaId]);
+                                delete intervalosContador[citaId];
+                            }
+                            
+                            // Mostrar que se puede eliminar
+                            if (contadorDiv) {
+                                contadorDiv.innerHTML = `
+                                    <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                        ✅ Esta cita ya expiró y puede ser eliminada
+                                    </p>
+                                `;
+                            }
+                            
+                            if (contadorEliminarDiv) {
+                                contadorEliminarDiv.innerHTML = `
+                                    <button class="btn btn-secondary" onclick="eliminarCita('${citaId}')" style="margin-top: 10px;">
+                                        🗑️ Eliminar ahora
+                                    </button>
+                                `;
+                            }
+                            
+                            return;
+                        }
 
-                const { error } = await supabase
-                    .from('citas')
-                    .update({ 
-                        estado: 'cancelada',
-                        expira_en: timestampExpira,
-                        actualizado_en: timestampActual
-                    })
-                    .eq('id', citaId);
+                        const horas = Math.floor(tiempoRestante / (1000 * 60 * 60));
+                        const minutos = Math.floor((tiempoRestante % (1000 * 60 * 60)) / (1000 * 60));
+                        const segundos = Math.floor((tiempoRestante % (1000 * 60)) / 1000);
 
-                if (error) throw error;
+                        if (contadorDiv) {
+                            contadorDiv.innerHTML = `
+                                <p style="color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                    ⏳ Esta cita se eliminará automáticamente en: 
+                                    ${horas}h ${minutos}m ${segundos}s
+                                </p>
+                            `;
+                        }
+                        
+                    } catch (error) {
+                        console.error(`❌ Error en contador de cita ${citaId}:`, error);
+                    }
+                };
 
-                showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
-                await limpiarCacheDespuesDeAgendar();
-                await precargarCitasFuturas();
-                await cargarMisCitas();
-                await notificarCambioCita(cita.fecha, cita.hora, 'cita_cancelada');
-
+                // Ejecutar inmediatamente
+                actualizarContador();
+                
+                // Configurar intervalo
+                intervalosContador[citaId] = setInterval(actualizarContador, 1000);
+                
+                console.log(`✅ Contador iniciado para cita ${citaId}`);
+                
             } catch (error) {
-                console.error('Error cancelando cita:', error);
-                showAlert('❌ Error al cancelar la cita', 'error');
+                console.error(`❌ Error procesando cita card:`, error);
+            }
+        });
+        
+        console.log(`✅ ${Object.keys(intervalosContador).length} contadores iniciados`);
+        
+    } catch (error) {
+        console.error('❌ Error en iniciarContadoresCitas:', error);
+    }
+}
+function refrescarContadores() {
+    try {
+        console.log('🔄 Refrescando contadores de citas...');
+        
+        // Limpiar intervalos anteriores
+        for (const id in intervalosContador) {
+            if (intervalosContador[id]) {
+                clearInterval(intervalosContador[id]);
             }
         }
+        intervalosContador = {};
+        
+        // Reiniciar contadores
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 100);
+        
+        console.log('✅ Contadores refrescados');
+    } catch (error) {
+        console.error('❌ Error refrescando contadores:', error);
+    }
+}
+async function marcarComoCompletada(citaId) {
+    try {
+        if (!confirm('¿Marcar esta cita como completada?')) {
+            return;
+        }
 
+        const timestampActual = getCurrentTimeYucatan();
+
+        const { error } = await supabase
+            .from('citas')
+            .update({ 
+                estado: 'completada',
+                actualizado_en: timestampActual
+            })
+            .eq('id', citaId);
+
+        if (error) throw error;
+
+        showAlert('✅ Cita marcada como completada', 'success');
+        
+        // Recargar citas
+        await cargarMisCitas();
+        
+        // Reiniciar contadores
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 500);
+
+    } catch (error) {
+        console.error('Error marcando cita como completada:', error);
+        showAlert('❌ Error al marcar la cita como completada', 'error');
+    }
+}
+        async function cancelarCita(citaId) {
+    try {
+        const { data: cita, error: errorCita } = await supabase
+            .from('citas')
+            .select('fecha, hora, estado')
+            .eq('id', citaId)
+            .single();
+
+        if (errorCita) throw errorCita;
+
+        const ahora = new Date();
+        const [year, month, day] = cita.fecha.split('-');
+        const [hour, minute] = cita.hora.split(':');
+        const fechaCitaYucatan = new Date(year, month - 1, day, hour, minute, 0, 0);
+        const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+        const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+
+        if (faltaMenosDeUnaHora) {
+            showAlert('❌ No puedes cancelar la cita cuando faltan menos de 1 hora', 'error');
+            await cargarMisCitas();
+            return;
+        }
+
+        if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
+            return;
+        }
+
+        const fechaExpira = new Date();
+        fechaExpira.setHours(fechaExpira.getHours() + 2);
+        
+        const añoExpira = fechaExpira.getFullYear();
+        const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
+        const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
+        const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
+        const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
+        const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
+        
+        const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
+        const timestampActual = getCurrentTimeYucatan();
+
+        const { error } = await supabase
+            .from('citas')
+            .update({ 
+                estado: 'cancelada',
+                expira_en: timestampExpira,
+                actualizado_en: timestampActual
+            })
+            .eq('id', citaId);
+
+        if (error) throw error;
+
+        showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
+        
+        await limpiarCacheDespuesDeAgendar();
+        await precargarCitasFuturas();
+        
+        // Recargar citas y luego iniciar contadores
+        await cargarMisCitas();
+        
+        // Forzar reinicio de contadores después de actualizar
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 500);
+        
+        await notificarCambioCita(cita.fecha, cita.hora, 'cita_cancelada');
+
+    } catch (error) {
+        console.error('Error cancelando cita:', error);
+        showAlert('❌ Error al cancelar la cita', 'error');
+    }
+}
+
+async function verificarCitasPasadas() {
+    try {
+        const ahora = new Date();
+        const fechaActual = formatDate(ahora);
+        const horaActual = ahora.getHours() + ':' + (ahora.getMinutes() < 10 ? '0' : '') + ahora.getMinutes();
+        
+        // Buscar citas pasadas que aún estén en estado aceptada/pendiente/confirmada
+        const { data: citasPasadas, error } = await supabase
+            .from('citas')
+            .select('id, fecha, hora')
+            .eq('cliente_id', usuarioActual.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .or(`fecha.lt.${fechaActual},and(fecha.eq.${fechaActual},hora.lt.${horaActual})`);
+            
+        if (error) throw error;
+        
+        if (citasPasadas && citasPasadas.length > 0) {
+            console.log(`📅 Encontré ${citasPasadas.length} citas pasadas para actualizar`);
+            
+            const timestampActual = getCurrentTimeYucatan();
+            
+            for (const cita of citasPasadas) {
+                await supabase
+                    .from('citas')
+                    .update({
+                        estado: 'completada',
+                        actualizado_en: timestampActual
+                    })
+                    .eq('id', cita.id);
+            }
+            
+            // Recargar citas si hay cambios
+            if (citasPasadas.length > 0) {
+                await cargarMisCitas();
+                setTimeout(() => {
+                    iniciarContadoresCitas();
+                }, 500);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error verificando citas pasadas:', error);
+    }
+}
         async function eliminarCita(citaId) {
             if (!confirm('¿Estás seguro de que quieres eliminar permanentemente esta cita?')) {
                 return;
@@ -2836,6 +3076,8 @@
 
         await cargarBarberoFijo();
         await cargarServicios();
+
+        await verificarCitasPasadas();
         await cargarMisCitas();
         await precargarCitasFuturas();
         
@@ -2912,7 +3154,11 @@
                 }
                 intervalosContador = {};
                 await cargarMisCitas();
-            }
+                setTimeout(() => {
+                    iniciarContadoresCitas();
+                }, 100);
+            },
+            refrescarContadores
         };
 
         // ============ EJECUCIÓN ============
