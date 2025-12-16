@@ -2811,7 +2811,28 @@ function iniciarContadoresCitas() {
         console.error('❌ Error en iniciarContadoresCitas:', error);
     }
 }
-
+function refrescarContadores() {
+    try {
+        console.log('🔄 Refrescando contadores de citas...');
+        
+        // Limpiar intervalos anteriores
+        for (const id in intervalosContador) {
+            if (intervalosContador[id]) {
+                clearInterval(intervalosContador[id]);
+            }
+        }
+        intervalosContador = {};
+        
+        // Reiniciar contadores
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 100);
+        
+        console.log('✅ Contadores refrescados');
+    } catch (error) {
+        console.error('❌ Error refrescando contadores:', error);
+    }
+}
 async function marcarComoCompletada(citaId) {
     try {
         if (!confirm('¿Marcar esta cita como completada?')) {
