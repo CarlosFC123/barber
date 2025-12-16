@@ -910,6 +910,8 @@
             </div>
         </div> -->
     </div>
+
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         initializeApp();
@@ -1026,16 +1028,7 @@
             return `${año}-${mes}-${dia}`;
         }
 
-        function getCurrentTimeYucatan() {
-            const ahora = new Date();
-            const año = ahora.getFullYear();
-            const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-            const dia = String(ahora.getDate()).padStart(2, '0');
-            const hora = String(ahora.getHours()).padStart(2, '0');
-            const minuto = String(ahora.getMinutes()).padStart(2, '0');
-            const segundo = String(ahora.getSeconds()).padStart(2, '0');
-            return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
-        }
+        
 
         // ============ SISTEMA DE CACHÉ INTELIGENTE ============
 
@@ -2238,6 +2231,46 @@
             }
         }
 
+        function getCurrentTimeYucatan() {
+    // Obtener fecha/hora actual en Yucatán (UTC-6)
+    const ahora = new Date();
+    
+    // Ajustar a horario de Yucatán (UTC-6)
+    const offsetYucatan = -6; // UTC-6 para Yucatán (sin horario de verano)
+    const ahoraYucatan = new Date(ahora.getTime() + (offsetYucatan * 60 * 60 * 1000));
+    
+    const año = ahoraYucatan.getFullYear();
+    const mes = String(ahoraYucatan.getMonth() + 1).padStart(2, '0');
+    const dia = String(ahoraYucatan.getDate()).padStart(2, '0');
+    const hora = String(ahoraYucatan.getHours()).padStart(2, '0');
+    const minuto = String(ahoraYucatan.getMinutes()).padStart(2, '0');
+    const segundo = String(ahoraYucatan.getSeconds()).padStart(2, '0');
+    
+    return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+}
+
+// Función auxiliar para obtener fecha/hora en Yucatán más X horas
+function getTimeYucatanPlusHours(hoursToAdd) {
+    const ahora = new Date();
+    
+    // Ajustar a horario de Yucatán (UTC-6)
+    const offsetYucatan = -6; // UTC-6 para Yucatán
+    const ahoraYucatan = new Date(ahora.getTime() + (offsetYucatan * 60 * 60 * 1000));
+    
+    // Agregar las horas
+    const fechaExpira = new Date(ahoraYucatan.getTime() + (hoursToAdd * 60 * 60 * 1000));
+    
+    const año = fechaExpira.getFullYear();
+    const mes = String(fechaExpira.getMonth() + 1).padStart(2, '0');
+    const dia = String(fechaExpira.getDate()).padStart(2, '0');
+    const hora = String(fechaExpira.getHours()).padStart(2, '0');
+    const minuto = String(fechaExpira.getMinutes()).padStart(2, '0');
+    const segundo = String(fechaExpira.getSeconds()).padStart(2, '0');
+    
+    return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+}
+
+
         async function agendarCita(e) {
     if (e) e.preventDefault();
     
@@ -2297,20 +2330,27 @@
         // Configurar expiración (2 horas después de la cita)
         const [year, month, day] = fechaFormateada.split('-');
         const [hour, minute] = hora.split(':');
-        const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
+        const fechaCitaYucatan = new Date(
+                parseInt(year),
+                parseInt(month) - 1,
+                parseInt(day),
+                parseInt(hour),
+                parseInt(minute),
+                0,
+                0
+            );
         
         // Expirar 2 horas después de la hora de la cita
-        const fechaExpira = new Date(fechaCita.getTime() + (2 * 60 * 60 * 1000));
+        const fechaExpiraYucatan = new Date(fechaCitaYucatan.getTime() + (2 * 60 * 60 * 1000));
         
-        const añoExpira = fechaExpira.getFullYear();
-        const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
-        const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
-        const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
-        const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
-        const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
+        const añoExpira = fechaExpiraYucatan.getFullYear();
+        const mesExpira = String(fechaExpiraYucatan.getMonth() + 1).padStart(2, '0');
+        const diaExpira = String(fechaExpiraYucatan.getDate()).padStart(2, '0');
+        const horaExpira = String(fechaExpiraYucatan.getHours()).padStart(2, '0');
+        const minutoExpira = String(fechaExpiraYucatan.getMinutes()).padStart(2, '0');
+        const segundoExpira = String(fechaExpiraYucatan.getSeconds()).padStart(2, '0');
         
         const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
-
         const { data, error } = await supabase
             .from('citas')
             .insert([{
@@ -2727,14 +2767,7 @@ function iniciarContadoresCitas() {
                         }
                     }
                     
-                    // Mostrar opción de eliminar manualmente
-                    // if (contadorEliminarDiv) {
-                    //     contadorEliminarDiv.innerHTML = `
-                    //         <button class="btn btn-secondary" onclick="eliminarCita('${citaId}')" style="margin-top: 10px;">
-                    //             🗑️ Eliminar esta cita ahora
-                    //         </button>
-                    //     `;
-                    // }
+                   
                     return;
                 }
                 
@@ -2861,17 +2894,17 @@ async function marcarComoCompletada(citaId) {
         }
 
         const timestampActual = getCurrentTimeYucatan();
+        const timestampExpira = getTimeYucatanPlusHours(2);
 
         // Configurar expiración para 2 horas después
-        const fechaExpira = new Date(Date.now() + (2 * 60 * 60 * 1000));
-        const añoExpira = fechaExpira.getFullYear();
-        const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
-        const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
-        const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
-        const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
-        const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
+        // const fechaExpira = new Date(Date.now() + (2 * 60 * 60 * 1000));
+        // const añoExpira = fechaExpira.getFullYear();
+        // const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
+        // const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
+        // const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
+        // const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
+        // const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
         
-        const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
 
         const { error } = await supabase
             .from('citas')
@@ -2899,7 +2932,8 @@ async function marcarComoCompletada(citaId) {
         showAlert('❌ Error al marcar la cita como completada', 'error');
     }
 }
-        async function cancelarCita(citaId) {
+
+async function cancelarCita(citaId) {
     try {
         const { data: cita, error: errorCita } = await supabase
             .from('citas')
@@ -2912,8 +2946,10 @@ async function marcarComoCompletada(citaId) {
         const ahora = new Date();
         const [year, month, day] = cita.fecha.split('-');
         const [hour, minute] = cita.hora.split(':');
-        const fechaCitaYucatan = new Date(year, month - 1, day, hour, minute, 0, 0);
-        const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+        
+        // Crear fecha de la cita en horario local
+        const fechaCitaLocal = new Date(year, month - 1, day, hour, minute, 0, 0);
+        const tiempoParaCita = fechaCitaLocal.getTime() - ahora.getTime();
         const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
 
         if (faltaMenosDeUnaHora) {
@@ -2926,18 +2962,8 @@ async function marcarComoCompletada(citaId) {
             return;
         }
 
-        const fechaExpira = new Date();
-        fechaExpira.setHours(fechaExpira.getHours() + 2);
-        
-        const añoExpira = fechaExpira.getFullYear();
-        const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
-        const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
-        const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
-        const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
-        const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
-        
-        const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
         const timestampActual = getCurrentTimeYucatan();
+        const timestampExpira = getTimeYucatanPlusHours(2);
 
         const { error } = await supabase
             .from('citas')
