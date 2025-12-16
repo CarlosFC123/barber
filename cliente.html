@@ -2231,45 +2231,242 @@
             }
         }
 
-        function getCurrentTimeYucatan() {
-    // Obtener fecha/hora actual en Yucatán (UTC-6)
-    const ahora = new Date();
-    
-    // Ajustar a horario de Yucatán (UTC-6)
-    const offsetYucatan = -6; // UTC-6 para Yucatán (sin horario de verano)
-    const ahoraYucatan = new Date(ahora.getTime() + (offsetYucatan * 60 * 60 * 1000));
-    
-    const año = ahoraYucatan.getFullYear();
-    const mes = String(ahoraYucatan.getMonth() + 1).padStart(2, '0');
-    const dia = String(ahoraYucatan.getDate()).padStart(2, '0');
-    const hora = String(ahoraYucatan.getHours()).padStart(2, '0');
-    const minuto = String(ahoraYucatan.getMinutes()).padStart(2, '0');
-    const segundo = String(ahoraYucatan.getSeconds()).padStart(2, '0');
-    
-    return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+function getCurrentTimeYucatan() {
+    try {
+        // Usar Intl.DateTimeFormat para obtener hora específica de Yucatán
+        const ahora = new Date();
+        
+        // Formatear para zona horaria de Yucatán (America/Merida)
+        const formatter = new Intl.DateTimeFormat('es-MX', {
+            timeZone: 'America/Merida', // Zona horaria de Yucatán
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        
+        // Obtener partes de la fecha
+        const parts = formatter.formatToParts(ahora);
+        const dateObj = {};
+        
+        parts.forEach(part => {
+            if (part.type !== 'literal') {
+                dateObj[part.type] = part.value;
+            }
+        });
+        
+        // Formatear como YYYY-MM-DD HH:MM:SS
+        return `${dateObj.year}-${dateObj.month}-${dateObj.day} ${dateObj.hour}:${dateObj.minute}:${dateObj.second}`;
+        
+    } catch (error) {
+        console.error('Error obteniendo hora de Yucatán:', error);
+        // Fallback: usar hora local del navegador
+        const ahora = new Date();
+        const año = ahora.getFullYear();
+        const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+        const dia = String(ahora.getDate()).padStart(2, '0');
+        const hora = String(ahora.getHours()).padStart(2, '0');
+        const minuto = String(ahora.getMinutes()).padStart(2, '0');
+        const segundo = String(ahora.getSeconds()).padStart(2, '0');
+        return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+    }
 }
 
-// Función auxiliar para obtener fecha/hora en Yucatán más X horas
+// Obtener fecha Yucatán más X horas
 function getTimeYucatanPlusHours(hoursToAdd) {
-    const ahora = new Date();
-    
-    // Ajustar a horario de Yucatán (UTC-6)
-    const offsetYucatan = -6; // UTC-6 para Yucatán
-    const ahoraYucatan = new Date(ahora.getTime() + (offsetYucatan * 60 * 60 * 1000));
-    
-    // Agregar las horas
-    const fechaExpira = new Date(ahoraYucatan.getTime() + (hoursToAdd * 60 * 60 * 1000));
-    
-    const año = fechaExpira.getFullYear();
-    const mes = String(fechaExpira.getMonth() + 1).padStart(2, '0');
-    const dia = String(fechaExpira.getDate()).padStart(2, '0');
-    const hora = String(fechaExpira.getHours()).padStart(2, '0');
-    const minuto = String(fechaExpira.getMinutes()).padStart(2, '0');
-    const segundo = String(fechaExpira.getSeconds()).padStart(2, '0');
-    
-    return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+    try {
+        const ahora = new Date();
+        
+        // Primero obtenemos la hora actual en Yucatán
+        const formatterActual = new Intl.DateTimeFormat('es-MX', {
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        
+        const partsActual = formatterActual.formatToParts(ahora);
+        const dateObjActual = {};
+        
+        partsActual.forEach(part => {
+            if (part.type !== 'literal') {
+                dateObjActual[part.type] = part.value;
+            }
+        });
+        
+        // Crear fecha en Yucatán
+        const fechaYucatan = new Date(
+            parseInt(dateObjActual.year),
+            parseInt(dateObjActual.month) - 1,
+            parseInt(dateObjActual.day),
+            parseInt(dateObjActual.hour),
+            parseInt(dateObjActual.minute),
+            parseInt(dateObjActual.second)
+        );
+        
+        // Agregar horas
+        const fechaExpira = new Date(fechaYucatan.getTime() + (hoursToAdd * 60 * 60 * 1000));
+        
+        // Formatear resultado
+        const formatterExpira = new Intl.DateTimeFormat('es-MX', {
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        
+        const partsExpira = formatterExpira.formatToParts(fechaExpira);
+        const dateObjExpira = {};
+        
+        partsExpira.forEach(part => {
+            if (part.type !== 'literal') {
+                dateObjExpira[part.type] = part.value;
+            }
+        });
+        
+        return `${dateObjExpira.year}-${dateObjExpira.month}-${dateObjExpira.day} ${dateObjExpira.hour}:${dateObjExpira.minute}:${dateObjExpira.second}`;
+        
+    } catch (error) {
+        console.error('Error calculando hora futura Yucatán:', error);
+        // Fallback: usar cálculo simple
+        const ahora = new Date();
+        const fechaExpira = new Date(ahora.getTime() + (hoursToAdd * 60 * 60 * 1000));
+        
+        const año = fechaExpira.getFullYear();
+        const mes = String(fechaExpira.getMonth() + 1).padStart(2, '0');
+        const dia = String(fechaExpira.getDate()).padStart(2, '0');
+        const hora = String(fechaExpira.getHours()).padStart(2, '0');
+        const minuto = String(fechaExpira.getMinutes()).padStart(2, '0');
+        const segundo = String(fechaExpira.getSeconds()).padStart(2, '0');
+        
+        return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+    }
 }
 
+function getYucatanDateTime(dateStr, timeStr) {
+    try {
+        const [year, month, day] = dateStr.split('-');
+        const [hour, minute] = timeStr.split(':');
+        
+        // Crear fecha local
+        const fechaLocal = new Date(
+            parseInt(year),
+            parseInt(month) - 1,
+            parseInt(day),
+            parseInt(hour),
+            parseInt(minute),
+            0,
+            0
+        );
+        
+        // Convertir a hora Yucatán
+        const formatter = new Intl.DateTimeFormat('es-MX', {
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        
+        const parts = formatter.formatToParts(fechaLocal);
+        const dateObj = {};
+        
+        parts.forEach(part => {
+            if (part.type !== 'literal') {
+                dateObj[part.type] = part.value;
+            }
+        });
+        
+        // Crear fecha Yucatán ajustada
+        return new Date(
+            parseInt(dateObj.year),
+            parseInt(dateObj.month) - 1,
+            parseInt(dateObj.day),
+            parseInt(dateObj.hour),
+            parseInt(dateObj.minute),
+            0,
+            0
+        );
+        
+    } catch (error) {
+        console.error('Error convirtiendo a hora Yucatán:', error);
+        // Fallback
+        const [year, month, day] = dateStr.split('-');
+        const [hour, minute] = timeStr.split(':');
+        return new Date(
+            parseInt(year),
+            parseInt(month) - 1,
+            parseInt(day),
+            parseInt(hour),
+            parseInt(minute),
+            0,
+            0
+        );
+    }
+}
+
+// Función para verificar tiempo de cancelación usando hora Yucatán
+function verificarCancelacionPermitida(fechaCitaYucatan) {
+    try {
+        // Obtener hora ACTUAL de Yucatán
+        const ahoraYucatan = new Date();
+        const formatterAhora = new Intl.DateTimeFormat('es-MX', {
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        
+        const partsAhora = formatterAhora.formatToParts(ahoraYucatan);
+        const ahoraObj = {};
+        
+        partsAhora.forEach(part => {
+            if (part.type !== 'literal') {
+                ahoraObj[part.type] = part.value;
+            }
+        });
+        
+        const ahoraYucatanDate = new Date(
+            parseInt(ahoraObj.year),
+            parseInt(ahoraObj.month) - 1,
+            parseInt(ahoraObj.day),
+            parseInt(ahoraObj.hour),
+            parseInt(ahoraObj.minute),
+            parseInt(ahoraObj.second)
+        );
+        
+        // Calcular diferencia en milisegundos
+        const tiempoParaCita = fechaCitaYucatan.getTime() - ahoraYucatanDate.getTime();
+        
+        // Permitir cancelación solo si faltan más de 1 hora (3600000 ms)
+        return tiempoParaCita > (60 * 60 * 1000);
+        
+    } catch (error) {
+        console.error('Error verificando cancelación:', error);
+        // Fallback: usar hora local
+        const ahora = new Date();
+        const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+        return tiempoParaCita > (60 * 60 * 1000);
+    }
+}
 
         async function agendarCita(e) {
     if (e) e.preventDefault();
@@ -2943,16 +3140,12 @@ async function cancelarCita(citaId) {
 
         if (errorCita) throw errorCita;
 
-        const ahora = new Date();
-        const [year, month, day] = cita.fecha.split('-');
-        const [hour, minute] = cita.hora.split(':');
+        const fechaCitaYucatan = getYucatanDateTime(cita.fecha, cita.hora);
         
-        // Crear fecha de la cita en horario local
-        const fechaCitaLocal = new Date(year, month - 1, day, hour, minute, 0, 0);
-        const tiempoParaCita = fechaCitaLocal.getTime() - ahora.getTime();
-        const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+        // Verificar si se permite cancelación usando hora REAL de Yucatán
+        const puedeCancelar = verificarCancelacionPermitida(fechaCitaYucatan);
 
-        if (faltaMenosDeUnaHora) {
+        if (!puedeCancelar) {
             showAlert('❌ No puedes cancelar la cita cuando faltan menos de 1 hora', 'error');
             await cargarMisCitas();
             return;
