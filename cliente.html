@@ -2240,146 +2240,153 @@
         }
 
         async function agendarCita(e) {
-            if (e) e.preventDefault();
-            
-            const servicioInput = document.getElementById('servicio');
-            const horaInput = document.getElementById('hora');
-            const notasInput = document.getElementById('notas');
-            
-            if (!servicioInput || !horaInput || !notasInput) return;
-            
-            const servicioId = servicioInput.value;
-            const hora = horaInput.value;
-            const notas = notasInput.value;
-
-            if (!servicioId || !selectedDate || !hora) {
-                showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
-                return;
-            }
-
-            const fechaFormateada = formatDate(selectedDate);
-            
-            try {
-                if (!reservaActiva || reservaActiva.fecha !== fechaFormateada || reservaActiva.hora !== hora) {
-                    showAlert('Por favor, selecciona una hora primero', 'error');
-                    return;
-                }
-
-                const citaExistenteCache = todasLasCitasFuturasCache.some(cita => 
-                    cita.fecha === fechaFormateada && cita.hora === hora
-                );
-
-                if (citaExistenteCache) {
-                    showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
-                    await cancelarReservaAnterior();
-                    await generateHoras(selectedDate);
-                    return;
-                }
-
-                // Verificación final
-                const { data: verificacionFinal } = await supabase
-                    .from('citas')
-                    .select('id')
-                    .eq('fecha', fechaFormateada)
-                    .eq('hora', hora)
-                    .eq('barbero_id', barberoFijo.id)
-                    .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                    .single();
-                    
-                if (verificacionFinal) {
-                    showAlert('❌ Esta hora ya fue tomada. Por favor selecciona otra.', 'error');
-                    await cancelarReservaAnterior();
-                    await generateHoras(selectedDate);
-                    return;
-                }
-
-                const timestampLocal = getCurrentTimeYucatan();
-
-                const { data, error } = await supabase
-                    .from('citas')
-                    .insert([{
-                        cliente_id: usuarioActual.id,
-                        servicio_id: servicioId,
-                        barbero_id: barberoFijo.id,
-                        fecha: fechaFormateada,
-                        hora: hora,
-                        notas: notas,
-                        estado: 'aceptada',
-                        creado_en: timestampLocal,
-                        actualizado_en: timestampLocal
-                    }])
-                    .select(`
-                        *,
-                        servicios(nombre, precio),
-                        barberos(nombre)
-                    `);
-
-                if (error) throw error;
-
-                console.log('✅ Cita agendada exitosamente');
-                
-                // Limpiar reserva y actualizar
-                await cancelarReservaAnterior();
-                await precargarCitasFuturas();
-                await notificarCambioCita(fechaFormateada, hora, 'cita_confirmada');
-                
-                // Enviar correo de confirmación
-                if (data && data[0]) {
-                    const correoEnviado = await enviarNotificacionCita(data[0]);
-                    if (correoEnviado) {
-                        showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
-                    } else {
-                        showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
-                    }
-                }
-                
-                // Limpiar formulario
-                document.querySelectorAll('.servicio-option').forEach(opt => {
-                    opt.classList.remove('selected');
-                });
-                if (servicioInput) servicioInput.value = '';
-                if (horaInput) horaInput.value = '';
-                if (notasInput) notasInput.value = '';
-                
-                selectedDate = null;
-                const selectedDateDisplay = document.getElementById('selectedDateDisplay');
-                if (selectedDateDisplay) selectedDateDisplay.textContent = 'Selecciona una fecha';
-                
-                const horasContainer = document.getElementById('horasContainer');
-                if (horasContainer) horasContainer.style.display = 'none';
-                
-                calendarioHabilitado = false;
-                habilitarCalendario();
-                currentMonth = new Date();
-                generateCalendar(currentMonth);
-                await limpiarCacheDespuesDeAgendar();
-                
-                await cargarMisCitas();
-
-                setTimeout(() => {
-                    iniciarContadoresCitas();
-                }, 500);
-                cambiarPestana('mis-citas');
-
-            } catch (error) {
-                await cancelarReservaAnterior();
-                console.error('❌ Error agendando cita:', error);
-                showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
-            }
-        }
-        function refrescarContadores() {
-    // Limpiar intervalos existentes
-    for (const id in intervalosContador) {
-        if (intervalosContador[id]) {
-            clearInterval(intervalosContador[id]);
-        }
-    }
-    intervalosContador = {};
+    if (e) e.preventDefault();
     
-    // Reiniciar contadores
-    setTimeout(() => {
-        iniciarContadoresCitas();
-    }, 100);
+    const servicioInput = document.getElementById('servicio');
+    const horaInput = document.getElementById('hora');
+    const notasInput = document.getElementById('notas');
+    
+    if (!servicioInput || !horaInput || !notasInput) return;
+    
+    const servicioId = servicioInput.value;
+    const hora = horaInput.value;
+    const notas = notasInput.value;
+
+    if (!servicioId || !selectedDate || !hora) {
+        showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
+        return;
+    }
+
+    const fechaFormateada = formatDate(selectedDate);
+    
+    try {
+        if (!reservaActiva || reservaActiva.fecha !== fechaFormateada || reservaActiva.hora !== hora) {
+            showAlert('Por favor, selecciona una hora primero', 'error');
+            return;
+        }
+
+        const citaExistenteCache = todasLasCitasFuturasCache.some(cita => 
+            cita.fecha === fechaFormateada && cita.hora === hora
+        );
+
+        if (citaExistenteCache) {
+            showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
+            await cancelarReservaAnterior();
+            await generateHoras(selectedDate);
+            return;
+        }
+
+        // Verificación final
+        const { data: verificacionFinal } = await supabase
+            .from('citas')
+            .select('id')
+            .eq('fecha', fechaFormateada)
+            .eq('hora', hora)
+            .eq('barbero_id', barberoFijo.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .single();
+            
+        if (verificacionFinal) {
+            showAlert('❌ Esta hora ya fue tomada. Por favor selecciona otra.', 'error');
+            await cancelarReservaAnterior();
+            await generateHoras(selectedDate);
+            return;
+        }
+
+        const timestampLocal = getCurrentTimeYucatan();
+        
+        // Configurar expiración (2 horas después de la cita)
+        const [year, month, day] = fechaFormateada.split('-');
+        const [hour, minute] = hora.split(':');
+        const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
+        
+        // Expirar 2 horas después de la hora de la cita
+        const fechaExpira = new Date(fechaCita.getTime() + (2 * 60 * 60 * 1000));
+        
+        const añoExpira = fechaExpira.getFullYear();
+        const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
+        const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
+        const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
+        const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
+        const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
+        
+        const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
+
+        const { data, error } = await supabase
+            .from('citas')
+            .insert([{
+                cliente_id: usuarioActual.id,
+                servicio_id: servicioId,
+                barbero_id: barberoFijo.id,
+                fecha: fechaFormateada,
+                hora: hora,
+                notas: notas,
+                estado: 'aceptada',
+                creado_en: timestampLocal,
+                actualizado_en: timestampLocal,
+                expira_en: timestampExpira // ¡IMPORTANTE! Establecer expiración
+            }])
+            .select(`
+                *,
+                servicios(nombre, precio),
+                barberos(nombre)
+            `);
+
+        if (error) throw error;
+
+        console.log('✅ Cita agendada exitosamente con expiración:', timestampExpira);
+        
+        // Limpiar reserva y actualizar
+        await cancelarReservaAnterior();
+        await precargarCitasFuturas();
+        await notificarCambioCita(fechaFormateada, hora, 'cita_confirmada');
+        
+        // Enviar correo de confirmación
+        if (data && data[0]) {
+            const correoEnviado = await enviarNotificacionCita(data[0]);
+            if (correoEnviado) {
+                showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
+            } else {
+                showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
+            }
+        }
+        
+        // Limpiar formulario
+        document.querySelectorAll('.servicio-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        if (servicioInput) servicioInput.value = '';
+        if (horaInput) horaInput.value = '';
+        if (notasInput) notasInput.value = '';
+        
+        selectedDate = null;
+        const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+        if (selectedDateDisplay) selectedDateDisplay.textContent = 'Selecciona una fecha';
+        
+        const horasContainer = document.getElementById('horasContainer');
+        if (horasContainer) horasContainer.style.display = 'none';
+        
+        calendarioHabilitado = false;
+        habilitarCalendario();
+        currentMonth = new Date();
+        generateCalendar(currentMonth);
+        await limpiarCacheDespuesDeAgendar();
+        
+        // Recargar citas y reiniciar contadores
+        await cargarMisCitas();
+        
+        // Asegurar que los contadores se inicien
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 500);
+        
+        cambiarPestana('mis-citas');
+
+    } catch (error) {
+        await cancelarReservaAnterior();
+        console.error('❌ Error agendando cita:', error);
+        showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
+    }
 }
 
         // ============ FUNCIONES DE EMAILJS ============
@@ -2624,16 +2631,85 @@ function iniciarContadoresCitas() {
         }
         intervalosContador = {};
 
+        const ahora = new Date();
+        
         // Iniciar contadores para cada cita
         document.querySelectorAll('.cita-card').forEach(citaCard => {
             try {
                 const citaId = citaCard.dataset.citaId;
                 const expiraStr = citaCard.dataset.expira;
+                const fechaStr = citaCard.dataset.fecha;
+                const horaStr = citaCard.dataset.hora;
                 
-                console.log(`📋 Procesando cita ${citaId}: expira=${expiraStr}`);
+                console.log(`📋 Procesando cita ${citaId}: fecha=${fechaStr}, hora=${horaStr}, expira=${expiraStr}`);
                 
+                // Obtener elementos del DOM
+                const contadorDiv = document.getElementById(`contador-${citaId}`);
+                const contadorEliminarDiv = document.getElementById(`contador-eliminar-${citaId}`);
+                
+                if (!contadorDiv) {
+                    console.log(`❌ No se encontró contador para cita ${citaId}`);
+                    return;
+                }
+                
+                // 1. Verificar si la cita ya pasó (estado completada)
+                const estado = citaCard.className.includes('completada') ? 'completada' : 
+                             citaCard.className.includes('cancelada') ? 'cancelada' :
+                             citaCard.className.includes('aceptada') ? 'aceptada' : 'pendiente';
+                
+                if (estado === 'completada' || estado === 'cancelada') {
+                    // Mostrar opción de eliminar manualmente para citas completadas o canceladas
+                    if (contadorEliminarDiv) {
+                        contadorEliminarDiv.innerHTML = `
+                            <button class="btn btn-secondary" onclick="eliminarCita('${citaId}')" style="margin-top: 10px;">
+                                🗑️ Eliminar esta cita
+                            </button>
+                        `;
+                    }
+                    return;
+                }
+                
+                // 2. Verificar si la hora de la cita ya pasó
+                if (fechaStr && horaStr) {
+                    const [year, month, day] = fechaStr.split('-');
+                    const [hour, minute] = horaStr.split(':');
+                    const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
+                    
+                    if (fechaCita < ahora) {
+                        // La cita ya pasó, cambiar estado a completada
+                        if (contadorDiv) {
+                            contadorDiv.innerHTML = `
+                                <p style="color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                    ✅ Esta cita ya se realizó. Puedes eliminarla del historial.
+                                </p>
+                            `;
+                        }
+                        
+                        if (contadorEliminarDiv) {
+                            contadorEliminarDiv.innerHTML = `
+                                <button class="btn btn-secondary" onclick="marcarComoCompletada('${citaId}')" style="margin-top: 10px; margin-right: 10px;">
+                                    ✅ Marcar como completada
+                                </button>
+                                <button class="btn btn-secondary" onclick="eliminarCita('${citaId}')" style="margin-top: 10px;">
+                                    🗑️ Eliminar del historial
+                                </button>
+                            `;
+                        }
+                        return;
+                    }
+                }
+                
+                // 3. Manejar expiración si existe
                 if (!expiraStr || expiraStr === 'null' || expiraStr === '' || expiraStr === 'undefined') {
-                    console.log(`⏭️ Cita ${citaId} sin expiración, saltando...`);
+                    console.log(`⏭️ Cita ${citaId} sin expiración, mostrando estado normal...`);
+                    
+                    if (contadorDiv) {
+                        contadorDiv.innerHTML = `
+                            <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                ✅ Cita activa y confirmada
+                            </p>
+                        `;
+                    }
                     return;
                 }
 
@@ -2644,10 +2720,7 @@ function iniciarContadoresCitas() {
                     console.error(`❌ Fecha de expiración inválida para cita ${citaId}: ${expiraStr}`);
                     return;
                 }
-
-                const ahora = new Date();
                 
-                // Mostrar información de depuración
                 console.log(`📅 Cita ${citaId}: ahora=${ahora.toISOString()}, expira=${fechaExpira.toISOString()}`);
                 
                 // Calcular tiempo restante
@@ -2655,10 +2728,6 @@ function iniciarContadoresCitas() {
                     try {
                         const ahora = new Date();
                         const tiempoRestante = fechaExpira.getTime() - ahora.getTime();
-                        
-                        // Obtener elementos
-                        const contadorDiv = document.getElementById(`contador-${citaId}`);
-                        const contadorEliminarDiv = document.getElementById(`contador-eliminar-${citaId}`);
                         
                         if (tiempoRestante <= 0) {
                             // La cita ya expiró
@@ -2725,6 +2794,39 @@ function iniciarContadoresCitas() {
     }
 }
 
+async function marcarComoCompletada(citaId) {
+    try {
+        if (!confirm('¿Marcar esta cita como completada?')) {
+            return;
+        }
+
+        const timestampActual = getCurrentTimeYucatan();
+
+        const { error } = await supabase
+            .from('citas')
+            .update({ 
+                estado: 'completada',
+                actualizado_en: timestampActual
+            })
+            .eq('id', citaId);
+
+        if (error) throw error;
+
+        showAlert('✅ Cita marcada como completada', 'success');
+        
+        // Recargar citas
+        await cargarMisCitas();
+        
+        // Reiniciar contadores
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 500);
+
+    } catch (error) {
+        console.error('Error marcando cita como completada:', error);
+        showAlert('❌ Error al marcar la cita como completada', 'error');
+    }
+}
         async function cancelarCita(citaId) {
     try {
         const { data: cita, error: errorCita } = await supabase
@@ -2794,6 +2896,51 @@ function iniciarContadoresCitas() {
     } catch (error) {
         console.error('Error cancelando cita:', error);
         showAlert('❌ Error al cancelar la cita', 'error');
+    }
+}
+
+async function verificarCitasPasadas() {
+    try {
+        const ahora = new Date();
+        const fechaActual = formatDate(ahora);
+        const horaActual = ahora.getHours() + ':' + (ahora.getMinutes() < 10 ? '0' : '') + ahora.getMinutes();
+        
+        // Buscar citas pasadas que aún estén en estado aceptada/pendiente/confirmada
+        const { data: citasPasadas, error } = await supabase
+            .from('citas')
+            .select('id, fecha, hora')
+            .eq('cliente_id', usuarioActual.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .or(`fecha.lt.${fechaActual},and(fecha.eq.${fechaActual},hora.lt.${horaActual})`);
+            
+        if (error) throw error;
+        
+        if (citasPasadas && citasPasadas.length > 0) {
+            console.log(`📅 Encontré ${citasPasadas.length} citas pasadas para actualizar`);
+            
+            const timestampActual = getCurrentTimeYucatan();
+            
+            for (const cita of citasPasadas) {
+                await supabase
+                    .from('citas')
+                    .update({
+                        estado: 'completada',
+                        actualizado_en: timestampActual
+                    })
+                    .eq('id', cita.id);
+            }
+            
+            // Recargar citas si hay cambios
+            if (citasPasadas.length > 0) {
+                await cargarMisCitas();
+                setTimeout(() => {
+                    iniciarContadoresCitas();
+                }, 500);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error verificando citas pasadas:', error);
     }
 }
         async function eliminarCita(citaId) {
@@ -2890,6 +3037,8 @@ function iniciarContadoresCitas() {
 
         await cargarBarberoFijo();
         await cargarServicios();
+
+        await verificarCitasPasadas();
         await cargarMisCitas();
         await precargarCitasFuturas();
         
