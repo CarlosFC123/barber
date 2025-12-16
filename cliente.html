@@ -2895,9 +2895,36 @@ function iniciarContadoresCitas() {
         }
         intervalosContador = {};
 
+        // Obtener hora actual en Yucatán para comparaciones
         const ahora = new Date();
+        const formatter = new Intl.DateTimeFormat('es-MX', {
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
         
-        // Iniciar contadores para cada cita
+        const parts = formatter.formatToParts(ahora);
+        const ahoraObj = {};
+        parts.forEach(part => {
+            if (part.type !== 'literal') {
+                ahoraObj[part.type] = part.value;
+            }
+        });
+        
+        const ahoraYucatan = new Date(
+            parseInt(ahoraObj.year),
+            parseInt(ahoraObj.month) - 1,
+            parseInt(ahoraObj.day),
+            parseInt(ahoraObj.hour),
+            parseInt(ahoraObj.minute),
+            parseInt(ahoraObj.second)
+        );
+        
         document.querySelectorAll('.cita-card').forEach(citaCard => {
             try {
                 const citaId = citaCard.dataset.citaId;
@@ -2908,30 +2935,19 @@ function iniciarContadoresCitas() {
                              citaCard.className.includes('cancelada') ? 'cancelada' :
                              citaCard.className.includes('aceptada') ? 'aceptada' : 'pendiente';
                 
-                console.log(`📋 Procesando cita ${citaId}: fecha=${fechaStr}, hora=${horaStr}, estado=${estado}, expira=${expiraStr}`);
-                
-                // Obtener elementos del DOM
                 const contadorDiv = document.getElementById(`contador-${citaId}`);
-                const contadorEliminarDiv = document.getElementById(`contador-eliminar-${citaId}`);
+                if (!contadorDiv) return;
                 
-                if (!contadorDiv) {
-                    console.log(`❌ No se encontró contador para cita ${citaId}`);
-                    return;
-                }
-                
-                // 1. Verificar si la cita ya pasó (completada)
+                // Si ya está completada o cancelada - mostrar contador de eliminación
                 if (estado === 'completada' || estado === 'cancelada') {
-                    // Mostrar mensaje de eliminación automática
                     if (expiraStr && expiraStr !== 'null' && expiraStr !== '') {
                         const fechaExpira = new Date(expiraStr);
-                        const ahora = new Date();
-                        const tiempoRestante = fechaExpira.getTime() - ahora.getTime();
+                        const tiempoRestante = fechaExpira.getTime() - Date.now();
                         
                         if (tiempoRestante > 0) {
-                            // Mostrar contador de eliminación automática
                             const actualizarContadorEliminar = () => {
-                                const ahora = new Date();
-                                const tiempoRestante = fechaExpira.getTime() - ahora.getTime();
+                                const ahora = Date.now();
+                                const tiempoRestante = fechaExpira.getTime() - ahora;
                                 
                                 if (tiempoRestante <= 0) {
                                     if (intervalosContador[`eliminar-${citaId}`]) {
@@ -2939,13 +2955,11 @@ function iniciarContadoresCitas() {
                                         delete intervalosContador[`eliminar-${citaId}`];
                                     }
                                     
-                                    if (contadorDiv) {
-                                        contadorDiv.innerHTML = `
-                                            <p style="color: #dc3545; font-weight: bold; background: rgba(220, 53, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                                                ⏰ Esta cita será eliminada automáticamente pronto
-                                            </p>
-                                        `;
-                                    }
+                                    contadorDiv.innerHTML = `
+                                        <p style="color: #dc3545; font-weight: bold; padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                            ⏰ Esta cita será eliminada automáticamente
+                                        </p>
+                                    `;
                                     return;
                                 }
 
@@ -2953,125 +2967,106 @@ function iniciarContadoresCitas() {
                                 const minutos = Math.floor((tiempoRestante % (1000 * 60 * 60)) / (1000 * 60));
                                 const segundos = Math.floor((tiempoRestante % (1000 * 60)) / 1000);
 
-                                if (contadorDiv) {
-                                    contadorDiv.innerHTML = `
-                                        <p style="color: ${estado === 'completada' ? '#28a745' : '#dc3545'}; font-weight: bold; background: rgba(${estado === 'completada' ? '40, 167, 69' : '220, 53, 69'}, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                                            ${estado === 'completada' ? '✅ Cita completada' : '❌ Cita cancelada'}
-                                            <br>
-                                            <small style="font-size: 12px; color: #666;">
-                                                Se eliminará automáticamente en: ${horas}h ${minutos}m ${segundos}s
-                                            </small>
-                                        </p>
-                                    `;
-                                }
+                                contadorDiv.innerHTML = `
+                                    <p style="color: ${estado === 'completada' ? '#28a745' : '#dc3545'}; font-weight: bold; padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                        ${estado === 'completada' ? '✅ Cita completada' : '❌ Cita cancelada'}
+                                        <br>
+                                        <small style="font-size: 12px; color: #666;">
+                                            Se eliminará automáticamente en: ${horas}h ${minutos}m ${segundos}s
+                                        </small>
+                                    </p>
+                                `;
                             };
 
-                            // Ejecutar inmediatamente
                             actualizarContadorEliminar();
-                            
-                            // Configurar intervalo
                             intervalosContador[`eliminar-${citaId}`] = setInterval(actualizarContadorEliminar, 1000);
                         }
                     }
-                    
-                   
                     return;
                 }
                 
-                // 2. Para citas pendientes/aceptadas/confirmadas
+                // Para citas activas (pendiente/aceptada/confirmada)
                 if (fechaStr && horaStr) {
-                    const [year, month, day] = fechaStr.split('-');
-                    const [hour, minute] = horaStr.split(':');
-                    const fechaCita = new Date(year, month - 1, day, hour, minute, 0, 0);
+                    const fechaCitaYucatan = getYucatanDateTime(fechaStr, horaStr);
                     
-                    // Verificar si la cita es hoy o futura
-                    if (fechaCita >= ahora) {
-                        // Mostrar tiempo restante hasta la cita
-                        const actualizarContadorHastaCita = () => {
-                            const ahora = new Date();
-                            const tiempoHastaCita = fechaCita.getTime() - ahora.getTime();
-                            
-                            if (tiempoHastaCita <= 0) {
-                                if (intervalosContador[citaId]) {
-                                    clearInterval(intervalosContador[citaId]);
-                                    delete intervalosContador[citaId];
-                                }
-                                
-                                // La cita ya debería haber comenzado
-                                if (contadorDiv) {
-                                    contadorDiv.innerHTML = `
-                                        <p style="color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                                            ⏰ Es hora de tu cita
-                                        </p>
-                                    `;
-                                }
-                                return;
-                            }
-
-                            const dias = Math.floor(tiempoHastaCita / (1000 * 60 * 60 * 24));
-                            const horas = Math.floor((tiempoHastaCita % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                            const minutos = Math.floor((tiempoHastaCita % (1000 * 60 * 60)) / (1000 * 60));
-                            
-                            let mensaje = '';
-                            if (dias > 0) {
-                                mensaje = `Faltan ${dias} día${dias !== 1 ? 's' : ''} y ${horas} hora${horas !== 1 ? 's' : ''}`;
-                            } else if (horas > 0) {
-                                mensaje = `Faltan ${horas} hora${horas !== 1 ? 's' : ''} y ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
-                            } else {
-                                mensaje = `Faltan ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
-                            }
-
-                            if (contadorDiv) {
-                                contadorDiv.innerHTML = `
-                                    <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                                        ⏳ ${mensaje} para tu cita
-                                    </p>
-                                `;
-                            }
-                        };
-
-                        // Ejecutar inmediatamente
-                        actualizarContadorHastaCita();
+                    // Verificar si la cita ya pasó (usando hora Yucatán)
+                    if (ahoraYucatan > fechaCitaYucatan) {
+                        // La cita ya pasó pero aún no está marcada como completada
+                        // Mostrar mensaje temporal hasta que se actualice automáticamente
+                        contadorDiv.innerHTML = `
+                            <p style="color: #d4af37; font-weight: bold; padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                ⏳ Esta cita se marcará como completada automáticamente...
+                            </p>
+                        `;
+                        return;
+                    }
+                    
+                    // Si la cita es futura - mostrar contador
+                    const tiempoHastaCita = fechaCitaYucatan.getTime() - ahoraYucatan.getTime();
+                    
+                    const actualizarContadorHastaCita = () => {
+                        // Recalcular hora actual en Yucatán cada vez
+                        const ahoraRecalc = new Date();
+                        const formatterRecalc = new Intl.DateTimeFormat('es-MX', {
+                            timeZone: 'America/Merida',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        });
                         
-                        // Configurar intervalo
-                        intervalosContador[citaId] = setInterval(actualizarContadorHastaCita, 60000); // Actualizar cada minuto
+                        const fechaCitaYucatanRecalc = getYucatanDateTime(fechaStr, horaStr);
+                        const tiempoHastaCitaRecalc = fechaCitaYucatanRecalc.getTime() - ahoraRecalc.getTime();
                         
-                    } else {
-                        // Cita pasada que aún no está marcada como completada
-                        if (contadorDiv) {
+                        if (tiempoHastaCitaRecalc <= 0) {
+                            if (intervalosContador[citaId]) {
+                                clearInterval(intervalosContador[citaId]);
+                                delete intervalosContador[citaId];
+                            }
+                            
+                            // La cita acaba de pasar - mostrar que se completará automáticamente
                             contadorDiv.innerHTML = `
-                                <p style="color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                                    ✅ Esta cita ya se realizó. Marca como completada.
+                                <p style="color: #d4af37; font-weight: bold; padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                    ✅ Cita finalizada - Se marcará como completada automáticamente
                                 </p>
                             `;
+                            return;
                         }
+
+                        const dias = Math.floor(tiempoHastaCitaRecalc / (1000 * 60 * 60 * 24));
+                        const horas = Math.floor((tiempoHastaCitaRecalc % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                        const minutos = Math.floor((tiempoHastaCitaRecalc % (1000 * 60 * 60)) / (1000 * 60));
                         
-                        if (contadorEliminarDiv) {
-                            contadorEliminarDiv.innerHTML = `
-                                <button class="btn btn-secondary" onclick="marcarComoCompletada('${citaId}')" style="margin-top: 10px; margin-right: 10px;">
-                                    ✅ Marcar como completada
-                                </button>
-                                <button class="btn btn-secondary" onclick="eliminarCita('${citaId}')" style="margin-top: 10px;">
-                                    🗑️ Eliminar del historial
-                                </button>
-                            `;
+                        let mensaje = '';
+                        if (dias > 0) {
+                            mensaje = `Faltan ${dias} día${dias !== 1 ? 's' : ''} y ${horas} hora${horas !== 1 ? 's' : ''}`;
+                        } else if (horas > 0) {
+                            mensaje = `Faltan ${horas} hora${horas !== 1 ? 's' : ''} y ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
+                        } else {
+                            mensaje = `Faltan ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
                         }
-                    }
+
+                        contadorDiv.innerHTML = `
+                            <p style="color: #28a745; font-weight: bold; padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                                ⏳ ${mensaje} para tu cita
+                            </p>
+                        `;
+                    };
+
+                    actualizarContadorHastaCita();
+                    intervalosContador[citaId] = setInterval(actualizarContadorHastaCita, 60000);
                 }
-                
-                console.log(`✅ Contador iniciado para cita ${citaId}`);
                 
             } catch (error) {
                 console.error(`❌ Error procesando cita card:`, error);
             }
         });
         
-        console.log(`✅ ${Object.keys(intervalosContador).length} contadores iniciados`);
-        
     } catch (error) {
         console.error('❌ Error en iniciarContadoresCitas:', error);
     }
 }
+
 function refrescarContadores() {
     try {
         console.log('🔄 Refrescando contadores de citas...');
@@ -3202,37 +3197,79 @@ async function cancelarCita(citaId) {
 
 async function verificarCitasPasadas() {
     try {
+        // Obtener hora ACTUAL de Yucatán
         const ahora = new Date();
-        const fechaActual = formatDate(ahora);
-        const horaActual = ahora.getHours() + ':' + (ahora.getMinutes() < 10 ? '0' : '') + ahora.getMinutes();
+        const formatter = new Intl.DateTimeFormat('es-MX', {
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
         
-        // Buscar citas pasadas que aún estén en estado aceptada/pendiente/confirmada
-        const { data: citasPasadas, error } = await supabase
+        const parts = formatter.formatToParts(ahora);
+        const ahoraObj = {};
+        parts.forEach(part => {
+            if (part.type !== 'literal') {
+                ahoraObj[part.type] = part.value;
+            }
+        });
+        
+        // Crear fecha actual en Yucatán
+        const ahoraYucatan = new Date(
+            parseInt(ahoraObj.year),
+            parseInt(ahoraObj.month) - 1,
+            parseInt(ahoraObj.day),
+            parseInt(ahoraObj.hour),
+            parseInt(ahoraObj.minute),
+            parseInt(ahoraObj.second)
+        );
+        
+        // Buscar todas las citas activas del usuario
+        const { data: citasActivas, error } = await supabase
             .from('citas')
-            .select('id, fecha, hora')
+            .select('id, fecha, hora, estado')
             .eq('cliente_id', usuarioActual.id)
-            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-            .or(`fecha.lt.${fechaActual},and(fecha.eq.${fechaActual},hora.lt.${horaActual})`);
+            .in('estado', ['aceptada', 'pendiente', 'confirmada']);
             
         if (error) throw error;
         
-        if (citasPasadas && citasPasadas.length > 0) {
-            console.log(`📅 Encontré ${citasPasadas.length} citas pasadas para actualizar`);
+        if (citasActivas && citasActivas.length > 0) {
+            const citasParaCompletar = [];
             
-            const timestampActual = getCurrentTimeYucatan();
+            for (const cita of citasActivas) {
+                // Convertir fecha/hora de la cita a objeto Date en Yucatán
+                const fechaCitaYucatan = getYucatanDateTime(cita.fecha, cita.hora);
+                
+                // Verificar si la hora de la cita YA PASÓ (la cita terminó)
+                // Una cita dura aproximadamente 40 minutos, pero marcamos como completada inmediatamente después de la hora
+                if (ahoraYucatan > fechaCitaYucatan) {
+                    console.log(`✅ Cita ${cita.id} pasó: ${cita.fecha} ${cita.hora} - Hora actual Yucatán: ${ahoraObj.hour}:${ahoraObj.minute}`);
+                    citasParaCompletar.push(cita.id);
+                }
+            }
             
-            for (const cita of citasPasadas) {
-                await supabase
+            if (citasParaCompletar.length > 0) {
+                console.log(`📅 Marcando ${citasParaCompletar.length} citas como completadas automáticamente`);
+                
+                const timestampActual = getCurrentTimeYucatan();
+                const timestampExpira = getTimeYucatanPlusHours(2);
+                
+                const { error: updateError } = await supabase
                     .from('citas')
                     .update({
                         estado: 'completada',
+                        expira_en: timestampExpira,
                         actualizado_en: timestampActual
                     })
-                    .eq('id', cita.id);
-            }
-            
-            // Recargar citas si hay cambios
-            if (citasPasadas.length > 0) {
+                    .in('id', citasParaCompletar);
+                    
+                if (updateError) throw updateError;
+                
+                // Recargar citas y actualizar UI
                 await cargarMisCitas();
                 setTimeout(() => {
                     iniciarContadoresCitas();
@@ -3349,6 +3386,14 @@ async function verificarCitasPasadas() {
 
         inicializarEmailJSCuentaActual();
         iniciarPollingInteligente();
+
+        setInterval(async () => {
+            try {
+                await verificarCitasPasadas();
+            } catch (error) {
+                console.error('Error en verificación periódica de citas:', error);
+            }
+        }, 60000); // Cada minuto
 
         // Configurar eventos
         document.addEventListener('visibilitychange', async () => {
