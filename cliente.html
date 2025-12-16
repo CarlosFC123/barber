@@ -1071,6 +1071,11 @@
         // ============ SISTEMA DE POLLING INTELIGENTE ============
 
         function iniciarPollingInteligente() {
+    if (!pollingActivo) {
+        console.log('⏸️ Polling desactivado durante reserva activa');
+        return;
+    }
+    
     if (intervaloPolling) {
         clearInterval(intervaloPolling);
     }
@@ -1086,56 +1091,63 @@
             const hayFechaSeleccionada = selectedDate !== null;
             
             if (estaEnAgendar && hayFechaSeleccionada) {
-                // Usar fecha formateada para cache
-                const fechaFormateada = formatDate(selectedDate);
-                const ahora = Date.now();
-                const claveCache = `polling_${fechaFormateada}`;
-                
-                // Solo sincronizar si han pasado al menos 1 segundo
-                if (ultimaSincronizacionHoras && (ahora - ultimaSincronizacionHoras < 1000)) {
-                    return;
-                }
-                
-                console.log(`🔄 Polling: Sincronizando ${fechaFormateada}`);
                 await sincronizarEstadosHoras();
-                ultimaSincronizacionHoras = ahora;
             }
             
             // Limpiar caché expirado periódicamente
-            if (Date.now() % 15000 < 1000) {
+            if (Date.now() % 10000 < 500) {
                 limpiarCacheExpirado();
             }
             
         } catch (error) {
             console.error('Error en polling:', error);
         }
-    }, 2000);
+    }, 2000); // 2 segundos es suficiente
 }
 
 
        async function sincronizarEstadosHoras() {
+    // NO sincronizar si hay una reserva activa
+    if (reservaActiva) {
+        console.log('⏸️ Saltando sincronización durante reserva activa');
+        return;
+    }
+    
     try {
         if (!selectedDate || !barberoFijo) return;
         
         const fechaFormateada = formatDate(selectedDate);
+        const ahora = Date.now();
+        
+        // Solo sincronizar si han pasado al menos 500ms
+        if (ahora - ultimaSincronizacionHoras < 500) {
+            return;
+        }
+        
+        ultimaSincronizacionHoras = ahora;
         
         console.log(`🔄 Sincronizando estado de horas para: ${fechaFormateada}`);
         
-        // 1. Obtener citas actualizadas
+        // 1. Obtener citas actualizadas (FORZAR actualización)
         await precargarCitasFuturas();
         
-        // 2. Obtener solicitudes pendientes
+        // 2. Obtener solicitudes pendientes (FORZAR actualización)
         await obtenerSolicitudesPendientes();
         
-        // 3. Actualizar UI
+        // 3. Verificar notificaciones de cambios
+        await verificarNotificacionesCambios();
+        
+        // 4. Forzar actualización completa de UI
         await generateHoras(selectedDate);
         
-        console.log(`✅ Sincronización completada para ${fechaFormateada}`);
+        // 5. Limpiar caché viejo
+        limpiarCacheExpirado();
         
     } catch (error) {
         console.error('❌ Error sincronizando estados:', error);
     }
 }
+
 
         async function obtenerSolicitudesPendientes() {
             try {
@@ -1661,7 +1673,6 @@ async function verificarDisponibilidadInstantanea(fecha, hora) {
         // ============ GENERACIÓN DE HORAS MEJORADA ============
 
         async function generateHoras(selectedDateObj) {
-            limpiarIntervalosBotones();
             const horasGrid = document.getElementById('horasGrid');
             if (!horasGrid) return;
             
@@ -1779,99 +1790,65 @@ async function verificarDisponibilidadInstantanea(fecha, hora) {
             btn.title = 'Hora ocupada';
         }
 
-       function configurarBotonReservando(btn, horaStr, fecha) {
-    btn.disabled = true;
-    btn.classList.add('reservando');
-    
-    const reservaInfo = solicitudesPendientes.get(`${fecha}_${horaStr}`);
-    
-    // Estilos consistentes
-    btn.style.background = 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)';
-    btn.style.borderColor = '#e0a800';
-    btn.style.color = 'white';
-    btn.style.cursor = 'not-allowed';
-    
-    if (reservaInfo && reservaInfo.expira_en) {
-        const ahora = new Date();
-        const tiempoRestante = new Date(reservaInfo.expira_en) - ahora;
-        const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
-        
-        btn.innerHTML = `
-            ${horaStr}
-            <br>
-            <small style="
-                font-size: 10px; 
-                background: rgba(255, 255, 255, 0.2); 
-                padding: 2px 8px; 
-                border-radius: 10px; 
-                color: white;
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                display: inline-block;
-                margin-top: 5px;
-                font-weight: bold;
-            ">
-                ⏳ ${segundos}s
-            </small>
-        `;
-        
-        // Contador descendente
-        let contador = segundos;
-        const intervalo = setInterval(() => {
-            contador--;
+        function configurarBotonReservando(btn, horaStr, fecha) {
+            btn.disabled = true;
+            btn.classList.add('reservando');
             
-            if (contador <= 0) {
-                clearInterval(intervalo);
-                // Esta hora podría estar disponible ahora
-                setTimeout(async () => {
-                    await actualizarHoraEspecifica(fecha, horaStr);
-                }, 500);
-            } else if (btn.querySelector('small')) {
-                btn.querySelector('small').textContent = `⏳ ${contador}s`;
+            const reservaInfo = solicitudesPendientes.get(`${fecha}_${horaStr}`);
+            if (reservaInfo && reservaInfo.expira_en) {
+                const ahora = new Date();
+                const tiempoRestante = reservaInfo.expira_en - ahora;
+                const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
                 
-                // Cambiar color cuando quedan pocos segundos
-                if (contador <= 10) {
-                    btn.querySelector('small').style.background = 'rgba(255, 0, 0, 0.3)';
-                    btn.querySelector('small').style.borderColor = 'rgba(255, 0, 0, 0.5)';
-                } else if (contador <= 20) {
-                    btn.querySelector('small').style.background = 'rgba(255, 165, 0, 0.3)';
-                    btn.querySelector('small').style.borderColor = 'rgba(255, 165, 0, 0.5)';
+                btn.innerHTML = `
+                    ${horaStr}
+                    <br>
+                    <small style="font-size: 10px; background: rgba(255, 165, 0, 0.3); padding: 2px 6px; border-radius: 4px; color: #ffa500;">
+                        ⏳ ${segundos}s
+                    </small>
+                `;
+                
+                // Actualizar contador
+                if (btn.dataset.intervaloContador) {
+                    clearInterval(btn.dataset.intervaloContador);
                 }
+                
+                const intervalo = setInterval(() => {
+                    const ahora = new Date();
+                    const tiempoRestante = reservaInfo.expira_en - ahora;
+                    const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
+                    
+                    if (btn.querySelector('small')) {
+                        btn.querySelector('small').textContent = `⏳ ${segundos}s`;
+                        
+                        if (segundos <= 10) {
+                            btn.querySelector('small').style.background = 'rgba(255, 0, 0, 0.3)';
+                            btn.querySelector('small').style.color = '#ff6b6b';
+                        }
+                        
+                        if (segundos === 0) {
+                            clearInterval(intervalo);
+                            setTimeout(() => {
+                                sincronizarEstadosHoras();
+                            }, 500);
+                        }
+                    }
+                }, 1000);
+                
+                btn.dataset.intervaloContador = intervalo;
+            } else {
+                btn.innerHTML = `
+                    ${horaStr}
+                    <br>
+                    <small style="font-size: 10px; color: #ffa500;">
+                        ⏳ Reservando...
+                    </small>
+                `;
             }
-        }, 1000);
-        
-        // Guardar referencia al intervalo
-        btn.dataset.intervaloReserva = intervalo;
-    } else {
-        btn.innerHTML = `
-            ${horaStr}
-            <br>
-            <small style="
-                font-size: 10px; 
-                color: white;
-                display: block;
-                margin-top: 5px;
-                opacity: 0.9;
-            ">
-                ⏳ Reservando...
-            </small>
-        `;
-    }
-    
-    btn.title = 'Hora siendo reservada por otro usuario';
-}
+            
+            btn.title = 'Hora siendo reservada por otro usuario';
+        }
 
-function limpiarIntervalosBotones() {
-    document.querySelectorAll('.hora-btn').forEach(btn => {
-        if (btn.dataset.intervaloReserva) {
-            clearInterval(btn.dataset.intervaloReserva);
-            delete btn.dataset.intervaloReserva;
-        }
-        if (btn.dataset.intervaloContador) {
-            clearInterval(btn.dataset.intervaloContador);
-            delete btn.dataset.intervaloContador;
-        }
-    });
-}
         function configurarBotonDisponible(btn, horaStr, fecha) {
             btn.onclick = async () => {
                 await reservarHoraTemporalmente(horaStr, fecha, btn);
@@ -2552,19 +2529,14 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         }
 
         // Verificación final
-        const { data: verificacionFinal, error: errorVerificacion } = await supabase
+        const { data: verificacionFinal } = await supabase
             .from('citas')
             .select('id')
             .eq('fecha', fechaFormateada)
             .eq('hora', hora)
             .eq('barbero_id', barberoFijo.id)
-            .or('estado.eq.aceptada,estado.eq.pendiente,estado.eq.confirmada')
-            .maybeSingle(); // Usar maybeSingle en lugar de single
-
-        if (errorVerificacion) {
-            console.error('Error en verificación final:', errorVerificacion);
-            // Continuar de todos modos, pero registrar el error
-        }
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .single();
             
         if (verificacionFinal) {
             showAlert('❌ Esta hora ya fue tomada. Por favor selecciona otra.', 'error');
