@@ -2564,12 +2564,10 @@
                                 </div>
                             </div>
                         `;
-                    }).join('');    
-                }
-
-                setTimeout(() => {
+                    }).join('');
+                    
                     iniciarContadoresCitas();
-                }, 100);
+                }
 
             } catch (error) {
                 console.error('Error cargando citas:', error);
@@ -2594,117 +2592,89 @@
     }
 }
 
-function iniciarContadoresCitas() {
-    try {
-        console.log('⏰ Iniciando contadores de citas...');
-        
-        // Limpiar intervalos anteriores
-        for (const id in intervalosContador) {
-            if (intervalosContador[id]) {
-                clearInterval(intervalosContador[id]);
-            }
-        }
-        intervalosContador = {};
-
-        // Iniciar contadores para cada cita
-        document.querySelectorAll('.cita-card').forEach(citaCard => {
-            try {
-                const citaId = citaCard.dataset.citaId;
-                const expiraStr = citaCard.dataset.expira;
-                
-                console.log(`📋 Procesando cita ${citaId}: expira=${expiraStr}`);
-                
-                if (!expiraStr || expiraStr === 'null' || expiraStr === '' || expiraStr === 'undefined') {
-                    console.log(`⏭️ Cita ${citaId} sin expiración, saltando...`);
-                    return;
-                }
-
-                const fechaExpira = new Date(expiraStr);
-                
-                // Verificar si la fecha es válida
-                if (isNaN(fechaExpira.getTime())) {
-                    console.error(`❌ Fecha de expiración inválida para cita ${citaId}: ${expiraStr}`);
-                    return;
-                }
-
-                const ahora = new Date();
-                
-                // Mostrar información de depuración
-                console.log(`📅 Cita ${citaId}: ahora=${ahora.toISOString()}, expira=${fechaExpira.toISOString()}`);
-                
-                // Calcular tiempo restante
-                const actualizarContador = () => {
-                    try {
-                        const ahora = new Date();
-                        const tiempoRestante = fechaExpira.getTime() - ahora.getTime();
-                        
-                        // Obtener elementos
-                        const contadorDiv = document.getElementById(`contador-${citaId}`);
-                        const contadorEliminarDiv = document.getElementById(`contador-eliminar-${citaId}`);
-                        
-                        if (tiempoRestante <= 0) {
-                            // La cita ya expiró
-                            if (intervalosContador[citaId]) {
-                                clearInterval(intervalosContador[citaId]);
-                                delete intervalosContador[citaId];
-                            }
-                            
-                            // Mostrar que se puede eliminar
-                            if (contadorDiv) {
-                                contadorDiv.innerHTML = `
-                                    <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                                        ✅ Esta cita ya expiró y puede ser eliminada
-                                    </p>
-                                `;
-                            }
-                            
-                            if (contadorEliminarDiv) {
-                                contadorEliminarDiv.innerHTML = `
-                                    <button class="btn btn-secondary" onclick="eliminarCita('${citaId}')" style="margin-top: 10px;">
-                                        🗑️ Eliminar ahora
-                                    </button>
-                                `;
-                            }
-                            
-                            return;
-                        }
-
-                        const horas = Math.floor(tiempoRestante / (1000 * 60 * 60));
-                        const minutos = Math.floor((tiempoRestante % (1000 * 60 * 60)) / (1000 * 60));
-                        const segundos = Math.floor((tiempoRestante % (1000 * 60)) / 1000);
-
-                        if (contadorDiv) {
-                            contadorDiv.innerHTML = `
-                                <p style="color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
-                                    ⏳ Esta cita se eliminará automáticamente en: 
-                                    ${horas}h ${minutos}m ${segundos}s
-                                </p>
-                            `;
-                        }
-                        
-                    } catch (error) {
-                        console.error(`❌ Error en contador de cita ${citaId}:`, error);
-                    }
-                };
-
-                // Ejecutar inmediatamente
-                actualizarContador();
-                
-                // Configurar intervalo
-                intervalosContador[citaId] = setInterval(actualizarContador, 1000);
-                
-                console.log(`✅ Contador iniciado para cita ${citaId}`);
-                
-            } catch (error) {
-                console.error(`❌ Error procesando cita card:`, error);
-            }
-        });
-        
-        console.log(`✅ ${Object.keys(intervalosContador).length} contadores iniciados`);
-        
-    } catch (error) {
-        console.error('❌ Error en iniciarContadoresCitas:', error);
+        function iniciarContadoresCitas() {
+    // Limpiar intervalos anteriores
+    for (const id in intervalosContador) {
+        clearInterval(intervalosContador[id]);
     }
+    intervalosContador = {};
+
+    // Iniciar contadores para cada cita
+    document.querySelectorAll('.cita-card').forEach(citaCard => {
+        const citaId = citaCard.dataset.citaId;
+        const expiraStr = citaCard.dataset.expira;
+        
+        if (!expiraStr || expiraStr === 'null' || expiraStr === '') {
+            return;
+        }
+
+        const fechaExpira = new Date(expiraStr);
+        const ahora = new Date();
+        
+        if (fechaExpira <= ahora) {
+            // La cita ya expiró, mostrar opción de eliminar
+            const contadorDiv = document.getElementById(`contador-eliminar-${citaId}`);
+            if (contadorDiv) {
+                contadorDiv.innerHTML = `
+                    <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                        ✅ Esta cita ya expiró y puede ser eliminada
+                    </p>
+                `;
+            }
+            return;
+        }
+
+        // Calcular tiempo restante
+        const actualizarContador = () => {
+            const ahora = new Date();
+            const tiempoRestante = fechaExpira.getTime() - ahora.getTime();
+            
+            if (tiempoRestante <= 0) {
+                clearInterval(intervalosContador[citaId]);
+                delete intervalosContador[citaId];
+                
+                // Actualizar UI para mostrar que se puede eliminar
+                const contadorDiv = document.getElementById(`contador-${citaId}`);
+                const contadorEliminarDiv = document.getElementById(`contador-eliminar-${citaId}`);
+                
+                if (contadorDiv) {
+                    contadorDiv.innerHTML = `
+                        <p style="color: #28a745; font-weight: bold; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                            ✅ Esta cita ya expiró y puede ser eliminada
+                        </p>
+                    `;
+                }
+                
+                if (contadorEliminarDiv) {
+                    contadorEliminarDiv.innerHTML = `
+                        <button class="btn btn-secondary" onclick="app.eliminarCita('${citaId}')" style="margin-top: 10px;">
+                            🗑️ Eliminar ahora
+                        </button>
+                    `;
+                }
+                
+                return;
+            }
+
+            const horas = Math.floor(tiempoRestante / (1000 * 60 * 60));
+            const minutos = Math.floor((tiempoRestante % (1000 * 60 * 60)) / (1000 * 60));
+            const segundos = Math.floor((tiempoRestante % (1000 * 60)) / 1000);
+
+            const contadorDiv = document.getElementById(`contador-${citaId}`);
+            if (contadorDiv) {
+                contadorDiv.innerHTML = `
+                    <p style="color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 8px; border-radius: 6px; text-align: center; margin: 10px 0;">
+                        ⏳ Esta cita se eliminará automáticamente en: 
+                        ${horas}h ${minutos}m ${segundos}s
+                    </p>
+                `;
+            }
+        };
+
+        // Ejecutar inmediatamente y luego cada segundo
+        actualizarContador();
+        intervalosContador[citaId] = setInterval(actualizarContador, 1000);
+    });
 }
 
         async function cancelarCita(citaId) {
