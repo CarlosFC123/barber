@@ -3137,6 +3137,8 @@ async function marcarComoCompletada(citaId) {
 
 async function cancelarCita(citaId) {
     try {
+        console.log('🔄 Iniciando cancelación de cita:', citaId);
+        
         const { data: cita, error: errorCita } = await supabase
             .from('citas')
             .select('fecha, hora, estado')
@@ -3162,6 +3164,10 @@ async function cancelarCita(citaId) {
 
         const timestampActual = getCurrentTimeYucatan();
         const timestampExpira = getTimeYucatanPlusHours(2);
+        
+        console.log('📅 Timestamps para cancelación:');
+        console.log('   - Actual (Yucatán):', timestampActual);
+        console.log('   - Expira (Yucatán +2h):', timestampExpira);
 
         const { error } = await supabase
             .from('citas')
@@ -3174,6 +3180,8 @@ async function cancelarCita(citaId) {
 
         if (error) throw error;
 
+        console.log('✅ Cita cancelada en base de datos');
+        
         showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
         
         await limpiarCacheDespuesDeAgendar();
@@ -3194,7 +3202,6 @@ async function cancelarCita(citaId) {
         showAlert('❌ Error al cancelar la cita', 'error');
     }
 }
-
 async function verificarCitasPasadas() {
     try {
         // Obtener hora ACTUAL de Yucatán
