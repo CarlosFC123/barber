@@ -2341,8 +2341,17 @@ function getCurrentISOTimeYucatan() {
 
 function getYucatanDateTime(dateStr, timeStr) {
     try {
+
+        if (!dateStr || !timeStr) {
+            throw new Error('Fecha u hora no proporcionadas');
+        }
+
         const [year, month, day] = dateStr.split('-');
         const [hour, minute] = timeStr.split(':');
+
+        if (!year || !month || !day || !hour || !minute) {
+            throw new Error('Formato de fecha u hora inválido');
+        }
         
         // Crear fecha local
         const fechaLocal = new Date(
@@ -3215,26 +3224,16 @@ async function cancelarCita(citaId) {
         showAlert('❌ Error al cancelar la cita: ' + error.message, 'error');
     }
 }
+
 async function verificarCitasPasadas() {
     try {
         // Obtener hora ACTUAL de Yucatán
-        const ahoraYucatanStr = getCurrentTimeYucatan();
-        const [fechaActual, horaActual] = ahoraYucatanStr.split(' ');
-        const [year, month, day] = fechaActual.split('-');
-        const [hour, minute] = horaActual.split(':');
-        
-        const ahoraYucatan = new Date(
-            parseInt(year),
-            parseInt(month) - 1,
-            parseInt(day),
-            parseInt(hour),
-            parseInt(minute),
-            0,
-            0
-        );
-        
+        const ahoraYucatanISO = getCurrentTimeYucatan();
         console.log('🕐 Verificando citas pasadas...');
-        console.log('   - Hora Yucatán actual:', ahoraYucatanStr);
+        console.log('   - Hora Yucatán (ISO):', ahoraYucatanISO);
+        
+        // Parsear la fecha ISO
+        const ahoraYucatan = new Date(ahoraYucatanISO);
         console.log('   - Fecha Yucatán objeto:', ahoraYucatan.toLocaleString('es-MX'));
         
         // Buscar todas las citas activas del usuario
@@ -3254,8 +3253,9 @@ async function verificarCitasPasadas() {
                 const fechaCitaYucatan = getYucatanDateTime(cita.fecha, cita.hora);
                 
                 // Mostrar comparación para debugging
-                console.log(`   - Cita ${cita.id}: ${cita.fecha} ${cita.hora} = ${fechaCitaYucatan.toLocaleString('es-MX')}`);
-                console.log(`     Actual: ${ahoraYucatan.toLocaleString('es-MX')}`);
+                console.log(`   - Cita ${cita.id}: ${cita.fecha} ${cita.hora}`);
+                console.log(`     Hora cita (Yucatán): ${fechaCitaYucatan.toLocaleString('es-MX')}`);
+                console.log(`     Hora actual (Yucatán): ${ahoraYucatan.toLocaleString('es-MX')}`);
                 console.log(`     Pasó? ${ahoraYucatan > fechaCitaYucatan}`);
                 
                 // Verificar si la hora de la cita YA PASÓ
