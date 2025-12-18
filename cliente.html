@@ -1150,40 +1150,64 @@
 
 
         async function obtenerSolicitudesPendientes() {
-            try {
-                const { data: solicitudes, error } = await supabase
-                    .from('solicitudes_temporales')
-                    .select('*')
-                    .gte('expira_en', new Date().toISOString());
-                    
-                if (error) throw error;
-                
-                // Actualizar mapa local
-                solicitudesPendientes.clear();
-                if (solicitudes) {
-                    solicitudes.forEach(sol => {
-                        const clave = `${sol.fecha}_${sol.hora}`;
-                        solicitudesPendientes.set(clave, {
-                            usuarioId: sol.usuario_id,
-                            timestamp: new Date(sol.creado_en),
-                            expira_en: new Date(sol.expira_en)
-                        });
-                        
-                        // Actualizar caché local
-                        actualizarCacheLocal(
-                            sol.fecha, 
-                            sol.hora, 
-                            'reservando', 
-                            sol.usuario_id
-                        );
-                    });
-                }
-                
-            } catch (error) {
-                console.error('Error obteniendo solicitudes:', error);
+    try {
+        const { data: solicitudes, error } = await supabase
+            .from('solicitudes_temporales')
+            .select('*')
+            .gte('expira_en', new Date().toISOString());
+            
+        if (error) {
+            console.error('Error obteniendo solicitudes:', error);
+            return;
+        }
+        
+        // Limpiar solicitudes expiradas localmente
+        const ahora = new Date();
+        const clavesAEliminar = [];
+        
+        // Primero limpiar locales
+        for (const [clave, sol] of solicitudesPendientes.entries()) {
+            if (sol.expira_en < ahora) {
+                clavesAEliminar.push(clave);
             }
         }
-
+        
+        clavesAEliminar.forEach(clave => {
+            solicitudesPendientes.delete(clave);
+            const [fecha, hora] = clave.split('_');
+            actualizarCacheLocal(fecha, hora, 'disponible', null);
+        });
+        
+        // Actualizar mapa local con datos frescos
+        if (solicitudes) {
+            solicitudes.forEach(sol => {
+                const clave = `${sol.fecha}_${sol.hora}`;
+                const expiraEn = new Date(sol.expira_en);
+                const creadoEn = new Date(sol.creado_en);
+                
+                // Solo si aún no ha expirado
+                if (expiraEn > ahora) {
+                    solicitudesPendientes.set(clave, {
+                        usuarioId: sol.usuario_id,
+                        timestamp: creadoEn,
+                        expira_en: expiraEn
+                    });
+                    
+                    // Actualizar caché local
+                    actualizarCacheLocal(
+                        sol.fecha, 
+                        sol.hora, 
+                        'reservando', 
+                        sol.usuario_id
+                    );
+                }
+            });
+        }
+        
+    } catch (error) {
+        console.error('Error obteniendo solicitudes:', error);
+    }
+}
         function hayCambiosRelevantes() {
             // Verificar si hay cambios en las horas visibles
             const horasGrid = document.getElementById('horasGrid');
@@ -1341,7 +1365,7 @@ async function verificarDisponibilidadInstantanea(fecha, hora) {
             .eq('fecha', fecha)
             .eq('hora', hora)
             .eq('barbero_id', barberoFijo.id)
-            .or('estado.eq.aceptada,estado.eq.pendiente,estado.eq.confirmada')
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
             .maybeSingle();
             
         if (consultaError) {
@@ -1375,24 +1399,25 @@ async function verificarDisponibilidadInstantanea(fecha, hora) {
        async function registrarSolicitudTemporal(fecha, hora) {
     try {
         // Crear expiración (30 segundos desde ahora)
-        const ahora = new Date();
+        const ahoraISO = getCurrentTimeYucatan();
+        const ahora = new Date(ahoraISO);
         const expiraEn = new Date(ahora.getTime() + 30000);
         
         console.log('🕐 Creando reserva temporal:');
         console.log('   - Fecha:', fecha);
         console.log('   - Hora:', hora);
-        console.log('   - Ahora:', ahora.toLocaleString('es-MX'));
-        console.log('   - Expira en:', expiraEn.toLocaleString('es-MX'));
+        console.log('   - Ahora (ISO):', ahoraISO);
+        console.log('   - Ahora (local):', ahora.toLocaleString('es-MX'));
+        console.log('   - Expira en (ISO):', expiraEn.toISOString());
+        console.log('   - Expira en (local):', expiraEn.toLocaleString('es-MX'));
         
         // 1. Verificar si ya existe una reserva reciente de otro usuario
-        const hace30Segundos = new Date(Date.now() - 30000).toISOString();
-        
         const { data: reservasExistentes, error: errorCheck } = await supabase
             .from('solicitudes_temporales')
             .select('usuario_id, creado_en, expira_en')
             .eq('fecha', fecha)
             .eq('hora', hora)
-            .gt('expira_en', ahora.toISOString()) // Solo reservas que no han expirado
+            .gt('expira_en', new Date().toISOString()) // Solo reservas que no han expirado
             .order('creado_en', { ascending: false });
             
         if (errorCheck) {
@@ -1423,7 +1448,7 @@ async function verificarDisponibilidadInstantanea(fecha, hora) {
                 const { error: updateError } = await supabase
                     .from('solicitudes_temporales')
                     .update({
-                        creado_en: ahora.toISOString(),
+                        creado_en: ahoraISO,
                         expira_en: expiraEn.toISOString()
                     })
                     .eq('fecha', fecha)
@@ -1449,7 +1474,7 @@ async function verificarDisponibilidadInstantanea(fecha, hora) {
                 fecha: fecha,
                 hora: hora,
                 usuario_id: miUsuarioId,
-                creado_en: ahora.toISOString(),
+                creado_en: ahoraISO,
                 expira_en: expiraEn.toISOString()
             }])
             .select();
@@ -1462,7 +1487,7 @@ async function verificarDisponibilidadInstantanea(fecha, hora) {
                 const { error: updateError } = await supabase
                     .from('solicitudes_temporales')
                     .update({
-                        creado_en: ahora.toISOString(),
+                        creado_en: ahoraISO,
                         expira_en: expiraEn.toISOString()
                     })
                     .eq('fecha', fecha)
@@ -2267,116 +2292,50 @@ function getCurrentTimeYucatan() {
             }
         });
         
-        // Asegurar formato ISO 8601 con zona horaria UTC-5 (Yucatán)
-        const año = dateObj.year;
-        const mes = dateObj.month.padStart(2, '0');
-        const dia = dateObj.day.padStart(2, '0');
-        const hora = dateObj.hour.padStart(2, '0');
-        const minuto = dateObj.minute.padStart(2, '0');
-        const segundo = dateObj.second ? dateObj.second.padStart(2, '0') : '00';
+        // Crear fecha en formato ISO 8601 para Supabase
+        const fechaYucatan = new Date(
+            parseInt(dateObj.year),
+            parseInt(dateObj.month) - 1,
+            parseInt(dateObj.day),
+            parseInt(dateObj.hour),
+            parseInt(dateObj.minute),
+            parseInt(dateObj.second || '0'),
+            0
+        );
         
-        // Formatear como YYYY-MM-DD HH:MM:SS
-        return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+        // Devolver en formato ISO 8601 que Supabase entiende
+        return fechaYucatan.toISOString();
         
     } catch (error) {
         console.error('Error obteniendo hora de Yucatán:', error);
-        // Fallback con offset UTC-5
-        const ahora = new Date();
-        const offsetYucatan = -5; // UTC-5 para Yucatán (sin horario de verano)
-        const utc = ahora.getTime() + (ahora.getTimezoneOffset() * 60000);
-        const fechaYucatan = new Date(utc + (3600000 * offsetYucatan));
-        
-        const año = fechaYucatan.getUTCFullYear();
-        const mes = String(fechaYucatan.getUTCMonth() + 1).padStart(2, '0');
-        const dia = String(fechaYucatan.getUTCDate()).padStart(2, '0');
-        const hora = String(fechaYucatan.getUTCHours()).padStart(2, '0');
-        const minuto = String(fechaYucatan.getUTCMinutes()).padStart(2, '0');
-        const segundo = String(fechaYucatan.getUTCSeconds()).padStart(2, '0');
-        
-        return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+        // Fallback con formato ISO estándar
+        return new Date().toISOString();
     }
 }
 
-// Obtener fecha Yucatán más X horas
+// REEMPLAZAR la función getTimeYucatanPlusHours con formato ISO correcto:
 function getTimeYucatanPlusHours(hoursToAdd) {
     try {
-        // Usar la misma lógica que getCurrentTimeYucatan pero agregando horas
-        const ahora = new Date();
-        const offsetYucatan = -5; // UTC-5 para Yucatán
-        
-        // Convertir a hora Yucatán
-        const utc = ahora.getTime() + (ahora.getTimezoneOffset() * 60000);
-        const fechaYucatan = new Date(utc + (3600000 * offsetYucatan));
+        // Obtener hora actual en Yucatán
+        const ahoraISO = getCurrentTimeYucatan();
+        const fechaYucatan = new Date(ahoraISO);
         
         // Agregar horas
         const fechaExpira = new Date(fechaYucatan.getTime() + (hoursToAdd * 60 * 60 * 1000));
         
-        const año = fechaExpira.getUTCFullYear();
-        const mes = String(fechaExpira.getUTCMonth() + 1).padStart(2, '0');
-        const dia = String(fechaExpira.getUTCDate()).padStart(2, '0');
-        const hora = String(fechaExpira.getUTCHours()).padStart(2, '0');
-        const minuto = String(fechaExpira.getUTCMinutes()).padStart(2, '0');
-        const segundo = String(fechaExpira.getUTCSeconds()).padStart(2, '0');
-        
-        return `${año}-${mes}-${dia} ${hora}:${minuto}:${segundo}`;
+        // Devolver en formato ISO 8601
+        return fechaExpira.toISOString();
         
     } catch (error) {
         console.error('Error calculando hora futura Yucatán:', error);
         // Fallback simple
-        const ahoraStr = getCurrentTimeYucatan();
-        const [fecha, hora] = ahoraStr.split(' ');
-        const [year, month, day] = fecha.split('-');
-        const [hour, minute, second] = hora.split(':');
-        
-        const fechaActual = new Date(
-            parseInt(year),
-            parseInt(month) - 1,
-            parseInt(day),
-            parseInt(hour),
-            parseInt(minute),
-            parseInt(second || '0')
-        );
-        
-        const fechaExpira = new Date(fechaActual.getTime() + (hoursToAdd * 60 * 60 * 1000));
-        
-        const año = fechaExpira.getFullYear();
-        const mes = String(fechaExpira.getMonth() + 1).padStart(2, '0');
-        const dia = String(fechaExpira.getDate()).padStart(2, '0');
-        const horaExp = String(fechaExpira.getHours()).padStart(2, '0');
-        const minutoExp = String(fechaExpira.getMinutes()).padStart(2, '0');
-        const segundoExp = String(fechaExpira.getSeconds()).padStart(2, '0');
-        
-        return `${año}-${mes}-${dia} ${horaExp}:${minutoExp}:${segundoExp}`;
+        const fechaExpira = new Date(Date.now() + (hoursToAdd * 60 * 60 * 1000));
+        return fechaExpira.toISOString();
     }
 }
 
 function getCurrentISOTimeYucatan() {
-    try {
-        const ahora = new Date();
-        
-        // Calcular offset para Yucatán (UTC-5)
-        const offsetYucatan = -5 * 60; // en minutos
-        const offsetSign = offsetYucatan >= 0 ? '+' : '-';
-        const offsetHours = Math.floor(Math.abs(offsetYucatan) / 60).toString().padStart(2, '0');
-        const offsetMinutes = (Math.abs(offsetYucatan) % 60).toString().padStart(2, '0');
-        
-        // Crear fecha ajustada a Yucatán
-        const fechaYucatan = new Date(ahora.getTime() + (offsetYucatan * 60 * 1000));
-        
-        // Formatear como ISO string con offset
-        const año = fechaYucatan.getUTCFullYear();
-        const mes = String(fechaYucatan.getUTCMonth() + 1).padStart(2, '0');
-        const dia = String(fechaYucatan.getUTCDate()).padStart(2, '0');
-        const hora = String(fechaYucatan.getUTCHours()).padStart(2, '0');
-        const minuto = String(fechaYucatan.getUTCMinutes()).padStart(2, '0');
-        const segundo = String(fechaYucatan.getUTCSeconds()).padStart(2, '0');
-        
-        return `${año}-${mes}-${dia}T${hora}:${minuto}:${segundo}${offsetSign}${offsetHours}:${offsetMinutes}`;
-        
-    } catch (error) {
-        console.error('Error obteniendo ISO time Yucatán:', error);
-        return new Date().toISOString();
-    }
+    return getCurrentTimeYucatan();
 }
 
 
@@ -2648,6 +2607,27 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         await cancelarReservaAnterior();
         console.error('❌ Error agendando cita:', error);
         showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
+    }
+}
+
+async function limpiarSolicitudesCorruptas() {
+    try {
+        console.log('🧹 Limpiando solicitudes temporales corruptas...');
+        
+        // Eliminar registros con fechas inválidas
+        const { error } = await supabase
+            .from('solicitudes_temporales')
+            .delete()
+            .or(`expira_en.lt.${new Date().toISOString()},creado_en.lt.${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()}`);
+            
+        if (error) {
+            console.error('Error limpiando solicitudes corruptas:', error);
+        } else {
+            console.log('✅ Solicitudes corruptas eliminadas');
+        }
+        
+    } catch (error) {
+        console.error('Error en limpieza de solicitudes:', error);
     }
 }
 
@@ -3432,6 +3412,8 @@ async function verificarTimestampsCita(citaId) {
         console.log('   - Hora actual navegador:', new Date().toLocaleString('es-MX'));
         console.log('   - Hora Yucatán (calculada):', getCurrentTimeYucatan());
         console.log('   - Hora Yucatán (ISO):', getCurrentISOTimeYucatan());
+
+        await limpiarSolicitudesCorruptas();
 
         // Inicializar variables de control
         pollingActivo = true;
