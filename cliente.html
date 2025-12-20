@@ -2394,24 +2394,52 @@
         }
     }
 }
-    // Función para verificar tiempo de cancelación usando hora Yucatán
-   function verificarCancelacionPermitida(fechaCitaYucatan) {
+   // Función para verificar tiempo de cancelación usando hora Yucatán
+function verificarCancelacionPermitida(fechaCitaYucatan) {
     try {
+        console.log('🔍 Verificando cancelación permitida...');
+        console.log('   - Fecha cita:', fechaCitaYucatan);
+        console.log('   - Tipo de fechaCitaYucatan:', typeof fechaCitaYucatan);
+        console.log('   - Es Date?', fechaCitaYucatan instanceof Date);
+        console.log('   - Tiene getTime?', typeof fechaCitaYucatan.getTime === 'function');
+        
+        // Verificar que fechaCitaYucatan sea un objeto Date válido
+        if (!(fechaCitaYucatan instanceof Date)) {
+            console.error('❌ fechaCitaYucatan no es un objeto Date:', fechaCitaYucatan);
+            return false;
+        }
+        
+        if (isNaN(fechaCitaYucatan.getTime())) {
+            console.error('❌ fechaCitaYucatan no es una fecha válida');
+            return false;
+        }
+        
         // Obtener hora ACTUAL local
         const ahoraLocal = new Date();
+        console.log('   - Hora actual:', ahoraLocal.toLocaleString('es-MX'));
+        console.log('   - Hora cita:', fechaCitaYucatan.toLocaleString('es-MX'));
         
         // Calcular diferencia en milisegundos
         const tiempoParaCita = fechaCitaYucatan.getTime() - ahoraLocal.getTime();
+        console.log('   - Tiempo para cita (ms):', tiempoParaCita);
+        console.log('   - Tiempo para cita (horas):', tiempoParaCita / (1000 * 60 * 60));
         
         // Permitir cancelación solo si faltan más de 1 hora (3600000 ms)
-        return tiempoParaCita > (60 * 60 * 1000);
+        const puedeCancelar = tiempoParaCita > (60 * 60 * 1000);
+        console.log('   - ¿Puede cancelar?', puedeCancelar);
+        
+        return puedeCancelar;
         
     } catch (error) {
         console.error('Error verificando cancelación:', error);
+        console.error('Stack trace:', error.stack);
         // Fallback: usar hora actual
         const ahora = new Date();
-        const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
-        return tiempoParaCita > (60 * 60 * 1000);
+        if (fechaCitaYucatan instanceof Date && !isNaN(fechaCitaYucatan.getTime())) {
+            const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+            return tiempoParaCita > (60 * 60 * 1000);
+        }
+        return false;
     }
 }
 
@@ -3129,78 +3157,92 @@
     }
 
     async function cancelarCita(citaId) {
-        try {
-            console.log('🔄 Iniciando cancelación de cita:', citaId);
-        
-        const { data: cita, error: errorCita } = await supabase
-            .from('citas')
-            .select('fecha, hora, estado')
-            .eq('id', citaId)
-            .single();
+    try {
+        console.log('🔄 Iniciando cancelación de cita:', citaId);
+    
+    const { data: cita, error: errorCita } = await supabase
+        .from('citas')
+        .select('fecha, hora, estado')
+        .eq('id', citaId)
+        .single();
 
-        if (errorCita) throw errorCita;
-        
-        console.log('📋 Datos de cita actual:', cita);
+    if (errorCita) throw errorCita;
+    
+    console.log('📋 Datos de cita actual:', cita);
 
-        const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
-        
-        // Verificar si se permite cancelación usando hora LOCAL
-        const puedeCancelar = verificarCancelacionPermitida(fechaCita);
+    // VERIFICACIÓN ADICIONAL - asegurarse de que tenemos los datos
+    if (!cita.fecha || !cita.hora) {
+        showAlert('❌ Error: No se encontraron datos de fecha/hora de la cita', 'error');
+        return;
+    }
+    
+    const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
+    
+    // Verificar que fechaCita sea un objeto Date válido
+    if (!(fechaCita instanceof Date) || isNaN(fechaCita.getTime())) {
+        console.error('❌ fechaCita no es un objeto Date válido:', fechaCita);
+        showAlert('❌ Error en los datos de fecha/hora de la cita', 'error');
+        return;
+    }
+    
+    console.log('📅 Fecha de cita convertida:', fechaCita.toLocaleString('es-MX'));
+    
+    // Verificar si se permite cancelación usando hora LOCAL
+    const puedeCancelar = verificarCancelacionPermitida(fechaCita);
 
-        if (!puedeCancelar) {
-            showAlert('❌ No puedes cancelar la cita cuando faltan menos de 1 hora', 'error');
-            await cargarMisCitas();
-            return;
-        }
-
-        if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
-            return;
-        }
-
-        // Usar hora LOCAL de Yucatán
-        const timestampActual = getCurrentTimeYucatan();
-        const timestampExpira = getTimeYucatanPlusHours(2);
-        
-        console.log('📅 Cancelando con hora LOCAL:');
-        console.log('   - Actual:', timestampActual);
-        console.log('   - Expira:', timestampExpira);
-        console.log('   - Hora dispositivo:', new Date().toLocaleString('es-MX'));
-
-        const { data: updatedCita, error } = await supabase
-            .from('citas')
-            .update({ 
-                estado: 'cancelada',
-                expira_en: timestampExpira, // Hora LOCAL
-                actualizado_en: timestampActual // Hora LOCAL
-            })
-            .eq('id', citaId)
-            .select('creado_en, actualizado_en, expira_en');
-            
-        if (error) throw error;
-
-        console.log('✅ Cita cancelada con hora LOCAL correctamente');
-        
-        showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
-
-            await limpiarCacheDespuesDeAgendar();
-            await precargarCitasFuturas();
-            
-            // Recargar citas y luego iniciar contadores
-            await cargarMisCitas();
-            
-            // Forzar reinicio de contadores después de actualizar
-            setTimeout(() => {
-                iniciarContadoresCitas();
-            }, 500);
-            
-            await notificarCambioCita(cita.fecha, cita.hora, 'cita_cancelada');
-
-        } catch (error) {
-            console.error('Error cancelando cita:', error);
-            showAlert('❌ Error al cancelar la cita: ' + error.message, 'error');
-        }
+    if (!puedeCancelar) {
+        showAlert('❌ No puedes cancelar la cita cuando faltan menos de 1 hora', 'error');
+        await cargarMisCitas();
+        return;
     }
 
+    if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
+        return;
+    }
+
+    // Usar hora LOCAL de Yucatán
+    const timestampActual = getCurrentTimeYucatan();
+    const timestampExpira = getTimeYucatanPlusHours(2);
+    
+    console.log('📅 Cancelando con hora LOCAL:');
+    console.log('   - Actual:', timestampActual);
+    console.log('   - Expira:', timestampExpira);
+    console.log('   - Hora dispositivo:', new Date().toLocaleString('es-MX'));
+
+    const { data: updatedCita, error } = await supabase
+        .from('citas')
+        .update({ 
+            estado: 'cancelada',
+            expira_en: timestampExpira, // Hora LOCAL
+            actualizado_en: timestampActual // Hora LOCAL
+        })
+        .eq('id', citaId)
+        .select('creado_en, actualizado_en, expira_en');
+        
+    if (error) throw error;
+
+    console.log('✅ Cita cancelada con hora LOCAL correctamente');
+    
+    showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
+
+        await limpiarCacheDespuesDeAgendar();
+        await precargarCitasFuturas();
+        
+        // Recargar citas y luego iniciar contadores
+        await cargarMisCitas();
+        
+        // Forzar reinicio de contadores después de actualizar
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 500);
+        
+        await notificarCambioCita(cita.fecha, cita.hora, 'cita_cancelada');
+
+    } catch (error) {
+        console.error('Error cancelando cita:', error);
+        showAlert('❌ Error al cancelar la cita: ' + error.message, 'error');
+    }
+}
     async function verificarCitasPasadas() {
     try {
         // Obtener hora LOCAL actual
