@@ -999,8 +999,18 @@
                 }
             ];
 
+            // Función para inicializar contadores de uso
+            function inicializarContadoresEmailJS() {
+                cuentasEmailJS.forEach(cuenta => {
+                    emailjsUsageCount[cuenta.serviceId] = 0;
+                });
+                console.log('📊 Contadores de EmailJS inicializados');
+            }
+
             let cuentaActualIndex = 0;
             let emailjsInicializado = false;
+            let emailjsUsageCount = {};
+            const EMAILJS_LIMIT = 195;
 
             // Configuración de polling inteligente
             const CONFIG = {
@@ -1031,7 +1041,33 @@
                 return `${año}-${mes}-${dia}`;
             }
 
-            
+            // Obtener la siguiente cuenta disponible (con menos uso)
+            function obtenerSiguienteCuentaDisponible() {
+                let mejorCuenta = null;
+                let menorUso = Infinity;
+                
+                for (const cuenta of cuentasEmailJS) {
+                    const usoActual = emailjsUsageCount[cuenta.serviceId] || 0;
+                    
+                    // Si la cuenta no ha alcanzado el límite y tiene menor uso
+                    if (usoActual < EMAILJS_LIMIT && usoActual < menorUso) {
+                        menorUso = usoActual;
+                        mejorCuenta = cuenta;
+                    }
+                }
+                
+                // Si todas están en el límite, usar la de menor uso
+                if (!mejorCuenta) {
+                    mejorCuenta = cuentasEmailJS.reduce((menor, cuenta) => {
+                        const usoMenor = emailjsUsageCount[menor.serviceId] || 0;
+                        const usoActual = emailjsUsageCount[cuenta.serviceId] || 0;
+                        return usoActual < usoMenor ? cuenta : menor;
+                    });
+                }
+                
+                console.log(`🔄 Usando cuenta: ${mejorCuenta.nombre} (uso: ${emailjsUsageCount[mejorCuenta.serviceId] || 0}/${EMAILJS_LIMIT})`);
+                return mejorCuenta;
+            }
 
             // ============ SISTEMA DE CACHÉ INTELIGENTE ============
 
@@ -2565,106 +2601,137 @@
 
             // ============ FUNCIONES DE EMAILJS ============
 
-            function inicializarEmailJSCuentaActual() {
+            function inicializarEmailJS() {
                 try {
-                    if (emailjsInicializado) {
-                        emailjs.init(cuentasEmailJS[cuentaActualIndex].publicKey);
-                    } else {
-                        emailjs.init(cuentasEmailJS[cuentaActualIndex].publicKey);
-                        emailjsInicializado = true;
-                    }
-                    console.log(`📧 EmailJS inicializado con: ${cuentasEmailJS[cuentaActualIndex].nombre}`);
+                    // Inicializar con la primera cuenta
+                    emailjs.init(cuentasEmailJS[0].publicKey);
+                    emailjsInicializado = true;
+                    
+                    // Inicializar contadores
+                    inicializarContadoresEmailJS();
+                    
+                    console.log('📧 EmailJS inicializado correctamente');
                 } catch (error) {
                     console.error('❌ Error inicializando EmailJS:', error);
                 }
             }
 
             async function enviarNotificacionCita(citaData) {
-                try {
-                    const { data: usuario, error: errorUsuario } = await supabase
-                        .from('clientes')
-                        .select('nombre, email')
-                        .eq('id', usuarioActual.id)
-                        .single();
+    try {
+        const { data: usuario, error: errorUsuario } = await supabase
+            .from('clientes')
+            .select('nombre, email')
+            .eq('id', usuarioActual.id)
+            .single();
 
-                    if (errorUsuario) {
-                        console.error('❌ Error obteniendo datos del usuario:', errorUsuario);
-                        return false;
-                    }
+        if (errorUsuario) {
+            console.error('❌ Error obteniendo datos del usuario:', errorUsuario);
+            return false;
+        }
 
-                    // Formatear fecha
-                    const [year, month, day] = citaData.fecha.split('-');
-                    const [horaCita, minutoCita] = citaData.hora.split(':');
-                    const fechaCita = new Date(year, month - 1, day, 
-                                            parseInt(horaCita), 
-                                            parseInt(minutoCita), 
-                                            0, 0);
+        // Formatear fecha
+        const [year, month, day] = citaData.fecha.split('-');
+        const [horaCita, minutoCita] = citaData.hora.split(':');
+        const fechaCita = new Date(year, month - 1, day, 
+                                parseInt(horaCita), 
+                                parseInt(minutoCita), 
+                                0, 0);
+        
+        const opcionesFecha = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            timeZone: 'America/Mexico_City'
+        };
+        
+        const fechaCitaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
+        const fechaAgendamiento = new Date().toLocaleDateString('es-MX', opcionesFecha);
+
+        // Template parameters (igual que antes)
+        const templateParams = {
+            to_email: usuario.email,
+            to_name: usuario.nombre,
+            cliente_nombre: usuario.nombre,
+            servicio_nombre: citaData.servicios.nombre,
+            fecha_cita: fechaCitaFormateada,
+            hora_cita: citaData.hora,
+            barbero_nombre: citaData.barberos.nombre,
+            precio_servicio: `$${citaData.servicios.precio} MXN`,
+            estado_cita: 'Confirmada',
+            fecha_agendamiento: fechaAgendamiento,
+            direccion_barberia: 'Calle 24-A, Tzucacab, Yucatán',
+            google_maps_link: 'https://www.google.com/maps?q=20.063818,-89.0476701'
+        };
+
+        // Intentar enviar con diferentes cuentas
+        const cuentasIntentadas = new Set();
+        let intentos = 0;
+        const maxIntentos = Math.min(cuentasEmailJS.length * 2, 10);
+        
+        while (intentos < maxIntentos) {
+            // Obtener cuenta disponible
+            const cuenta = obtenerSiguienteCuentaDisponible();
+            
+            // Si ya intentamos con esta cuenta, saltar
+            if (cuentasIntentadas.has(cuenta.serviceId)) {
+                intentos++;
+                continue;
+            }
+            
+            cuentasIntentadas.add(cuenta.serviceId);
+            
+            try {
+                console.log(`📧 Intentando enviar con cuenta: ${cuenta.nombre}`);
+                
+                // Re-inicializar EmailJS con la cuenta actual si es necesario
+                await emailjs.init(cuenta.publicKey);
+                
+                // Enviar email
+                await emailjs.send(
+                    cuenta.serviceId,
+                    cuenta.templateId,
+                    templateParams
+                );
+                
+                // Incrementar contador de uso
+                emailjsUsageCount[cuenta.serviceId] = (emailjsUsageCount[cuenta.serviceId] || 0) + 1;
+                
+                console.log(`✅ Email enviado exitosamente con ${cuenta.nombre}`);
+                console.log(`📊 Uso actualizado: ${cuenta.serviceId}: ${emailjsUsageCount[cuenta.serviceId]}`);
+                
+                return true;
+                
+            } catch (emailError) {
+                console.error(`❌ Error con cuenta ${cuenta.nombre}:`, emailError.message);
+                
+                // Si es error de límite, marcar la cuenta como llena
+                if (emailError.status === 429 || 
+                    emailError.text?.includes('limit') || 
+                    emailError.text?.includes('quota') ||
+                    emailError.text?.includes('exceeded')) {
                     
-                    const opcionesFecha = { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric',
-                        timeZone: 'America/Mexico_City'
-                    };
-                    
-                    const fechaCitaFormateada = fechaCita.toLocaleDateString('es-MX', opcionesFecha);
-                    const fechaAgendamiento = new Date().toLocaleDateString('es-MX', opcionesFecha);
-
-                    const cuentaActual = cuentasEmailJS[cuentaActualIndex];
-                    
-                    const templateParams = {
-                        to_email: usuario.email,
-                        to_name: usuario.nombre,
-                        cliente_nombre: usuario.nombre,
-                        servicio_nombre: citaData.servicios.nombre,
-                        fecha_cita: fechaCitaFormateada,
-                        hora_cita: citaData.hora,
-                        barbero_nombre: citaData.barberos.nombre,
-                        precio_servicio: `$${citaData.servicios.precio} MXN`,
-                        estado_cita: 'Confirmada',
-                        fecha_agendamiento: fechaAgendamiento,
-                        direccion_barberia: 'Calle 24-A, Tzucacab, Yucatán',
-                        google_maps_link: 'https://www.google.com/maps?q=20.063818,-89.0476701'
-                    };
-
-                    try {
-                        await emailjs.send(
-                            cuentaActual.serviceId,
-                            cuentaActual.templateId,
-                            templateParams
-                        );
-                        
-                        console.log('✅ Notificación de confirmación enviada exitosamente');
-                        return true;
-                        
-                    } catch (emailError) {
-                        console.error('❌ Error enviando notificación:', emailError);
-                        
-                        cuentaActualIndex = (cuentaActualIndex + 1) % cuentasEmailJS.length;
-                        inicializarEmailJSCuentaActual();
-                        
-                        try {
-                            const nuevaCuenta = cuentasEmailJS[cuentaActualIndex];
-                            await emailjs.send(
-                                nuevaCuenta.serviceId,
-                                nuevaCuenta.templateId,
-                                templateParams
-                            );
-                            
-                            console.log('✅ Notificación enviada con cuenta de respaldo');
-                            return true;
-                        } catch (segundoError) {
-                            console.error('❌ Error también con cuenta de respaldo:', segundoError);
-                            return false;
-                        }
-                    }
-
-                } catch (error) {
-                    console.error('❌ Error en proceso de notificación:', error);
-                    return false;
+                    emailjsUsageCount[cuenta.serviceId] = EMAILJS_LIMIT;
+                    console.warn(`🚫 Cuenta ${cuenta.nombre} marcada como llena (límite alcanzado)`);
+                }
+                
+                intentos++;
+                
+                // Esperar 1 segundo antes de intentar con otra cuenta
+                if (intentos < maxIntentos) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
+        }
+        
+        console.error('❌ Todas las cuentas fallaron o alcanzaron su límite');
+        return false;
+
+    } catch (error) {
+        console.error('❌ Error en proceso de notificación:', error);
+        return false;
+    }
+}
 
             // ============ FUNCIONES DE CITAS ============
 
@@ -3075,7 +3142,7 @@
         
         console.log('📋 Datos de cita actual:', cita);
 
-        const fechaCita = (cita.fecha, cita.hora);
+        const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
         
         // Verificar si se permite cancelación usando hora LOCAL
         const puedeCancelar = verificarCancelacionPermitida(fechaCita);
@@ -3155,7 +3222,7 @@
             
             for (const cita of citasActivas) {
                 // Convertir fecha/hora de la cita a objeto Date (ya está en hora local)
-                const fechaCita = (cita.fecha, cita.hora);
+                const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
                 
                 console.log(`   - Cita ${cita.id}: ${cita.fecha} ${cita.hora}`);
                 console.log(`     Hora cita (local): ${fechaCita.toLocaleString('es-MX')}`);
@@ -3338,7 +3405,7 @@
             generateCalendar(currentMonth);
             habilitarCalendario();
 
-            inicializarEmailJSCuentaActual();
+            inicializarEmailJS();
             iniciarPollingInteligente();
 
             setInterval(async () => {
