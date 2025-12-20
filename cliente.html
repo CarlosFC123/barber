@@ -2277,37 +2277,85 @@
 
     function getYucatanDateTime(dateStr, timeStr) {
     try {
+        console.log(`📅 getYucatanDateTime recibió: dateStr="${dateStr}", timeStr="${timeStr}"`);
+        
+        // Si ambos parámetros están vacíos o undefined
+        if (!dateStr && !timeStr) {
+            console.warn('⚠️ Ambos parámetros están vacíos');
+            return new Date();
+        }
+        
+        // Si solo tenemos un string combinado (para backward compatibility)
+        if (dateStr && !timeStr && dateStr.includes(' ')) {
+            const parts = dateStr.split(' ');
+            if (parts.length >= 2) {
+                dateStr = parts[0];
+                timeStr = parts[1];
+                console.log(`🔄 Parseado combinado: fecha="${dateStr}", hora="${timeStr}"`);
+            }
+        }
+        
+        // Validar parámetros
         if (!dateStr || !timeStr) {
-            throw new Error('Fecha u hora no proporcionadas');
+            throw new Error(`Fecha u hora no proporcionadas. dateStr="${dateStr}", timeStr="${timeStr}"`);
         }
 
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const [hour, minute] = timeStr.split(':').map(Number);
-
-        if (!year || !month || !day || !hour || !minute) {
-            throw new Error('Formato de fecha u hora inválido');
+        // Parsear fecha (formato YYYY-MM-DD)
+        const dateParts = dateStr.split('-');
+        if (dateParts.length !== 3) {
+            throw new Error(`Formato de fecha inválido: ${dateStr}`);
         }
         
-        // Crear fecha en hora Yucatán
-        // Suponemos que la fecha/hora proporcionada ya está en hora Yucatán
-        const utcDate = new Date(Date.UTC(year, month - 1, day, hour + 6, minute, 0));
+        const year = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1; // Mes 0-indexado
+        const day = parseInt(dateParts[2], 10);
         
-        return utcDate;
+        // Parsear hora (formato HH:MM)
+        const timeParts = timeStr.split(':');
+        if (timeParts.length < 2) {
+            throw new Error(`Formato de hora inválido: ${timeStr}`);
+        }
+        
+        const hour = parseInt(timeParts[0], 10);
+        const minute = parseInt(timeParts[1], 10);
+        
+        // Validar valores
+        if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(minute)) {
+            throw new Error('Valores numéricos inválidos en fecha/hora');
+        }
+        
+        // Crear fecha en hora Yucatán (UTC-6)
+        // Asumimos que los valores proporcionados ya están en hora local Yucatán
+        const fechaLocal = new Date(year, month, day, hour, minute, 0, 0);
+        
+        // Convertir a UTC (sumar 6 horas para Yucatán)
+        const fechaUTC = new Date(fechaLocal.getTime() + (6 * 60 * 60 * 1000));
+        
+        console.log(`✅ Fecha convertida: Local=${fechaLocal.toLocaleString('es-MX')}, UTC=${fechaUTC.toISOString()}`);
+        
+        return fechaLocal; // Devolver la fecha local
         
     } catch (error) {
-        console.error('Error convirtiendo a hora Yucatán:', error);
-        // Fallback
-        const [year, month, day] = dateStr.split('-');
-        const [hour, minute] = timeStr.split(':');
-        return new Date(
-            parseInt(year),
-            parseInt(month) - 1,
-            parseInt(day),
-            parseInt(hour),
-            parseInt(minute),
-            0,
-            0
-        );
+        console.error('❌ Error en getYucatanDateTime:', error.message);
+        
+        // Fallback: intentar crear fecha con lo que tengamos
+        try {
+            if (dateStr && timeStr) {
+                const fallbackDate = new Date(`${dateStr}T${timeStr}:00`);
+                if (!isNaN(fallbackDate.getTime())) {
+                    console.log(`🔄 Usando fallback: ${fallbackDate.toLocaleString('es-MX')}`);
+                    return fallbackDate;
+                }
+            }
+            
+            // Último recurso: fecha actual
+            console.log('⚠️ Devolviendo fecha actual como fallback');
+            return new Date();
+            
+        } catch (fallbackError) {
+            console.error('❌ Error en fallback:', fallbackError);
+            return new Date();
+        }
     }
 }
     // Función para verificar tiempo de cancelación usando hora Yucatán
@@ -3027,7 +3075,7 @@
         
         console.log('📋 Datos de cita actual:', cita);
 
-        const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
+        const fechaCita = (cita.fecha, cita.hora);
         
         // Verificar si se permite cancelación usando hora LOCAL
         const puedeCancelar = verificarCancelacionPermitida(fechaCita);
@@ -3107,7 +3155,7 @@
             
             for (const cita of citasActivas) {
                 // Convertir fecha/hora de la cita a objeto Date (ya está en hora local)
-                const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
+                const fechaCita = (cita.fecha, cita.hora);
                 
                 console.log(`   - Cita ${cita.id}: ${cita.fecha} ${cita.hora}`);
                 console.log(`     Hora cita (local): ${fechaCita.toLocaleString('es-MX')}`);
