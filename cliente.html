@@ -2281,8 +2281,8 @@
             throw new Error('Fecha u hora no proporcionadas');
         }
 
-        const [year, month, day] = dateStr.split('-');
-        const [hour, minute] = timeStr.split(':');
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const [hour, minute] = timeStr.split(':').map(Number);
 
         if (!year || !month || !day || !hour || !minute) {
             throw new Error('Formato de fecha u hora inválido');
@@ -2290,15 +2290,9 @@
         
         // Crear fecha en hora Yucatán
         // Suponemos que la fecha/hora proporcionada ya está en hora Yucatán
-        return new Date(
-            parseInt(year),
-            parseInt(month) - 1,
-            parseInt(day),
-            parseInt(hour),
-            parseInt(minute),
-            0,
-            0
-        );
+        const utcDate = new Date(Date.UTC(year, month - 1, day, hour + 6, minute, 0));
+        
+        return utcDate;
         
     } catch (error) {
         console.error('Error convirtiendo a hora Yucatán:', error);
@@ -2383,7 +2377,7 @@
                 .eq('hora', hora)
                 .eq('barbero_id', barberoFijo.id)
                 .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                .single();
+                .maybeSingle();
                 
             if (verificacionFinal) {
                 showAlert('❌ Esta hora ya fue tomada. Por favor selecciona otra.', 'error');
@@ -2408,8 +2402,8 @@
                 );
             
             // Expirar 2 horas después de la hora de la cita
-            const fechaExpira = new Date(fechaCita.getTime() + (2 * 60 * 60 * 1000));
-        
+            const fechaExpira = new Date(fechaCitaYucatan.getTime() + (2 * 60 * 60 * 1000));      
+
         const añoExpira = fechaExpira.getFullYear();
         const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
         const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
