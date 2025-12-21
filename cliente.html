@@ -2498,7 +2498,8 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
                 return;
             }
 
-            const timestampLocal = getYucatanTimeString();// Configurar expiración (2 horas después de la cita)
+            const timestampLocal = getYucatanTimeString();
+            // Configurar expiración (2 horas después de la cita)
             const [year, month, day] = fechaFormateada.split('-');
             const [hour, minute] = hora.split(':');
             const fechaCitaYucatan = new Date(
@@ -3227,13 +3228,11 @@ function getYucatanTimePlusHours(hours) {
         
         const { data: cita, error: errorCita } = await supabase
             .from('citas')
-            .select('fecha, hora, estado, expira_en, creado_en')
+            .select('fecha, hora, estado, creado_en')
             .eq('id', citaId)
             .single();
 
         if (errorCita) throw errorCita;
-        
-        console.log('📋 Datos de cita actual:', cita);
 
         // Verificar estado
         if (cita.estado === 'cancelada') {
@@ -3273,16 +3272,10 @@ function getYucatanTimePlusHours(hours) {
             return;
         }
 
-        // Obtener hora ACTUAL en Yucatán como STRING (no timestamp)
+        // **USAR EL MISMO MÉTODO QUE EN agendarCita()**
+        // Obtener hora ACTUAL en Yucatán como string
         const ahora = new Date();
-        
-        // DEBUG: Mostrar tiempos antes de formatear
-        console.log('🕐 DEBUG - Tiempos antes de formatear:');
-        console.log('   - Hora dispositivo (local):', ahora.toLocaleString('es-MX'));
-        console.log('   - Hora UTC:', ahora.toISOString());
-        
-        // Método 1: Usar toLocaleString con timezone específico
-        const horaLocalYucatan = ahora.toLocaleString('es-MX', {
+        const formatter = new Intl.DateTimeFormat('es-MX', {
             timeZone: 'America/Merida',
             year: 'numeric',
             month: '2-digit',
@@ -3293,118 +3286,66 @@ function getYucatanTimePlusHours(hours) {
             hour12: false
         });
         
-        // Parsear el string resultante (formato: DD/MM/YYYY, HH:MM:SS)
-        const [fechaPart, horaPart] = horaLocalYucatan.split(', ');
-        const [day, month, year] = fechaPart.split('/');
-        const [hour, minute, second] = horaPart.split(':');
-        
-        // Formatear a YYYY-MM-DD HH:MM:SS
-        const timestampActual = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')} ${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}`;
-        
-        console.log('🕐 Hora local Yucatán calculada:', timestampActual);
-        console.log('   - Hora original formateada:', horaLocalYucatan);
-        
-        // Calcular expiración (2 horas desde ahora)
-        const ahoraYucatan = new Date(
-            parseInt(year),
-            parseInt(month) - 1, // Mes es 0-indexado
-            parseInt(day),
-            parseInt(hour),
-            parseInt(minute),
-            parseInt(second)
-        );
-        
-        console.log('📅 Objeto Date creado:', {
-            year, month, day, hour, minute, second,
-            fechaObj: ahoraYucatan.toLocaleString('es-MX')
+        const parts = formatter.formatToParts(ahora);
+        const ahoraObj = {};
+        parts.forEach(part => {
+            if (part.type !== 'literal') {
+                ahoraObj[part.type] = part.value;
+            }
         });
-        
-        const expiraDate = new Date(ahoraYucatan.getTime() + (2 * 60 * 60 * 1000));
-        
-        // Formatear expiración usando el mismo método
-        const expiraLocalYucatan = expiraDate.toLocaleString('es-MX', {
-            timeZone: 'America/Merida',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-        });
-        
-        const [expiraFechaPart, expiraHoraPart] = expiraLocalYucatan.split(', ');
-        const [expiraDay, expiraMonth, expiraYear] = expiraFechaPart.split('/');
-        const [expiraHour, expiraMinute, expiraSecond] = expiraHoraPart.split(':');
-        
-        const timestampExpira = `${expiraYear}-${expiraMonth.padStart(2, '0')}-${expiraDay.padStart(2, '0')} ${expiraHour.padStart(2, '0')}:${expiraMinute.padStart(2, '0')}:${expiraSecond.padStart(2, '0')}`;
-        
-        console.log('📅 Cancelando con hora LOCAL:');
-        console.log('   - Actual (string):', timestampActual);
-        console.log('   - Expira (string):', timestampExpira);
-        console.log('   - Hora Yucatán ahora:', new Date().toLocaleString('es-MX', { timeZone: 'America/Merida' }));
-        console.log('   - Hora dispositivo:', new Date().toLocaleString('es-MX'));
-        
-        // Verificar lo que vamos a enviar
-        console.log('📤 Datos a enviar a Supabase:');
-        console.log('   - estado: cancelada');
-        console.log('   - expira_en:', timestampExpira);
-        console.log('   - actualizado_en:', timestampActual);
 
-        // IMPORTANTE: Actualizar como strings
+        const timestampActual = `${ahoraObj.year}-${ahoraObj.month}-${ahoraObj.day} ${ahoraObj.hour}:${ahoraObj.minute}:${ahoraObj.second}`;
+        
+        console.log('📅 actualizado_en (hora Yucatán):', timestampActual);
+        console.log('📅 creado_en (original):', cita.creado_en);
+        
+        // Calcular expiración (2 horas desde ahora) usando el MISMO método
+        const expiraDate = new Date(ahora.getTime() + (2 * 60 * 60 * 1000));
+        const expiraParts = formatter.formatToParts(expiraDate);
+        const expiraObj = {};
+        expiraParts.forEach(part => {
+            if (part.type !== 'literal') {
+                expiraObj[part.type] = part.value;
+            }
+        });
+        
+        const timestampExpira = `${expiraObj.year}-${expiraObj.month}-${expiraObj.day} ${expiraObj.hour}:${expiraObj.minute}:${expiraObj.second}`;
+        
+        console.log('📅 expira_en (hora Yucatán +2h):', timestampExpira);
+
+        // **TRUCO: Hacer un UPDATE "completo" incluyendo creado_en**
         const { data: updatedCita, error } = await supabase
             .from('citas')
             .update({ 
                 estado: 'cancelada',
-                expira_en: timestampExpira,  // Guardar como string
-                actualizado_en: timestampActual  // Guardar como string
+                expira_en: timestampExpira,
+                actualizado_en: timestampActual,
+                // **INCLUIR creado_en para "engañar" a Supabase**
+                creado_en: cita.creado_en  // Mantener el valor original
             })
             .eq('id', citaId)
-            .select('id, estado, actualizado_en, expira_en, creado_en');
+            .select('creado_en, actualizado_en, expira_en, estado');
             
-        if (error) {
-            console.error('❌ Error en update:', error);
-            console.error('Detalles del error:', error.message);
-            throw error;
-        }
+        if (error) throw error;
 
         console.log('✅ Cita cancelada correctamente');
         
-        // Verificar lo que se guardó
-        console.log('📊 Verificación de datos guardados:');
         if (updatedCita && updatedCita[0]) {
-            const citaActualizada = updatedCita[0];
-            console.log('   - Estado:', citaActualizada.estado);
-            console.log('   - actualizado_en:', citaActualizada.actualizado_en);
-            console.log('   - expira_en:', citaActualizada.expira_en);
-            console.log('   - creado_en:', citaActualizada.creado_en);
-            console.log('   - Tipo actualizado_en:', typeof citaActualizada.actualizado_en);
+            console.log('📊 Resultado después de cancelar:');
+            console.log('   - Estado:', updatedCita[0].estado);
+            console.log('   - creado_en:', updatedCita[0].creado_en);
+            console.log('   - actualizado_en:', updatedCita[0].actualizado_en);
+            console.log('   - expira_en:', updatedCita[0].expira_en);
             
-            // Mostrar diferencia entre creado_en y actualizado_en
-            if (citaActualizada.creado_en && citaActualizada.actualizado_en) {
-                const creadoDate = new Date(citaActualizada.creado_en);
-                const actualizadoDate = new Date(citaActualizada.actualizado_en);
-                console.log('   - Diferencia creado vs actualizado (horas):', 
-                    (actualizadoDate.getTime() - creadoDate.getTime()) / (1000 * 60 * 60));
+            // Verificar si se mantuvo la hora Yucatán
+            const actualizadoRecibido = updatedCita[0].actualizado_en;
+            if (actualizadoRecibido && actualizadoRecibido === timestampActual) {
+                console.log('✅ ¡Se mantuvo la hora Yucatán!');
+            } else if (actualizadoRecibido && actualizadoRecibido.includes('T')) {
+                console.warn('⚠️ Supabase convirtió a UTC:', actualizadoRecibido);
+                console.log('   - Hora original Yucatán:', timestampActual);
             }
         }
-        
-        // Verificar inmediatamente qué hay en la base de datos
-        setTimeout(async () => {
-            console.log('🔍 Verificando datos en la base de datos...');
-            const { data: verificacion, error: verError } = await supabase
-                .from('citas')
-                .select('actualizado_en, expira_en, estado')
-                .eq('id', citaId)
-                .single();
-                
-            if (!verError && verificacion) {
-                console.log('📋 Datos en BD después de update:');
-                console.log('   - estado:', verificacion.estado);
-                console.log('   - actualizado_en:', verificacion.actualizado_en);
-                console.log('   - expira_en:', verificacion.expira_en);
-            }
-        }, 1000);
         
         showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
 
@@ -3421,10 +3362,10 @@ function getYucatanTimePlusHours(hours) {
 
     } catch (error) {
         console.error('❌ Error cancelando cita:', error);
-        console.error('Stack trace:', error.stack);
         showAlert('❌ Error al cancelar la cita: ' + error.message, 'error');
     }
 }
+
 
     async function verificarCitasPasadas() {
     try {
@@ -3728,8 +3669,6 @@ function getYucatanTimePlusHours(hours) {
             setInterval(verificarAutenticacion, 300000);
         }
     </script>
-
-
     
 
 </body>
