@@ -2844,7 +2844,6 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
                                 <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
                                 ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
                                 <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
-                                <p><strong>🔄 Última actualización:</strong> ${formatearFechaParaMostrar(cita.actualizado_en)}</p>
                                 <div id="contador-${cita.id}" class="contador-cita"></div>
                                 <div id="contador-eliminar-${cita.id}" class="contador-eliminar"></div>
                                 ${mensajeCancelacionHTML}
@@ -3229,7 +3228,7 @@ function getYucatanTimePlusHours(hours) {
         
         const { data: cita, error: errorCita } = await supabase
             .from('citas')
-            .select('fecha, hora, estado')
+            .select('fecha, hora, estado, creado_en')
             .eq('id', citaId)
             .single();
 
@@ -3273,28 +3272,56 @@ function getYucatanTimePlusHours(hours) {
             return;
         }
 
-        // **SOLUCIÓN FINAL: Codificar en Base64**
+        // **USAR EL MISMO MÉTODO QUE EN agendarCita()**
+        // Obtener hora ACTUAL en Yucatán como string
         const ahora = new Date();
-        const expiraDate = new Date(ahora.getTime() + (2 * 60 * 60 * 1000));
+        const formatter = new Intl.DateTimeFormat('es-MX', {
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
         
-        // Codificar las fechas
-        const actualizadoCodificado = codificarFechaYucatan(ahora);
-        const expiraCodificado = codificarFechaYucatan(expiraDate);
-        
-        console.log('📤 Enviando como Base64 codificado:');
-        console.log('   - actualizado_en:', actualizadoCodificado.texto);
-        console.log('   - expira_en:', expiraCodificado.texto);
-        console.log('   - Base64 actualizado:', actualizadoCodificado.base64);
-        console.log('   - Timestamp actualizado:', actualizadoCodificado.timestamp);
-        console.log('   - Legible actualizado:', actualizadoCodificado.legible);
+        const parts = formatter.formatToParts(ahora);
+        const ahoraObj = {};
+        parts.forEach(part => {
+            if (part.type !== 'literal') {
+                ahoraObj[part.type] = part.value;
+            }
+        });
 
-        // Actualizar la cita
+        const timestampActual = `${ahoraObj.year}-${ahoraObj.month}-${ahoraObj.day} ${ahoraObj.hour}:${ahoraObj.minute}:${ahoraObj.second}`;
+        
+        console.log('📅 actualizado_en (hora Yucatán):', timestampActual);
+        console.log('📅 creado_en (original):', cita.creado_en);
+        
+        // Calcular expiración (2 horas desde ahora) usando el MISMO método
+        const expiraDate = new Date(ahora.getTime() + (2 * 60 * 60 * 1000));
+        const expiraParts = formatter.formatToParts(expiraDate);
+        const expiraObj = {};
+        expiraParts.forEach(part => {
+            if (part.type !== 'literal') {
+                expiraObj[part.type] = part.value;
+            }
+        });
+        
+        const timestampExpira = `${expiraObj.year}-${expiraObj.month}-${expiraObj.day} ${expiraObj.hour}:${expiraObj.minute}:${expiraObj.second}`;
+        
+        console.log('📅 expira_en (hora Yucatán +2h):', timestampExpira);
+
+        // **TRUCO: Hacer un UPDATE "completo" incluyendo creado_en**
         const { data: updatedCita, error } = await supabase
             .from('citas')
             .update({ 
                 estado: 'cancelada',
-                expira_en: expiraCodificado.texto,
-                actualizado_en: actualizadoCodificado.texto
+                expira_en: timestampExpira,
+                actualizado_en: timestampActual,
+                // **INCLUIR creado_en para "engañar" a Supabase**
+                creado_en: cita.creado_en  // Mantener el valor original
             })
             .eq('id', citaId)
             .select('creado_en, actualizado_en, expira_en, estado');
@@ -3309,15 +3336,14 @@ function getYucatanTimePlusHours(hours) {
             console.log('   - creado_en:', updatedCita[0].creado_en);
             console.log('   - actualizado_en:', updatedCita[0].actualizado_en);
             console.log('   - expira_en:', updatedCita[0].expira_en);
-            console.log('   - Tipo actualizado_en:', typeof updatedCita[0].actualizado_en);
             
-            // Verificar si se guardó correctamente
-            if (updatedCita[0].actualizado_en === actualizadoCodificado.texto) {
-                console.log('✅ ¡Se guardó EXACTAMENTE como lo enviamos!');
-            } else {
-                console.warn('⚠️ Supabase modificó el texto');
-                console.log('   - Enviado:', actualizadoCodificado.texto.substring(0, 50) + '...');
-                console.log('   - Recibido:', updatedCita[0].actualizado_en?.substring(0, 50) + '...');
+            // Verificar si se mantuvo la hora Yucatán
+            const actualizadoRecibido = updatedCita[0].actualizado_en;
+            if (actualizadoRecibido && actualizadoRecibido === timestampActual) {
+                console.log('✅ ¡Se mantuvo la hora Yucatán!');
+            } else if (actualizadoRecibido && actualizadoRecibido.includes('T')) {
+                console.warn('⚠️ Supabase convirtió a UTC:', actualizadoRecibido);
+                console.log('   - Hora original Yucatán:', timestampActual);
             }
         }
         
@@ -3340,127 +3366,7 @@ function getYucatanTimePlusHours(hours) {
     }
 }
 
-// Función para formatear fechas cuando las leemos
-function formatearFechaParaMostrar(fechaStr) {
-    if (!fechaStr) return 'N/A';
-    
-    console.log('🔍 Formateando fecha:', fechaStr);
-    
-    // Si es nuestro formato codificado Base64
-    if (fechaStr.startsWith('[') && fechaStr.includes(']')) {
-        try {
-            // Intentar decodificar
-            const fechaDecodificada = decodificarFechaYucatan(fechaStr);
-            if (fechaDecodificada) {
-                return fechaDecodificada.toLocaleString('es-MX', { timeZone: 'America/Merida' });
-            }
-            
-            // Si no se puede decodificar, extraer la parte legible
-            const partes = fechaStr.split(']');
-            if (partes.length > 1) {
-                return partes[1]; // Mostrar la parte legible
-            }
-        } catch (error) {
-            console.warn('Error procesando fecha codificada:', error);
-        }
-    }
-    
-    // Si es un timestamp ISO normal
-    if (fechaStr.includes('T')) {
-        try {
-            const fecha = new Date(fechaStr);
-            return fecha.toLocaleString('es-MX', { timeZone: 'America/Merida' });
-        } catch (e) {
-            return fechaStr;
-        }
-    }
-    
-    // Si ya es un string formateado
-    return fechaStr;
-}
-function extraerTimestampDeTexto(texto) {
-    if (!texto) return null;
-    
-    // Si es nuestro formato Base64
-    if (texto.startsWith('[') && texto.includes(']')) {
-        const fechaDecodificada = decodificarFechaYucatan(texto);
-        if (fechaDecodificada) {
-            return fechaDecodificada.getTime();
-        }
-    }
-    
-    // Si es timestamp ISO
-    if (texto.includes('T')) {
-        const fecha = new Date(texto);
-        if (!isNaN(fecha.getTime())) {
-            return fecha.getTime();
-        }
-    }
-    
-    return null;
-}
 
-function codificarFechaYucatan(date = new Date()) {
-    // Obtener hora local Yucatán
-    const horaLocalYucatan = date.toLocaleString('es-MX', {
-        timeZone: 'America/Merida',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    });
-    
-    // Crear un string que NO parezca fecha
-    const timestamp = date.getTime();
-    
-    // Codificar en Base64 con un prefijo
-    const base64 = btoa(`YUC${timestamp}`);
-    
-    return {
-        texto: `[${base64}]${horaLocalYucatan}`,
-        base64: base64,
-        timestamp: timestamp,
-        legible: horaLocalYucatan
-    };
-}
-
-function decodificarFechaYucatan(textoCodificado) {
-    if (!textoCodificado) return null;
-    
-    try {
-        // Extraer la parte Base64
-        const match = textoCodificado.match(/^\[([A-Za-z0-9+/=]+)\]/);
-        if (match && match[1]) {
-            const base64 = match[1];
-            // Decodificar Base64
-            const decoded = atob(base64);
-            // Extraer timestamp
-            if (decoded.startsWith('YUC')) {
-                const timestamp = parseInt(decoded.substring(3));
-                return new Date(timestamp);
-            }
-        }
-        
-        // Si no se puede decodificar, intentar con la parte legible
-        const partes = textoCodificado.split(']');
-        if (partes.length > 1) {
-            const textoLegible = partes[1];
-            // Intentar parsear la fecha legible
-            const fecha = new Date(textoLegible);
-            if (!isNaN(fecha.getTime())) {
-                return fecha;
-            }
-        }
-        
-        return null;
-    } catch (error) {
-        console.warn('Error decodificando fecha:', error);
-        return null;
-    }
-}
     async function verificarCitasPasadas() {
     try {
         // Obtener hora LOCAL actual
