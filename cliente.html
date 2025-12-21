@@ -3260,7 +3260,6 @@ function getYucatanTimePlusHours(hours) {
         }
         
         console.log('📅 Fecha de cita convertida:', fechaCita.toLocaleString('es-MX'));
-        console.log('📅 Creado_en (original):', cita.creado_en);
         
         const puedeCancelar = verificarCancelacionPermitida(fechaCita);
 
@@ -3274,34 +3273,40 @@ function getYucatanTimePlusHours(hours) {
             return;
         }
 
-        // **SOLUCIÓN: Usar el mismo formato que ya funciona para creado_en**
-        // Simplemente no enviemos actualizado_en ni expira_en
-        // O enviar valores que no parezcan fechas
-        
+        // **SOLUCIÓN: Formato que NO parezca fecha ni número**
         const ahora = new Date();
-        const formatter = new Intl.DateTimeFormat('es-MX', {
+        
+        // Formatear como texto descriptivo
+        const fechaHoraLocal = ahora.toLocaleString('es-MX', { 
             timeZone: 'America/Merida',
+            weekday: 'long',
             year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
+            month: 'long',
+            day: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
-            second: '2-digit',
-            hour12: false
+            second: '2-digit'
         });
         
-        const horaLocalYucatan = ahora.toLocaleString('es-MX', { timeZone: 'America/Merida' });
-        console.log('🕐 Hora local Yucatán:', horaLocalYucatan);
+        // Ejemplo: "Cancelado el viernes 20 de diciembre de 2025, 21:44:12 (Yucatán)"
+        const timestampActual = `Cancelado el ${fechaHoraLocal} (Yucatán)`;
         
-        // OPCIÓN 1: No enviar actualizado_en/expira_en (dejar que Supabase use NOW())
-        // OPCIÓN 2: Enviar como string con prefijo
-        
-        // Usando prefijo para que no se interprete como fecha
-        const timestampActual = `YUC_${ahora.getTime()}`;
+        // Expiración en 2 horas
         const expiraDate = new Date(ahora.getTime() + (2 * 60 * 60 * 1000));
-        const timestampExpira = `YUC_${expiraDate.getTime()}`;
+        const expiraLocal = expiraDate.toLocaleString('es-MX', { 
+            timeZone: 'America/Merida',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
         
-        console.log('📤 Enviando como strings con prefijo:');
+        const timestampExpira = `Expira el ${expiraLocal} (Yucatán)`;
+        
+        console.log('📤 Enviando como texto descriptivo:');
         console.log('   - actualizado_en:', timestampActual);
         console.log('   - expira_en:', timestampExpira);
 
@@ -3326,6 +3331,16 @@ function getYucatanTimePlusHours(hours) {
             console.log('   - creado_en:', updatedCita[0].creado_en);
             console.log('   - actualizado_en:', updatedCita[0].actualizado_en);
             console.log('   - expira_en:', updatedCita[0].expira_en);
+            console.log('   - Tipo actualizado_en:', typeof updatedCita[0].actualizado_en);
+            
+            // Verificar EXACTAMENTE qué se guardó
+            if (updatedCita[0].actualizado_en === timestampActual) {
+                console.log('✅ ¡actualizado_en se guardó correctamente como texto!');
+            } else {
+                console.warn('⚠️ actualizado_en fue modificado por Supabase');
+                console.log('   - Enviado:', timestampActual);
+                console.log('   - Recibido:', updatedCita[0].actualizado_en);
+            }
         }
         
         showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
@@ -3351,16 +3366,27 @@ function getYucatanTimePlusHours(hours) {
 function formatearFechaParaMostrar(fechaStr) {
     if (!fechaStr) return 'N/A';
     
-    // Si empieza con YUC_ (nuestro formato personalizado)
-    if (fechaStr.startsWith('YUC_')) {
-        const timestamp = parseInt(fechaStr.split('_')[1]);
-        const fecha = new Date(timestamp);
-        return fecha.toLocaleString('es-MX', { timeZone: 'America/Merida' });
+    console.log('🔍 Formateando fecha:', fechaStr);
+    
+    // Si es nuestro formato personalizado de texto
+    if (fechaStr.includes('(Yucatán)')) {
+        // Extraer la parte de la fecha/hora
+        const match = fechaStr.match(/(Cancelado|Expira) el (.+?) \(Yucatán\)/);
+        if (match && match[2]) {
+            // Ya está en formato legible, mostrarlo tal cual
+            return match[2];
+        }
+        return fechaStr;
     }
     
     // Si es un timestamp ISO normal
     if (fechaStr.includes('T')) {
-        return new Date(fechaStr).toLocaleString('es-MX', { timeZone: 'America/Merida' });
+        try {
+            const fecha = new Date(fechaStr);
+            return fecha.toLocaleString('es-MX', { timeZone: 'America/Merida' });
+        } catch (e) {
+            return fechaStr;
+        }
     }
     
     // Si ya es un string formateado
