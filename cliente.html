@@ -2444,167 +2444,137 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
 }
 
 
-            async function agendarCita(e) {
-        if (e) e.preventDefault();
-        
-        const servicioInput = document.getElementById('servicio');
-        const horaInput = document.getElementById('hora');
-        const notasInput = document.getElementById('notas');
-        
-        if (!servicioInput || !horaInput || !notasInput) return;
-        
-        const servicioId = servicioInput.value;
-        const hora = horaInput.value;
-        const notas = notasInput.value;
+           async function agendarCita(e) {
+    if (e) e.preventDefault();
+    
+    const servicioInput = document.getElementById('servicio');
+    const horaInput = document.getElementById('hora');
+    const notasInput = document.getElementById('notas');
+    
+    if (!servicioInput || !horaInput || !notasInput) return;
+    
+    const servicioId = servicioInput.value;
+    const hora = horaInput.value;
+    const notas = notasInput.value;
 
-        if (!servicioId || !selectedDate || !hora) {
-            showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
+    if (!servicioId || !selectedDate || !hora) {
+        showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
+        return;
+    }
+
+    const fechaFormateada = formatDate(selectedDate);
+    
+    try {
+        if (!reservaActiva || reservaActiva.fecha !== fechaFormateada || reservaActiva.hora !== hora) {
+            showAlert('Por favor, selecciona una hora primero', 'error');
             return;
         }
 
-        const fechaFormateada = formatDate(selectedDate);
-        
-        try {
-            if (!reservaActiva || reservaActiva.fecha !== fechaFormateada || reservaActiva.hora !== hora) {
-                showAlert('Por favor, selecciona una hora primero', 'error');
-                return;
-            }
+        const citaExistenteCache = todasLasCitasFuturasCache.some(cita => 
+            cita.fecha === fechaFormateada && cita.hora === hora
+        );
 
-            const citaExistenteCache = todasLasCitasFuturasCache.some(cita => 
-                cita.fecha === fechaFormateada && cita.hora === hora
-            );
-
-            if (citaExistenteCache) {
-                showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
-                await cancelarReservaAnterior();
-                await generateHoras(selectedDate);
-                return;
-            }
-
-            // Verificación final
-            const { data: verificacionFinal } = await supabase
-                .from('citas')
-                .select('id')
-                .eq('fecha', fechaFormateada)
-                .eq('hora', hora)
-                .eq('barbero_id', barberoFijo.id)
-                .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                .maybeSingle();
-                
-            if (verificacionFinal) {
-                showAlert('❌ Esta hora ya fue tomada. Por favor selecciona otra.', 'error');
-                await cancelarReservaAnterior();
-                await generateHoras(selectedDate);
-                return;
-            }
-
-            const timestampLocal = getYucatanTimeString();
-            // Configurar expiración (2 horas después de la cita)
-            const [year, month, day] = fechaFormateada.split('-');
-            const [hour, minute] = hora.split(':');
-            const fechaCitaYucatan = new Date(
-                    parseInt(year),
-                    parseInt(month) - 1,
-                    parseInt(day),
-                    parseInt(hour),
-                    parseInt(minute),
-                    0,
-                    0
-                );
-            
-            // Expirar 2 horas después de la hora de la cita
-            const fechaExpira = new Date(fechaCitaYucatan.getTime() + (2 * 60 * 60 * 1000));      
-
-        const añoExpira = fechaExpira.getFullYear();
-        const mesExpira = String(fechaExpira.getMonth() + 1).padStart(2, '0');
-        const diaExpira = String(fechaExpira.getDate()).padStart(2, '0');
-        const horaExpira = String(fechaExpira.getHours()).padStart(2, '0');
-        const minutoExpira = String(fechaExpira.getMinutes()).padStart(2, '0');
-        const segundoExpira = String(fechaExpira.getSeconds()).padStart(2, '0');
-
-            const timestampExpira = `${añoExpira}-${mesExpira}-${diaExpira} ${horaExpira}:${minutoExpira}:${segundoExpira}`;
-            
-             console.log('📅 Agendando cita con hora LOCAL:');
-        console.log('   - Creación:', timestampLocal);
-        console.log('   - Expiración:', timestampExpira);
-        console.log('   - Hora dispositivo:', new Date().toLocaleString('es-MX'));
-            const { data, error } = await supabase
-                .from('citas')
-                .insert([{
-                    cliente_id: usuarioActual.id,
-                    servicio_id: servicioId,
-                    barbero_id: barberoFijo.id,
-                    fecha: fechaFormateada,
-                    hora: hora,
-                    notas: notas,
-                    estado: 'aceptada',
-                    creado_en: timestampLocal,
-                    actualizado_en: timestampLocal,
-                    expira_en: timestampExpira // ¡IMPORTANTE! Establecer expiración
-                }])
-                .select(`
-                    *,
-                    servicios(nombre, precio),
-                    barberos(nombre)
-                `);
-
-            if (error) throw error;
-
-            console.log('✅ Cita agendada exitosamente con expiración:', timestampExpira);
-            
-            // Limpiar reserva y actualizar
+        if (citaExistenteCache) {
+            showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
             await cancelarReservaAnterior();
-            await precargarCitasFuturas();
-            await notificarCambioCita(fechaFormateada, hora, 'cita_confirmada');
-            
-            // Enviar correo de confirmación
-            if (data && data[0]) {
-                const correoEnviado = await enviarNotificacionCita(data[0]);
-                if (correoEnviado) {
-                    showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
-                } else {
-                    showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
-                }
-            }
-            
-            // Limpiar formulario
-            document.querySelectorAll('.servicio-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            if (servicioInput) servicioInput.value = '';
-            if (horaInput) horaInput.value = '';
-            if (notasInput) notasInput.value = '';
-            
-            selectedDate = null;
-            const selectedDateDisplay = document.getElementById('selectedDateDisplay');
-            if (selectedDateDisplay) selectedDateDisplay.textContent = 'Selecciona una fecha';
-            
-            const horasContainer = document.getElementById('horasContainer');
-            if (horasContainer) horasContainer.style.display = 'none';
-            
-            calendarioHabilitado = false;
-            habilitarCalendario();
-            currentMonth = new Date();
-            generateCalendar(currentMonth);
-            await limpiarCacheDespuesDeAgendar();
-            
-            // Recargar citas y reiniciar contadores
-            await cargarMisCitas();
-            
-            // Asegurar que los contadores se inicien
-            setTimeout(() => {
-                iniciarContadoresCitas();
-            }, 500);
-            
-            cambiarPestana('mis-citas');
-
-        } catch (error) {
-            await cancelarReservaAnterior();
-            console.error('❌ Error agendando cita:', error);
-            showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
+            await generateHoras(selectedDate);
+            return;
         }
-    }
 
+        // Verificación final
+        const { data: verificacionFinal } = await supabase
+            .from('citas')
+            .select('id')
+            .eq('fecha', fechaFormateada)
+            .eq('hora', hora)
+            .eq('barbero_id', barberoFijo.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .maybeSingle();
+            
+        if (verificacionFinal) {
+            showAlert('❌ Esta hora ya fue tomada. Por favor selecciona otra.', 'error');
+            await cancelarReservaAnterior();
+            await generateHoras(selectedDate);
+            return;
+        }
+
+        // IMPORTANTE: Ya no necesitamos calcular expira_en aquí
+        // El trigger solo lo calculará cuando la cita se cancele o complete
+        const { data, error } = await supabase
+            .from('citas')
+            .insert([{
+                cliente_id: usuarioActual.id,
+                servicio_id: servicioId,
+                barbero_id: barberoFijo.id,
+                fecha: fechaFormateada,
+                hora: hora,
+                notas: notas,
+                estado: 'aceptada',
+                creado_en: getCurrentTimeYucatan()
+                // NOTA: expira_en NO se establece aquí
+            }])
+            .select(`
+                *,
+                servicios(nombre, precio),
+                barberos(nombre)
+            `);
+
+        if (error) throw error;
+
+        console.log('✅ Cita agendada exitosamente (expira_en será establecido por trigger)');
+        
+        // Limpiar reserva y actualizar
+        await cancelarReservaAnterior();
+        await precargarCitasFuturas();
+        await notificarCambioCita(fechaFormateada, hora, 'cita_confirmada');
+        
+        // Enviar correo de confirmación
+        if (data && data[0]) {
+            const correoEnviado = await enviarNotificacionCita(data[0]);
+            if (correoEnviado) {
+                showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
+            } else {
+                showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
+            }
+        }
+        
+        // Limpiar formulario
+        document.querySelectorAll('.servicio-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        if (servicioInput) servicioInput.value = '';
+        if (horaInput) horaInput.value = '';
+        if (notasInput) notasInput.value = '';
+        
+        selectedDate = null;
+        const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+        if (selectedDateDisplay) selectedDateDisplay.textContent = 'Selecciona una fecha';
+        
+        const horasContainer = document.getElementById('horasContainer');
+        if (horasContainer) horasContainer.style.display = 'none';
+        
+        calendarioHabilitado = false;
+        habilitarCalendario();
+        currentMonth = new Date();
+        generateCalendar(currentMonth);
+        await limpiarCacheDespuesDeAgendar();
+        
+        // Recargar citas y reiniciar contadores
+        await cargarMisCitas();
+        
+        // Asegurar que los contadores se inicien
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 500);
+        
+        cambiarPestana('mis-citas');
+
+    } catch (error) {
+        await cancelarReservaAnterior();
+        console.error('❌ Error agendando cita:', error);
+        showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
+    }
+}
     async function limpiarSolicitudesCorruptas() {
         try {
             console.log('🧹 Limpiando solicitudes temporales corruptas...');
@@ -3117,67 +3087,21 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
             return;
         }
 
-        // Obtener hora local Yucatán como string
-        const ahora = new Date();
-        const formatter = new Intl.DateTimeFormat('es-MX', {
-            timeZone: 'America/Merida',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-        });
-
-        const parts = formatter.formatToParts(ahora);
-        const ahoraObj = {};
-        parts.forEach(part => {
-            if (part.type !== 'literal') {
-                ahoraObj[part.type] = part.value;
-            }
-        });
-
-        const timestampActual = `${ahoraObj.year}-${ahoraObj.month}-${ahoraObj.day} ${ahoraObj.hour}:${ahoraObj.minute}:${ahoraObj.second}`;
-        
-        // Calcular expiración (2 horas)
-        const ahoraYucatan = new Date(
-            parseInt(ahoraObj.year),
-            parseInt(ahoraObj.month) - 1,
-            parseInt(ahoraObj.day),
-            parseInt(ahoraObj.hour),
-            parseInt(ahoraObj.minute),
-            parseInt(ahoraObj.second)
-        );
-        
-        const expiraDate = new Date(ahoraYucatan.getTime() + (2 * 60 * 60 * 1000));
-        
-        const expiraYear = expiraDate.getFullYear();
-        const expiraMonth = String(expiraDate.getMonth() + 1).padStart(2, '0');
-        const expiraDay = String(expiraDate.getDate()).padStart(2, '0');
-        const expiraHour = String(expiraDate.getHours()).padStart(2, '0');
-        const expiraMinute = String(expiraDate.getMinutes()).padStart(2, '0');
-        const expiraSecond = String(expiraDate.getSeconds()).padStart(2, '0');
-        
-        const timestampExpira = `${expiraYear}-${expiraMonth}-${expiraDay} ${expiraHour}:${expiraMinute}:${expiraSecond}`;
-
-        console.log('📅 Completando con hora LOCAL (string):');
-        console.log('   - Actual:', timestampActual);
-        console.log('   - Expira:', timestampExpira);
-
+        // IMPORTANTE: Solo actualizamos el estado
+        // El trigger se encargará de establecer expira_en automáticamente
         const { data: updatedCita, error } = await supabase
             .from('citas')
             .update({ 
-                estado: 'completada',
-                expira_en: timestampExpira,  // String
-                actualizado_en: timestampActual  // String
+                estado: 'completada'
+                // NOTA: NO establecemos expira_en ni actualizado_en aquí
+                // El trigger lo hará automáticamente
             })
             .eq('id', citaId)
-            .select('creado_en, actualizado_en, expira_en');
+            .select('estado, expira_en');
 
         if (error) throw error;
 
-        console.log('✅ Cita marcada como completada con hora LOCAL');
+        console.log('✅ Cita marcada como completada - Trigger establecerá expira_en automáticamente');
         
         showAlert('✅ Cita marcada como completada. Se eliminará automáticamente en 2 horas.', 'success');
         
@@ -3222,13 +3146,13 @@ function getYucatanTimePlusHours(hours) {
 }
 
 
-    async function cancelarCita(citaId) {
+   async function cancelarCita(citaId) {
     try {
         console.log('🔄 Iniciando cancelación de cita:', citaId);
         
         const { data: cita, error: errorCita } = await supabase
             .from('citas')
-            .select('fecha, hora, estado, creado_en')
+            .select('fecha, hora, estado, expira_en')
             .eq('id', citaId)
             .single();
 
@@ -3272,79 +3196,26 @@ function getYucatanTimePlusHours(hours) {
             return;
         }
 
-        // **USAR EL MISMO MÉTODO QUE EN agendarCita()**
-        // Obtener hora ACTUAL en Yucatán como string
-        const ahora = new Date();
-        const formatter = new Intl.DateTimeFormat('es-MX', {
-            timeZone: 'America/Merida',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-        });
-        
-        const parts = formatter.formatToParts(ahora);
-        const ahoraObj = {};
-        parts.forEach(part => {
-            if (part.type !== 'literal') {
-                ahoraObj[part.type] = part.value;
-            }
-        });
-
-        const timestampActual = `${ahoraObj.year}-${ahoraObj.month}-${ahoraObj.day} ${ahoraObj.hour}:${ahoraObj.minute}:${ahoraObj.second}`;
-        
-        console.log('📅 actualizado_en (hora Yucatán):', timestampActual);
-        console.log('📅 creado_en (original):', cita.creado_en);
-        
-        // Calcular expiración (2 horas desde ahora) usando el MISMO método
-        const expiraDate = new Date(ahora.getTime() + (2 * 60 * 60 * 1000));
-        const expiraParts = formatter.formatToParts(expiraDate);
-        const expiraObj = {};
-        expiraParts.forEach(part => {
-            if (part.type !== 'literal') {
-                expiraObj[part.type] = part.value;
-            }
-        });
-        
-        const timestampExpira = `${expiraObj.year}-${expiraObj.month}-${expiraObj.day} ${expiraObj.hour}:${expiraObj.minute}:${expiraObj.second}`;
-        
-        console.log('📅 expira_en (hora Yucatán +2h):', timestampExpira);
-
-        // **TRUCO: Hacer un UPDATE "completo" incluyendo creado_en**
+        // IMPORTANTE: Solo actualizamos el estado
+        // El trigger se encargará de establecer expira_en automáticamente
         const { data: updatedCita, error } = await supabase
             .from('citas')
             .update({ 
-                estado: 'cancelada',
-                expira_en: timestampExpira,
-                actualizado_en: timestampActual,
-                // **INCLUIR creado_en para "engañar" a Supabase**
-                creado_en: cita.creado_en  // Mantener el valor original
+                estado: 'cancelada'
+                // NOTA: NO establecemos expira_en ni actualizado_en aquí
+                // El trigger lo hará automáticamente
             })
             .eq('id', citaId)
-            .select('creado_en, actualizado_en, expira_en, estado');
+            .select('estado, expira_en');
             
         if (error) throw error;
 
-        console.log('✅ Cita cancelada correctamente');
+        console.log('✅ Cita cancelada - Trigger establecerá expira_en automáticamente');
         
         if (updatedCita && updatedCita[0]) {
             console.log('📊 Resultado después de cancelar:');
             console.log('   - Estado:', updatedCita[0].estado);
-            console.log('   - creado_en:', updatedCita[0].creado_en);
-            console.log('   - actualizado_en:', updatedCita[0].actualizado_en);
-            console.log('   - expira_en:', updatedCita[0].expira_en);
-            
-            // Verificar si se mantuvo la hora Yucatán
-            const actualizadoRecibido = updatedCita[0].actualizado_en;
-            if (actualizadoRecibido && actualizadoRecibido === timestampActual) {
-                console.log('✅ ¡Se mantuvo la hora Yucatán!');
-            } else if (actualizadoRecibido && actualizadoRecibido.includes('T')) {
-                console.warn('⚠️ Supabase convirtió a UTC:', actualizadoRecibido);
-                console.log('   - Hora original Yucatán:', timestampActual);
-            }
+            console.log('   - expira_en (establecido por trigger):', updatedCita[0].expira_en);
         }
         
         showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
@@ -3365,6 +3236,7 @@ function getYucatanTimePlusHours(hours) {
         showAlert('❌ Error al cancelar la cita: ' + error.message, 'error');
     }
 }
+
 
 
     async function verificarCitasPasadas() {
@@ -3405,22 +3277,21 @@ function getYucatanTimePlusHours(hours) {
             if (citasParaCompletar.length > 0) {
                 console.log(`📅 Marcando ${citasParaCompletar.length} citas como completadas automáticamente`);
                 
-                const timestampActual = getCurrentTimeYucatan();
-                const timestampExpira = getTimeYucatanPlusHours(2);
-                
+                // IMPORTANTE: Solo actualizamos el estado
+                // El trigger se encargará de establecer expira_en automáticamente
                 const { error: updateError } = await supabase
                     .from('citas')
                     .update({
-                        estado: 'completada',
-                        expira_en: timestampExpira, // Hora LOCAL
-                        actualizado_en: timestampActual // Hora LOCAL
+                        estado: 'completada'
+                        // NOTA: NO establecemos expira_en ni actualizado_en aquí
+                        // El trigger lo hará automáticamente
                     })
                     .in('id', citasParaCompletar)
-                    .select('id, actualizado_en');
+                    .select('id, expira_en');
                     
                 if (updateError) throw updateError;
                 
-                console.log('✅ Citas marcadas como completadas con hora LOCAL');
+                console.log('✅ Citas marcadas como completadas - Trigger establecerá expira_en automáticamente');
                 
                 // Recargar citas y actualizar UI
                 await cargarMisCitas();
