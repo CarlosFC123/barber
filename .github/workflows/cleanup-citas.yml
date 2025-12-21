@@ -12,30 +12,46 @@ jobs:
     - name: Limpiar citas expiradas via REST API
       env:
         SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        SUPABASE_KEY: '${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}'  # ¡NOMBRE CORREGIDO!
       run: |
         echo "🔗 Conectando a Supabase..."
         echo "🕐 Hora UTC: $(date -u '+%Y-%m-%d %H:%M:%S')"
         echo "🕐 Hora México: $(TZ='America/Mexico_City' date '+%Y-%m-%d %H:%M:%S')"
-
-        # Realizar DELETE usando el endpoint REST de Supabase
-        # La lógica ahora está en el trigger: elimina citas donde expira_en < NOW()
+        
+        # PRIMERO: Verificar que la clave no esté vacía
+        if [ -z "$SUPABASE_KEY" ]; then
+          echo "❌ ERROR: La clave SUPABASE_KEY está VACÍA"
+          echo "Verifica que el secreto 'SUPABASE_SERVICE_ROLE_KEY' existe en GitHub Secrets"
+          exit 1
+        fi
+        
+        echo "✅ Longitud de la clave: ${#SUPABASE_KEY} caracteres"
+        echo "🔑 Prefijo de la clave: ${SUPABASE_KEY:0:20}..."
+        
+        # Realizar DELETE
         response=$(curl -s -w "\n%{http_code}" -X DELETE \
-          "$SUPABASE_URL/rest/v1/citas?and=(estado.in.(\"cancelada\",\"completada\"),expira_en.lt.NOW())" \
-          -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-          -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+          "$SUPABASE_URL/rest/v1/citas?estado=in.(cancelada,completada)&expira_en=lt.now()" \
+          -H "apikey: $SUPABASE_KEY" \
+          -H "Authorization: Bearer $SUPABASE_KEY" \
           -H "Content-Type: application/json" \
           -H "Prefer: return=minimal")
 
-        # Separar el cuerpo de la respuesta del código HTTP
         http_code=$(echo "$response" | tail -n1)
         body=$(echo "$response" | sed '$d')
 
         echo "📊 Código de respuesta HTTP: $http_code"
         
         if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 204 ]; then
-            echo "✅ Limpieza ejecutada. Respuesta: $body"
+            echo "✅ Limpieza ejecutada exitosamente"
         else
             echo "❌ Error en la solicitud. Detalles: $body"
+            
+            # DEBUG: Mostrar comando exacto
+            echo ""
+            echo "🔧 Para depurar manualmente, ejecuta:"
+            echo "curl -X GET '$SUPABASE_URL/rest/v1/citas?limit=1' \\"
+            echo "  -H 'apikey: TU_CLAVE_AQUI' \\"
+            echo "  -H 'Authorization: Bearer TU_CLAVE_AQUI'"
+            
             exit 1
         fi
