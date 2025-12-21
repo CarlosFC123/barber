@@ -2256,59 +2256,7 @@
 }
 
 
-   function getTimeYucatanPlusHours(hoursToAdd) {
-    try {
-        const ahora = new Date();
-        
-        // Obtener diferencia UTC para Yucatán (UTC-6)
-        const offsetYucatan = -6;
-        
-        // Convertir a hora Yucatán
-        const utcTime = ahora.getTime() + (ahora.getTimezoneOffset() * 60000);
-        const yucatanTime = new Date(utcTime + (offsetYucatan * 3600000));
-        
-        // Agregar horas
-        const fechaExpira = new Date(yucatanTime.getTime() + (hoursToAdd * 60 * 60 * 1000));
-        
-        // Formatear a string ISO simplificado
-        const year = fechaExpira.getFullYear();
-        const month = String(fechaExpira.getMonth() + 1).padStart(2, '0');
-        const day = String(fechaExpira.getDate()).padStart(2, '0');
-        const hour = String(fechaExpira.getHours()).padStart(2, '0');
-        const minute = String(fechaExpira.getMinutes()).padStart(2, '0');
-        const second = String(fechaExpira.getSeconds()).padStart(2, '0');
-        
-        return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
-        
-    } catch (error) {
-        console.error('Error calculando hora futura Yucatán:', error);
-        // Fallback simple
-        const fechaExpira = new Date(Date.now() + (hoursToAdd * 60 * 60 * 1000));
-        return fechaExpira.toLocaleString('es-MX', { timeZone: 'America/Merida' });
-    }
-}
-
-   function getCurrentISOTimeYucatan() {
-    try {
-        const ahora = new Date();
-        
-        // Obtener diferencia UTC para Yucatán (UTC-6)
-        const offsetYucatan = -6;
-        
-        // Convertir a hora Yucatán
-        const utcTime = ahora.getTime() + (ahora.getTimezoneOffset() * 60000);
-        const yucatanTime = new Date(utcTime + (offsetYucatan * 3600000));
-        
-        // Crear string en formato ISO 8601 compatible
-        const isoString = yucatanTime.toISOString();
-        return isoString;
-        
-    } catch (error) {
-        console.error('Error obteniendo hora ISO Yucatán:', error);
-        return new Date().toISOString();
-    }
-}
-
+   
 
 
     function getYucatanDateTime(dateStr, timeStr) {
