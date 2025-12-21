@@ -3259,6 +3259,7 @@ function getYucatanTimePlusHours(hours) {
         }
         
         console.log('📅 Fecha de cita convertida:', fechaCita.toLocaleString('es-MX'));
+        console.log('📅 Creado_en (original):', cita.creado_en);
         
         const puedeCancelar = verificarCancelacionPermitida(fechaCita);
 
@@ -3272,8 +3273,10 @@ function getYucatanTimePlusHours(hours) {
             return;
         }
 
-        // **USAR EL MISMO MÉTODO QUE EN agendarCita()**
-        // Obtener hora ACTUAL en Yucatán como string
+        // **SOLUCIÓN: Usar el mismo formato que ya funciona para creado_en**
+        // Simplemente no enviemos actualizado_en ni expira_en
+        // O enviar valores que no parezcan fechas
+        
         const ahora = new Date();
         const formatter = new Intl.DateTimeFormat('es-MX', {
             timeZone: 'America/Merida',
@@ -3286,42 +3289,28 @@ function getYucatanTimePlusHours(hours) {
             hour12: false
         });
         
-        const parts = formatter.formatToParts(ahora);
-        const ahoraObj = {};
-        parts.forEach(part => {
-            if (part.type !== 'literal') {
-                ahoraObj[part.type] = part.value;
-            }
-        });
-
-        const timestampActual = `${ahoraObj.year}-${ahoraObj.month}-${ahoraObj.day} ${ahoraObj.hour}:${ahoraObj.minute}:${ahoraObj.second}`;
+        const horaLocalYucatan = ahora.toLocaleString('es-MX', { timeZone: 'America/Merida' });
+        console.log('🕐 Hora local Yucatán:', horaLocalYucatan);
         
-        console.log('📅 actualizado_en (hora Yucatán):', timestampActual);
-        console.log('📅 creado_en (original):', cita.creado_en);
+        // OPCIÓN 1: No enviar actualizado_en/expira_en (dejar que Supabase use NOW())
+        // OPCIÓN 2: Enviar como string con prefijo
         
-        // Calcular expiración (2 horas desde ahora) usando el MISMO método
+        // Usando prefijo para que no se interprete como fecha
+        const timestampActual = `YUC_${ahora.getTime()}`;
         const expiraDate = new Date(ahora.getTime() + (2 * 60 * 60 * 1000));
-        const expiraParts = formatter.formatToParts(expiraDate);
-        const expiraObj = {};
-        expiraParts.forEach(part => {
-            if (part.type !== 'literal') {
-                expiraObj[part.type] = part.value;
-            }
-        });
+        const timestampExpira = `YUC_${expiraDate.getTime()}`;
         
-        const timestampExpira = `${expiraObj.year}-${expiraObj.month}-${expiraObj.day} ${expiraObj.hour}:${expiraObj.minute}:${expiraObj.second}`;
-        
-        console.log('📅 expira_en (hora Yucatán +2h):', timestampExpira);
+        console.log('📤 Enviando como strings con prefijo:');
+        console.log('   - actualizado_en:', timestampActual);
+        console.log('   - expira_en:', timestampExpira);
 
-        // **TRUCO: Hacer un UPDATE "completo" incluyendo creado_en**
+        // Actualizar la cita
         const { data: updatedCita, error } = await supabase
             .from('citas')
             .update({ 
                 estado: 'cancelada',
                 expira_en: timestampExpira,
-                actualizado_en: timestampActual,
-                // **INCLUIR creado_en para "engañar" a Supabase**
-                creado_en: cita.creado_en  // Mantener el valor original
+                actualizado_en: timestampActual
             })
             .eq('id', citaId)
             .select('creado_en, actualizado_en, expira_en, estado');
@@ -3336,15 +3325,6 @@ function getYucatanTimePlusHours(hours) {
             console.log('   - creado_en:', updatedCita[0].creado_en);
             console.log('   - actualizado_en:', updatedCita[0].actualizado_en);
             console.log('   - expira_en:', updatedCita[0].expira_en);
-            
-            // Verificar si se mantuvo la hora Yucatán
-            const actualizadoRecibido = updatedCita[0].actualizado_en;
-            if (actualizadoRecibido && actualizadoRecibido === timestampActual) {
-                console.log('✅ ¡Se mantuvo la hora Yucatán!');
-            } else if (actualizadoRecibido && actualizadoRecibido.includes('T')) {
-                console.warn('⚠️ Supabase convirtió a UTC:', actualizadoRecibido);
-                console.log('   - Hora original Yucatán:', timestampActual);
-            }
         }
         
         showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
