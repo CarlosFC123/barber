@@ -2498,8 +2498,27 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
                 return;
             }
 
-            const timestampLocal = getCurrentTimeYucatan();
-            
+            const ahora = new Date();
+            const formatter = new Intl.DateTimeFormat('es-MX', {
+                timeZone: 'America/Merida',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });            
+
+            const parts = formatter.formatToParts(ahora);
+            const ahoraObj = {};
+            parts.forEach(part => {
+                if (part.type !== 'literal') {
+                    ahoraObj[part.type] = part.value;
+                }
+            });
+
+            const timestampLocal = `${ahoraObj.year}-${ahoraObj.month}-${ahoraObj.day} ${ahoraObj.hour}:${ahoraObj.minute}:${ahoraObj.second}`;
             // Configurar expiración (2 horas después de la cita)
             const [year, month, day] = fechaFormateada.split('-');
             const [hour, minute] = hora.split(':');
@@ -3113,26 +3132,65 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         }
     }
     async function marcarComoCompletada(citaId) {
-        try {
-            if (!confirm('¿Marcar esta cita como completada?')) {
+    try {
+        if (!confirm('¿Marcar esta cita como completada?')) {
             return;
         }
 
-        // Usar hora LOCAL de Yucatán
-        const timestampActual = getCurrentTimeYucatan();
-        const timestampExpira = getTimeYucatanPlusHours(2);
+        // Obtener hora local Yucatán como string
+        const ahora = new Date();
+        const formatter = new Intl.DateTimeFormat('es-MX', {
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+
+        const parts = formatter.formatToParts(ahora);
+        const ahoraObj = {};
+        parts.forEach(part => {
+            if (part.type !== 'literal') {
+                ahoraObj[part.type] = part.value;
+            }
+        });
+
+        const timestampActual = `${ahoraObj.year}-${ahoraObj.month}-${ahoraObj.day} ${ahoraObj.hour}:${ahoraObj.minute}:${ahoraObj.second}`;
         
-        console.log('📅 Marcando como completada con hora LOCAL:');
+        // Calcular expiración (2 horas)
+        const ahoraYucatan = new Date(
+            parseInt(ahoraObj.year),
+            parseInt(ahoraObj.month) - 1,
+            parseInt(ahoraObj.day),
+            parseInt(ahoraObj.hour),
+            parseInt(ahoraObj.minute),
+            parseInt(ahoraObj.second)
+        );
+        
+        const expiraDate = new Date(ahoraYucatan.getTime() + (2 * 60 * 60 * 1000));
+        
+        const expiraYear = expiraDate.getFullYear();
+        const expiraMonth = String(expiraDate.getMonth() + 1).padStart(2, '0');
+        const expiraDay = String(expiraDate.getDate()).padStart(2, '0');
+        const expiraHour = String(expiraDate.getHours()).padStart(2, '0');
+        const expiraMinute = String(expiraDate.getMinutes()).padStart(2, '0');
+        const expiraSecond = String(expiraDate.getSeconds()).padStart(2, '0');
+        
+        const timestampExpira = `${expiraYear}-${expiraMonth}-${expiraDay} ${expiraHour}:${expiraMinute}:${expiraSecond}`;
+
+        console.log('📅 Completando con hora LOCAL (string):');
         console.log('   - Actual:', timestampActual);
         console.log('   - Expira:', timestampExpira);
-        console.log('   - Hora dispositivo:', new Date().toLocaleString('es-MX'));
 
         const { data: updatedCita, error } = await supabase
             .from('citas')
             .update({ 
                 estado: 'completada',
-                expira_en: timestampExpira, // Hora LOCAL
-                actualizado_en: timestampActual // Hora LOCAL
+                expira_en: timestampExpira,  // String
+                actualizado_en: timestampActual  // String
             })
             .eq('id', citaId)
             .select('creado_en, actualizado_en, expira_en');
@@ -3142,25 +3200,51 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         console.log('✅ Cita marcada como completada con hora LOCAL');
         
         showAlert('✅ Cita marcada como completada. Se eliminará automáticamente en 2 horas.', 'success');
-            // Recargar citas
-            await cargarMisCitas();
-            
-            // Reiniciar contadores
-            setTimeout(() => {
-                iniciarContadoresCitas();
-            }, 500);
+        
+        await cargarMisCitas();
+        
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 500);
 
-        } catch (error) {
-            console.error('Error marcando cita como completada:', error);
-            showAlert('❌ Error al marcar la cita como completada: ' + error.message, 'error');
-        }
+    } catch (error) {
+        console.error('Error marcando cita como completada:', error);
+        showAlert('❌ Error al marcar la cita como completada: ' + error.message, 'error');
     }
+}
 
+function getYucatanTimeString(date = new Date()) {
+    const formatter = new Intl.DateTimeFormat('es-MX', {
+        timeZone: 'America/Merida',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+    
+    const parts = formatter.formatToParts(date);
+    const timeObj = {};
+    parts.forEach(part => {
+        if (part.type !== 'literal') {
+            timeObj[part.type] = part.value;
+        }
+    });
+    
+    return `${timeObj.year}-${timeObj.month}-${timeObj.day} ${timeObj.hour}:${timeObj.minute}:${timeObj.second}`;
+}
+
+function getYucatanTimePlusHours(hours) {
+    const ahora = new Date();
+    const future = new Date(ahora.getTime() + (hours * 60 * 60 * 1000));
+    return getYucatanTimeString(future);
+}
     async function cancelarCita(citaId) {
     try {
         console.log('🔄 Iniciando cancelación de cita:', citaId);
         
-        // Obtener datos actuales de la cita
         const { data: cita, error: errorCita } = await supabase
             .from('citas')
             .select('fecha, hora, estado, expira_en')
@@ -3171,19 +3255,17 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         
         console.log('📋 Datos de cita actual:', cita);
 
-        // Si ya está cancelada, mostrar mensaje
+        // Verificar estado
         if (cita.estado === 'cancelada') {
             showAlert('ℹ️ Esta cita ya está cancelada', 'info');
             return;
         }
 
-        // Si ya está completada
         if (cita.estado === 'completada') {
             showAlert('ℹ️ No se puede cancelar una cita completada', 'info');
             return;
         }
 
-        // VERIFICACIÓN DE FECHA/HORA
         if (!cita.fecha || !cita.hora) {
             showAlert('❌ Error: No se encontraron datos de fecha/hora de la cita', 'error');
             return;
@@ -3191,7 +3273,6 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         
         const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
         
-        // Verificar que fechaCita sea válido
         if (!(fechaCita instanceof Date) || isNaN(fechaCita.getTime())) {
             console.error('❌ fechaCita no es válido:', fechaCita);
             showAlert('❌ Error en los datos de fecha/hora de la cita', 'error');
@@ -3200,12 +3281,11 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         
         console.log('📅 Fecha de cita convertida:', fechaCita.toLocaleString('es-MX'));
         
-        // Verificar si se permite cancelación
         const puedeCancelar = verificarCancelacionPermitida(fechaCita);
 
         if (!puedeCancelar) {
             showAlert('❌ No puedes cancelar la cita cuando faltan menos de 1 hora', 'error');
-            await cargarMisCitas(); // Recargar para actualizar mensajes
+            await cargarMisCitas();
             return;
         }
 
@@ -3213,8 +3293,10 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
             return;
         }
 
-        // Obtener hora ACTUAL en formato Yucatán
+        // Obtener hora ACTUAL en Yucatán como STRING (no timestamp)
         const ahora = new Date();
+        
+        // Usar zona horaria de Yucatán directamente
         const formatter = new Intl.DateTimeFormat('es-MX', {
             timeZone: 'America/Merida',
             year: 'numeric',
@@ -3234,19 +3316,26 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
             }
         });
         
-        // Crear timestamp en formato SQL (YYYY-MM-DD HH:MM:SS)
-        const timestampActual = `${ahoraObj.year}-${ahoraObj.month}-${ahoraObj.day} ${ahoraObj.hour}:${ahoraObj.minute}:${ahoraObj.second}`;
+        // Crear string en formato YYYY-MM-DD HH:MM:SS (hora local Yucatán)
+        const fechaActualStr = `${ahoraObj.year}-${ahoraObj.month}-${ahoraObj.day}`;
+        const horaActualStr = `${ahoraObj.hour}:${ahoraObj.minute}:${ahoraObj.second}`;
+        const timestampActual = `${fechaActualStr} ${horaActualStr}`;
         
-        // Calcular expiración (2 horas desde ahora)
-        const expiraDate = new Date(
+        console.log('🕐 Hora local Yucatán (string):', timestampActual);
+        
+        // Calcular expiración (2 horas desde ahora en Yucatán)
+        const ahoraYucatan = new Date(
             parseInt(ahoraObj.year),
             parseInt(ahoraObj.month) - 1,
             parseInt(ahoraObj.day),
-            parseInt(ahoraObj.hour) + 2, // +2 horas
+            parseInt(ahoraObj.hour),
             parseInt(ahoraObj.minute),
             parseInt(ahoraObj.second)
         );
         
+        const expiraDate = new Date(ahoraYucatan.getTime() + (2 * 60 * 60 * 1000));
+        
+        // Formatear expiración como string
         const expiraYear = expiraDate.getFullYear();
         const expiraMonth = String(expiraDate.getMonth() + 1).padStart(2, '0');
         const expiraDay = String(expiraDate.getDate()).padStart(2, '0');
@@ -3256,48 +3345,48 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         
         const timestampExpira = `${expiraYear}-${expiraMonth}-${expiraDay} ${expiraHour}:${expiraMinute}:${expiraSecond}`;
         
-        console.log('📅 Cancelando con hora LOCAL Yucatán:');
-        console.log('   - Actual:', timestampActual);
-        console.log('   - Expira:', timestampExpira);
-        console.log('   - Hora dispositivo:', new Date().toLocaleString('es-MX'));
+        console.log('📅 Cancelando con hora LOCAL (string):');
+        console.log('   - Actual (string):', timestampActual);
+        console.log('   - Expira (string):', timestampExpira);
+        console.log('   - Hora Yucatán:', new Date().toLocaleString('es-MX', { timeZone: 'America/Merida' }));
+        console.log('   - Hora UTC:', new Date().toISOString());
 
-        // Actualizar la cita
+        // IMPORTANTE: Actualizar como strings, no como timestamps
         const { data: updatedCita, error } = await supabase
             .from('citas')
             .update({ 
                 estado: 'cancelada',
-                expira_en: timestampExpira,
-                actualizado_en: timestampActual
+                expira_en: timestampExpira,  // Guardar como string
+                actualizado_en: timestampActual  // Guardar como string
             })
             .eq('id', citaId)
-            .select('id, estado, actualizado_en, expira_en');
+            .select();
             
         if (error) {
             console.error('Error en update:', error);
             throw error;
         }
 
-        console.log('✅ Cita cancelada correctamente:', {
-            estado: updatedCita?.[0]?.estado,
-            actualizado_en: updatedCita?.[0]?.actualizado_en,
-            expira_en: updatedCita?.[0]?.expira_en
-        });
+        console.log('✅ Cita cancelada correctamente');
+        
+        // Verificar lo que se guardó
+        console.log('📊 Verificación de datos guardados:');
+        console.log('   - Estado:', updatedCita?.[0]?.estado);
+        console.log('   - actualizado_en:', updatedCita?.[0]?.actualizado_en);
+        console.log('   - expira_en:', updatedCita?.[0]?.expira_en);
+        console.log('   - Tipo actualizado_en:', typeof updatedCita?.[0]?.actualizado_en);
         
         showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
 
-        // Limpiar caché y actualizar
         await limpiarCacheDespuesDeAgendar();
         await precargarCitasFuturas();
         
-        // Recargar citas - IMPORTANTE: Esto actualizará la UI
         await cargarMisCitas();
-        await verificarTimestampsCita(citaId);
-        // Reiniciar contadores
+        
         setTimeout(() => {
             iniciarContadoresCitas();
         }, 500);
         
-        // Notificar a otros usuarios
         await notificarCambioCita(cita.fecha, cita.hora, 'cita_cancelada');
 
     } catch (error) {
@@ -3305,7 +3394,6 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         showAlert('❌ Error al cancelar la cita: ' + error.message, 'error');
     }
 }
-
     async function verificarCitasPasadas() {
     try {
         // Obtener hora LOCAL actual
