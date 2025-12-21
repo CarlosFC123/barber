@@ -2,31 +2,40 @@ name: Limpieza Automática de Citas
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/5 * * * *' # Ejecuta cada 5 minutos
   workflow_dispatch:
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Ejecutar limpieza
+    - name: Limpiar citas expiradas via REST API
       env:
         SUPABASE_URL: 'https://nllllvztipbrhryzxamm.supabase.co'
-        SUPABASE_SERVICE_KEY: '${{ secrets.SUPABASE_SERVICE_KEY }}'
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       run: |
-        echo "🔗 Ejecutando limpieza de citas..."
+        echo "🔗 Conectando a Supabase..."
         echo "🕐 Hora UTC: $(date -u '+%Y-%m-%d %H:%M:%S')"
         echo "🕐 Hora México: $(TZ='America/Mexico_City' date '+%Y-%m-%d %H:%M:%S')"
-        
-        response=$(curl -s -w "\n%{http_code}" -X POST \
-          "$SUPABASE_URL/functions/v1/cleanup-expired-appointments" \
-          -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+
+        # Realizar DELETE usando el endpoint REST de Supabase
+        # La lógica ahora está en el trigger: elimina citas donde expira_en < NOW()
+        response=$(curl -s -w "\n%{http_code}" -X DELETE \
+          "$SUPABASE_URL/rest/v1/citas?and=(estado.in.(\"cancelada\",\"completada\"),expira_en.lt.NOW())" \
+          -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+          -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
           -H "Content-Type: application/json" \
-          -d '{}')
-        
+          -H "Prefer: return=minimal")
+
+        # Separar el cuerpo de la respuesta del código HTTP
         http_code=$(echo "$response" | tail -n1)
         body=$(echo "$response" | sed '$d')
+
+        echo "📊 Código de respuesta HTTP: $http_code"
         
-        echo "📊 Código: $http_code"
-        echo "📦 Resultado: $body"
+        if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 204 ]; then
+            echo "✅ Limpieza ejecutada. Respuesta: $body"
+        else
+            echo "❌ Error en la solicitud. Detalles: $body"
+            exit 1
+        fi
