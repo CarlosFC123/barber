@@ -2498,8 +2498,7 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
                 return;
             }
 
-            const timestampLocal = getYucatanTimeString();
-            // Configurar expiración (2 horas después de la cita)
+            const timestampLocal = getYucatanTimeString();// Configurar expiración (2 horas después de la cita)
             const [year, month, day] = fechaFormateada.split('-');
             const [hour, minute] = hora.split(':');
             const fechaCitaYucatan = new Date(
