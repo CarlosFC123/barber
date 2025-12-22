@@ -736,19 +736,27 @@
     }
 
     .hora-btn.reservando {
-        background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%) !important;
-        border-color: #A0522D !important;
-        color: white !important;
-        cursor: not-allowed;
-        animation: pulse-marron 2s infinite;
-    }
+    background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%) !important;
+    border-color: #A0522D !important;
+    color: white !important;
+    cursor: not-allowed !important;
+    opacity: 0.9 !important;
+    animation: pulse-marron 2s infinite !important;
+    pointer-events: none !important;
+}
 
-    /* .hora-btn.mi-reserva-activa {
-        background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
-        border-color: #1e7e34 !important;
-        color: white !important;
-        animation: pulse-verde 1.5s infinite;
-    } */
+
+
+    .hora-btn.reservando:hover {
+    transform: none !important;
+    box-shadow: 0 0 10px rgba(139, 69, 19, 0.7) !important;
+}
+
+@keyframes pulse-marron {
+    0% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
+    50% { box-shadow: 0 0 15px rgba(139, 69, 19, 0.8); }
+    100% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
+}
 
     @keyframes pulse-marron {
         0% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
@@ -1139,7 +1147,7 @@
             } catch (error) {
                 console.error('Error en polling:', error);
             }
-        }, 2000); // 2 segundos es suficiente
+        }, 1000); // 1 segundo es suficiente
     }
 
 
@@ -1217,64 +1225,138 @@ function limpiarReservasExpiradas() {
 }
 
             async function obtenerSolicitudesPendientes() {
-        try {
-            const { data: solicitudes, error } = await supabase
-                .from('solicitudes_temporales')
-                .select('*')
-                .gte('expira_en', new Date().toISOString());
+    try {
+        const { data: solicitudes, error } = await supabase
+            .from('solicitudes_temporales')
+            .select('*')
+            .gte('expira_en', new Date().toISOString()); // Solo las que no han expirado
+            
+        if (error) {
+            console.error('Error obteniendo solicitudes:', error);
+            return;
+        }
+        
+        // Limpiar todas las locales primero
+        solicitudesPendientes.clear();
+        
+        // Actualizar mapa local con datos frescos
+        if (solicitudes) {
+            solicitudes.forEach(sol => {
+                const clave = `${sol.fecha}_${sol.hora}`;
+                const expiraEn = new Date(sol.expira_en);
+                const creadoEn = new Date(sol.creado_en);
                 
-            if (error) {
-                console.error('Error obteniendo solicitudes:', error);
-                return;
-            }
-            
-            // Limpiar solicitudes expiradas localmente
+                // Solo si aún no ha expirado
+                if (expiraEn > new Date()) {
+                    solicitudesPendientes.set(clave, {
+                        usuarioId: sol.usuario_id,
+                        timestamp: creadoEn,
+                        expira_en: expiraEn
+                    });
+                    
+                    console.log(`📌 Reserva encontrada: ${sol.fecha} ${sol.hora} - Usuario: ${sol.usuario_id}`);
+                    
+                    // Actualizar caché local
+                    actualizarCacheLocal(
+                        sol.fecha, 
+                        sol.hora, 
+                        sol.usuario_id === miUsuarioId ? 'mi-reserva-activa' : 'reservando', 
+                        sol.usuario_id
+                    );
+                }
+            });
+        }
+        
+        console.log(`📊 Solicitudes temporales activas: ${solicitudesPendientes.size}`);
+        
+    } catch (error) {
+        console.error('Error obteniendo solicitudes:', error);
+    }
+}
+
+function mostrarEstadoReservandoEnUI(fecha, hora) {
+    try {
+        // Buscar el botón en la UI
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+        if (!horaBtn) {
+            console.log(`⚠️ Botón no encontrado para ${fecha} ${hora}`);
+            return;
+        }
+        
+        // Verificar si es MI reserva
+        const clave = `${fecha}_${hora}`;
+        const reservaInfo = solicitudesPendientes.get(clave);
+        
+        if (!reservaInfo) {
+            console.log(`⚠️ No hay información de reserva para ${clave}`);
+            return;
+        }
+        
+        const esMiReserva = reservaInfo.usuarioId === miUsuarioId;
+        
+        if (esMiReserva) {
+            console.log(`✅ Es MI reserva: ${fecha} ${hora}`);
+            // Ya está manejado por actualizarUIReservaActiva
+            return;
+        }
+        
+        console.log(`🔄 Mostrando estado RESERVANDO para: ${fecha} ${hora}`);
+        
+        // Configurar como reservando
+        horaBtn.disabled = true;
+        horaBtn.classList.add('reservando');
+        horaBtn.classList.remove('selected', 'mi-reserva-activa');
+        
+        const ahora = new Date();
+        const tiempoRestante = reservaInfo.expira_en - ahora;
+        const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
+        
+        horaBtn.innerHTML = `
+            ${hora}
+            <br>
+            <small style="font-size: 10px; background: rgba(139, 69, 19, 0.3); padding: 2px 6px; border-radius: 4px; color: #ffa500;">
+                ⏳ ${segundos}s
+            </small>
+        `;
+        
+        // Limpiar intervalo anterior si existe
+        if (horaBtn.dataset.intervaloContador) {
+            clearInterval(horaBtn.dataset.intervaloContador);
+        }
+        
+        // Configurar contador descendente
+        const intervalo = setInterval(() => {
             const ahora = new Date();
-            const clavesAEliminar = [];
+            const tiempoRestante = reservaInfo.expira_en - ahora;
+            const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
             
-            // Primero limpiar locales
-            for (const [clave, sol] of solicitudesPendientes.entries()) {
-                if (sol.expira_en < ahora) {
-                    clavesAEliminar.push(clave);
+            if (horaBtn.querySelector('small')) {
+                horaBtn.querySelector('small').textContent = `⏳ ${segundos}s`;
+                
+                if (segundos <= 10) {
+                    horaBtn.querySelector('small').style.background = 'rgba(255, 0, 0, 0.3)';
+                    horaBtn.querySelector('small').style.color = '#ff6b6b';
+                } else if (segundos <= 20) {
+                    horaBtn.querySelector('small').style.background = 'rgba(255, 165, 0, 0.3)';
+                    horaBtn.querySelector('small').style.color = '#ffa500';
+                }
+                
+                if (segundos === 0) {
+                    clearInterval(intervalo);
+                    setTimeout(() => {
+                        // Cuando expire, verificar si sigue reservada
+                        sincronizarEstadosHoras();
+                    }, 500);
                 }
             }
-            
-            clavesAEliminar.forEach(clave => {
-                solicitudesPendientes.delete(clave);
-                const [fecha, hora] = clave.split('_');
-                actualizarCacheLocal(fecha, hora, 'disponible', null);
-            });
-            
-            // Actualizar mapa local con datos frescos
-            if (solicitudes) {
-                solicitudes.forEach(sol => {
-                    const clave = `${sol.fecha}_${sol.hora}`;
-                    const expiraEn = new Date(sol.expira_en);
-                    const creadoEn = new Date(sol.creado_en);
-                    
-                    // Solo si aún no ha expirado
-                    if (expiraEn > ahora) {
-                        solicitudesPendientes.set(clave, {
-                            usuarioId: sol.usuario_id,
-                            timestamp: creadoEn,
-                            expira_en: expiraEn
-                        });
-                        
-                        // Actualizar caché local
-                        actualizarCacheLocal(
-                            sol.fecha, 
-                            sol.hora, 
-                            'reservando', 
-                            sol.usuario_id
-                        );
-                    }
-                });
-            }
-            
-        } catch (error) {
-            console.error('Error obteniendo solicitudes:', error);
-        }
+        }, 1000);
+        
+        horaBtn.dataset.intervaloContador = intervalo;
+        
+    } catch (error) {
+        console.error('❌ Error mostrando estado reservando:', error);
     }
+}
             function hayCambiosRelevantes() {
                 // Verificar si hay cambios en las horas visibles
                 const horasGrid = document.getElementById('horasGrid');
@@ -1305,102 +1387,105 @@ function limpiarReservasExpiradas() {
             // ============ SISTEMA DE RESERVAS ============
 
             async function reservarHoraTemporalmente(horaStr, fechaStr, btn) {
-        if (bloqueoLlamadaEnProgreso) {
-            console.log('⏳ Ya hay una reserva en progreso...');
+    if (bloqueoLlamadaEnProgreso) {
+        console.log('⏳ Ya hay una reserva en progreso...');
+        return;
+    }
+    
+    bloqueoLlamadaEnProgreso = true;
+    
+    try {
+        console.log(`🔄 Intentando reservar: ${fechaStr} ${horaStr}`);
+        
+        // 1. Verificación ultra-rápida
+        const verificacion = await verificarDisponibilidadInstantanea(fechaStr, horaStr);
+        
+        if (!verificacion.disponible) {
+            if (verificacion.razon === 'ocupada') {
+                showAlert('❌ Esta hora acaba de ser ocupada por otro usuario', 'error');
+                await sincronizarEstadosHoras();
+            } else {
+                showAlert('⏳ Esta hora está siendo reservada por otro usuario', 'warning');
+            }
+            bloqueoLlamadaEnProgreso = false;
             return;
         }
         
-        bloqueoLlamadaEnProgreso = true;
+        // 2. Cancelar reserva anterior si existe
+        if (reservaActiva) {
+            console.log('🔄 Cancelando reserva anterior...');
+            await cancelarReservaAnterior();
+        }
         
-        try {
-            console.log(`🔄 Intentando reservar: ${fechaStr} ${horaStr}`);
-            
-            // 1. Verificación ultra-rápida
-            const verificacion = await verificarDisponibilidadInstantanea(fechaStr, horaStr);
-            
-            if (!verificacion.disponible) {
-                if (verificacion.razon === 'ocupada') {
-                    showAlert('❌ Esta hora acaba de ser ocupada por otro usuario', 'error');
-                    await sincronizarEstadosHoras();
-                } else {
-                    showAlert('⏳ Esta hora está siendo reservada por otro usuario', 'warning');
-                }
-                bloqueoLlamadaEnProgreso = false;
-                return;
-            }
-            
-            // 2. Cancelar reserva anterior si existe
-            if (reservaActiva) {
-                console.log('🔄 Cancelando reserva anterior...');
-                await cancelarReservaAnterior();
-            }
-            
-            // 3. Desactivar polling temporalmente para evitar conflictos
-            pollingActivo = false;
-            if (intervaloPolling) {
-                clearInterval(intervaloPolling);
-                console.log('⏸️ Polling pausado durante reserva');
-            }
-            
-            // 4. Registrar nueva reserva
-            const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
-            
-            if (!resultado) {
-                showAlert('❌ Esta hora ya está siendo reservada por otro usuario', 'error');
-                // Reactivar polling
-                pollingActivo = true;
-                iniciarPollingInteligente();
-                bloqueoLlamadaEnProgreso = false;
-                return;
-            }
-            
-            // 5. Configurar reserva activa
-            reservaActiva = {
-                fecha: fechaStr,
-                hora: horaStr,
-                boton: btn,
-                inicio: Date.now(),
-                timeoutId: null
-            };
-            
-            // 6. Guardar selección
-            const horaInput = document.getElementById('hora');
-            if (horaInput) horaInput.value = horaStr;
-            
-            // 7. Actualizar UI INMEDIATAMENTE
-            actualizarUIReservaActiva(btn, horaStr, 30);
-            
-            // 8. Configurar timeout de liberación (30 segundos)
-            timeoutReserva = setTimeout(async () => {
-                console.log('⏰ Timeout de reserva alcanzado');
-                await liberarReserva(fechaStr, horaStr);
-                resetearUIReserva(btn, horaStr);
-                showAlert('⏰ Reserva liberada automáticamente', 'info');
-                reservaActiva = null;
-                // Reactivar polling
-                pollingActivo = true;
-                iniciarPollingInteligente();
-            }, 30000);
-            
-            reservaActiva.timeoutId = timeoutReserva;
-            
-            // 9. Notificar a otros usuarios
-            await notificarCambioCita(fechaStr, horaStr, 'reservando');
-            
-            console.log(`✅ Hora ${horaStr} reservada por 30 segundos`);
-            
-        } catch (error) {
-            console.error('❌ Error reservando hora:', error);
-            showAlert('Error al reservar la hora', 'error');
-            // Reactivar polling en caso de error
+        // 3. Desactivar polling temporalmente para evitar conflictos
+        pollingActivo = false;
+        if (intervaloPolling) {
+            clearInterval(intervaloPolling);
+            console.log('⏸️ Polling pausado durante reserva');
+        }
+        
+        // 4. Registrar nueva reserva
+        const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
+        
+        if (!resultado) {
+            showAlert('❌ Esta hora ya está siendo reservada por otro usuario', 'error');
+            // Reactivar polling
             pollingActivo = true;
             iniciarPollingInteligente();
-        } finally {
-            setTimeout(() => {
-                bloqueoLlamadaEnProgreso = false;
-            }, 300);
+            bloqueoLlamadaEnProgreso = false;
+            return;
         }
+        
+        // 5. Configurar reserva activa
+        reservaActiva = {
+            fecha: fechaStr,
+            hora: horaStr,
+            boton: btn,
+            inicio: Date.now(),
+            timeoutId: null
+        };
+        
+        // 6. Guardar selección
+        const horaInput = document.getElementById('hora');
+        if (horaInput) horaInput.value = horaStr;
+        
+        // 7. Actualizar UI INMEDIATAMENTE
+        actualizarUIReservaActiva(btn, horaStr, 30);
+        
+        // 8. **¡IMPORTANTE!: Notificar a otros usuarios ANTES de configurar timeout**
+        console.log('📢 Enviando notificación a otros usuarios...');
+        await notificarCambioCita(fechaStr, horaStr, 'reservando');
+        
+        // 9. Configurar timeout de liberación (30 segundos)
+        timeoutReserva = setTimeout(async () => {
+            console.log('⏰ Timeout de reserva alcanzado');
+            await liberarReserva(fechaStr, horaStr);
+            resetearUIReserva(btn, horaStr);
+            showAlert('⏰ Reserva liberada automáticamente', 'info');
+            reservaActiva = null;
+            // Reactivar polling
+            pollingActivo = true;
+            iniciarPollingInteligente();
+            // Notificar liberación
+            await notificarCambioCita(fechaStr, horaStr, 'reserva_liberada');
+        }, 30000);
+        
+        reservaActiva.timeoutId = timeoutReserva;
+        
+        console.log(`✅ Hora ${horaStr} reservada por 30 segundos`);
+        
+    } catch (error) {
+        console.error('❌ Error reservando hora:', error);
+        showAlert('Error al reservar la hora', 'error');
+        // Reactivar polling en caso de error
+        pollingActivo = true;
+        iniciarPollingInteligente();
+    } finally {
+        setTimeout(() => {
+            bloqueoLlamadaEnProgreso = false;
+        }, 300);
     }
+}
 
             // Función mejorada para verificar disponibilidad
     async function verificarDisponibilidadInstantanea(fecha, hora) {
@@ -1716,7 +1801,7 @@ function limpiarReservasExpiradas() {
                                 break;
                                 
                             case 'reservando':
-                                configurarBotonReservando(btn, horaStr, fechaFormateada);
+                                mostrarEstadoReservandoEnUI(fechaFormateada, horaStr);
                                 break;
                                 
                             case 'mi-reserva-activa':
@@ -1726,7 +1811,7 @@ function limpiarReservasExpiradas() {
                                 const segundos = Math.ceil(tiempoRestante / 1000);
                                 actualizarUIReservaActiva(btn, horaStr, segundos);
                                 break;
-                                
+                                            
                             case 'disponible':
                                 configurarBotonDisponible(btn, horaStr, fechaFormateada);
                                 horasDisponibles++;
@@ -1737,12 +1822,38 @@ function limpiarReservasExpiradas() {
                     });
 
                     actualizarEstadoAgendamiento(horasDisponibles);
+
+                     setTimeout(() => {
+                        verificarYMostrarReservasActivas(fechaFormateada);
+                    }, 100);
                     
                 } catch (error) {
                     console.error('❌ Error generando horas:', error);
                     horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
                 }
             }
+
+
+            function verificarYMostrarReservasActivas(fecha) {
+    console.log(`🔍 Verificando reservas activas para fecha: ${fecha}`);
+    
+    for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
+        const [reservaFecha, reservaHora] = clave.split('_');
+        
+        if (reservaFecha === fecha) {
+            console.log(`📌 Encontrada reserva activa: ${clave}`);
+            
+            // Verificar si es MI reserva
+            if (reservaInfo.usuarioId === miUsuarioId) {
+                // Ya está manejado
+                continue;
+            }
+            
+            // Mostrar como reservando
+            mostrarEstadoReservandoEnUI(fecha, reservaHora);
+        }
+    }
+}
 
             function determinarEstadoHora(fecha, hora, fechaObj, horaPasada) {
                 if (horaPasada) {
