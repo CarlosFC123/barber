@@ -1118,6 +1118,7 @@
         
         intervaloPolling = setInterval(async () => {
             try {
+                limpiarReservasExpiradas();
                 // NO sincronizar si hay una reserva activa
                 if (reservaActiva) {
                     return;
@@ -1183,7 +1184,37 @@
             console.error('❌ Error sincronizando estados:', error);
         }
     }
-
+function limpiarReservasExpiradas() {
+    const ahora = new Date();
+    const clavesAEliminar = [];
+    
+    for (const [clave, reserva] of solicitudesPendientes.entries()) {
+        if (reserva.expira_en < ahora) {
+            clavesAEliminar.push(clave);
+        }
+    }
+    
+    clavesAEliminar.forEach(clave => {
+        solicitudesPendientes.delete(clave);
+        const [fecha, hora] = clave.split('_');
+        actualizarCacheLocal(fecha, hora, 'disponible', null);
+        
+        // Si estamos viendo esta fecha, actualizar UI
+        if (selectedDate) {
+            const fechaActual = formatDate(selectedDate);
+            if (fecha === fechaActual) {
+                const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+                if (horaBtn && horaBtn.disabled && !horaBtn.classList.contains('ocupada')) {
+                    configurarBotonDisponible(horaBtn, hora, fecha);
+                }
+            }
+        }
+    });
+    
+    if (clavesAEliminar.length > 0) {
+        console.log(`🧹 Limpiadas ${clavesAEliminar.length} reservas expiradas`);
+    }
+}
 
             async function obtenerSolicitudesPendientes() {
         try {
@@ -1685,17 +1716,15 @@
                                 break;
                                 
                             case 'reservando':
-                                const esMiReserva = reservaActiva && 
-                                                reservaActiva.fecha === fechaFormateada && 
-                                                reservaActiva.hora === horaStr;
-                                if (esMiReserva) {
-                                    const tiempoTranscurrido = Date.now() - reservaActiva.inicio;
-                                    const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
-                                    const segundos = Math.ceil(tiempoRestante / 1000);
-                                    actualizarUIReservaActiva(btn, horaStr, segundos);
-                                } else {
-                                    configurarBotonReservando(btn, horaStr, fechaFormateada);
-                                }
+                                configurarBotonReservando(btn, horaStr, fechaFormateada);
+                                break;
+                                
+                            case 'mi-reserva-activa':
+                                // Calcular tiempo restante
+                                const tiempoTranscurrido = Date.now() - reservaActiva.inicio;
+                                const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
+                                const segundos = Math.ceil(tiempoRestante / 1000);
+                                actualizarUIReservaActiva(btn, horaStr, segundos);
                                 break;
                                 
                             case 'disponible':
@@ -1720,7 +1749,7 @@
                     return 'pasado';
                 }
                 
-                // Verificar en citas futuras
+                // Primero verificar en citas futuras (ocupada)
                 const citaExistente = todasLasCitasFuturasCache.some(c => 
                     c.fecha === fecha && c.hora === hora
                 );
@@ -1729,12 +1758,25 @@
                     return 'ocupada';
                 }
                 
-                // Verificar en reservas temporales
+                // VERIFICACIÓN MEJORADA: Buscar en solicitudes pendientes
                 const clave = `${fecha}_${hora}`;
                 if (solicitudesPendientes.has(clave)) {
                     const reserva = solicitudesPendientes.get(clave);
+                    
+                    // Si es MI reserva, mostrar como "mi-reserva-activa"
+                    if (reserva.usuarioId === miUsuarioId) {
+                        return 'mi-reserva-activa';
+                    }
+                    
+                    // Si es de OTRO usuario, mostrar como "reservando"
                     if (reserva.usuarioId !== miUsuarioId) {
-                        return 'reservando';
+                        // Verificar que no haya expirado
+                        if (reserva.expira_en > new Date()) {
+                            return 'reservando';
+                        } else {
+                            // Si expiró, eliminarla del mapa
+                            solicitudesPendientes.delete(clave);
+                        }
                     }
                 }
                 
@@ -1903,96 +1945,139 @@
             }
 
             async function verificarNotificacionesCambios() {
-                try {
-                    const ahora = new Date();
-                    const fechaLimite = new Date(ahora.getTime() - 10000);
-                    
-                    const { data: notificaciones, error } = await supabase
-                        .from('notificaciones_cambios')
-                        .select('*')
-                        .gt('creado_en', fechaLimite.toISOString())
-                        .neq('usuario_id', miUsuarioId)
-                        .order('creado_en', { ascending: false });
-                        
-                    if (error || !notificaciones || notificaciones.length === 0) return;
-                    
-                    for (const notif of notificaciones) {
-                        const claveNotif = `${notif.fecha}_${notif.hora}_${notif.usuario_id}`;
-                        
-                        if (ultimasNotificacionesProcesadas.has(claveNotif)) {
-                            continue;
-                        }
-                        
-                        ultimasNotificacionesProcesadas.add(claveNotif);
-                        
-                        // Limitar tamaño del set
-                        if (ultimasNotificacionesProcesadas.size > 100) {
-                            const first = ultimasNotificacionesProcesadas.values().next().value;
-                            ultimasNotificacionesProcesadas.delete(first);
-                        }
-                        
-                        // Verificar si estamos viendo esa fecha
-                        if (selectedDate) {
-                            const fechaActual = formatDate(selectedDate);
-                            if (notif.fecha === fechaActual) {
-                                await actualizarHoraEspecifica(notif.fecha, notif.hora);
-                            }
-                        }
-                    }
-                    
-                } catch (error) {
-                    console.error('Error verificando notificaciones:', error);
+    try {
+        const ahora = new Date();
+        const fechaLimite = new Date(ahora.getTime() - 10000);
+        
+        const { data: notificaciones, error } = await supabase
+            .from('notificaciones_cambios')
+            .select('*')
+            .gt('creado_en', fechaLimite.toISOString())
+            .neq('usuario_id', miUsuarioId)
+            .order('creado_en', { ascending: false });
+            
+        if (error || !notificaciones || notificaciones.length === 0) return;
+        
+        for (const notif of notificaciones) {
+            const claveNotif = `${notif.fecha}_${notif.hora}_${notif.usuario_id}_${notif.tipo}`;
+            
+            if (ultimasNotificacionesProcesadas.has(claveNotif)) {
+                continue;
+            }
+            
+            ultimasNotificacionesProcesadas.add(claveNotif);
+            
+            // Limitar tamaño del set
+            if (ultimasNotificacionesProcesadas.size > 100) {
+                const first = ultimasNotificacionesProcesadas.values().next().value;
+                ultimasNotificacionesProcesadas.delete(first);
+            }
+            
+            // Verificar si estamos viendo esa fecha
+            if (selectedDate) {
+                const fechaActual = formatDate(selectedDate);
+                if (notif.fecha === fechaActual) {
+                    await actualizarHoraEspecifica(notif.fecha, notif.hora, notif.tipo);
                 }
             }
+        }
+        
+    } catch (error) {
+        console.error('Error verificando notificaciones:', error);
+    }
+}
 
-            async function actualizarHoraEspecifica(fecha, hora) {
-        try {
-            console.log(`🔄 Actualizando hora específica: ${fecha} ${hora}`);
-            
-            // Forzar limpieza de caché para esta hora
-            const claveCache = `${fecha}_${hora}`;
-            cacheEstadosHoras.delete(claveCache);
-            
-            // Verificar estado actual
-            const { data: citaExistente } = await supabase
-                .from('citas')
-                .select('id, estado')
+            async function actualizarHoraEspecifica(fecha, hora, tipoNotificacion = null) {
+    try {
+        console.log(`🔄 Actualizando hora específica: ${fecha} ${hora} - Tipo: ${tipoNotificacion}`);
+        
+        // Forzar limpieza de caché para esta hora
+        const claveCache = `${fecha}_${hora}`;
+        cacheEstadosHoras.delete(claveCache);
+        
+        // Si la notificación es de "reservando", actualizar inmediatamente
+        if (tipoNotificacion === 'reservando') {
+            // Buscar la reserva temporal más reciente
+            const { data: reservasRecientes } = await supabase
+                .from('solicitudes_temporales')
+                .select('*')
                 .eq('fecha', fecha)
                 .eq('hora', hora)
-                .eq('barbero_id', barberoFijo.id)
-                .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                .maybeSingle();
+                .gt('expira_en', new Date().toISOString())
+                .order('creado_en', { ascending: false })
+                .limit(1);
+            
+            if (reservasRecientes && reservasRecientes.length > 0) {
+                const reserva = reservasRecientes[0];
+                const clave = `${fecha}_${hora}`;
+                const expiraEn = new Date(reserva.expira_en);
                 
-            const claveReserva = `${fecha}_${hora}`;
-            const tieneReserva = solicitudesPendientes.has(claveReserva);
-            const reservaInfo = tieneReserva ? solicitudesPendientes.get(claveReserva) : null;
-            const esMiReserva = reservaInfo && reservaInfo.usuarioId === miUsuarioId;
-            
-            // Encontrar el botón
-            const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
-            if (!horaBtn) return;
-            
-            if (citaExistente) {
-                // Actualizar a ocupada
-                configurarBotonOcupada(horaBtn, hora);
-                actualizarCacheLocal(fecha, hora, 'ocupada', null);
-                console.log(`✅ ${hora} marcada como OCUPADA`);
-            } else if (tieneReserva && !esMiReserva) {
-                // Actualizar a reservando
-                configurarBotonReservando(horaBtn, hora, fecha);
-                actualizarCacheLocal(fecha, hora, 'reservando', reservaInfo.usuarioId);
-                console.log(`✅ ${hora} marcada como RESERVANDO por otro usuario`);
-            } else if (horaBtn.disabled) {
-                // Restaurar a disponible
-                configurarBotonDisponible(horaBtn, hora, fecha);
-                actualizarCacheLocal(fecha, hora, 'disponible', null);
-                console.log(`✅ ${hora} marcada como DISPONIBLE`);
+                // Actualizar mapa local
+                solicitudesPendientes.set(clave, {
+                    usuarioId: reserva.usuario_id,
+                    timestamp: new Date(reserva.creado_en),
+                    expira_en: expiraEn
+                });
+                
+                // Actualizar caché
+                actualizarCacheLocal(fecha, hora, 'reservando', reserva.usuario_id);
+                
+                console.log(`📌 Hora ${hora} marcada como RESERVANDO por usuario ${reserva.usuario_id}`);
             }
-            
-        } catch (error) {
-            console.error('❌ Error actualizando hora específica:', error);
         }
+        
+        // Verificar estado actual
+        const { data: citaExistente } = await supabase
+            .from('citas')
+            .select('id, estado')
+            .eq('fecha', fecha)
+            .eq('hora', hora)
+            .eq('barbero_id', barberoFijo.id)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+            .maybeSingle();
+            
+        const claveReserva = `${fecha}_${hora}`;
+        const tieneReserva = solicitudesPendientes.has(claveReserva);
+        const reservaInfo = tieneReserva ? solicitudesPendientes.get(claveReserva) : null;
+        const esMiReserva = reservaInfo && reservaInfo.usuarioId === miUsuarioId;
+        
+        // Encontrar el botón
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+        if (!horaBtn) return;
+        
+        if (citaExistente) {
+            // Actualizar a ocupada
+            configurarBotonOcupada(horaBtn, hora);
+            actualizarCacheLocal(fecha, hora, 'ocupada', null);
+            console.log(`✅ ${hora} marcada como OCUPADA`);
+            
+            // Si había una reserva temporal, limpiarla
+            if (tieneReserva) {
+                solicitudesPendientes.delete(claveReserva);
+            }
+        } else if (tieneReserva && !esMiReserva) {
+            // Actualizar a reservando
+            configurarBotonReservando(horaBtn, hora, fecha);
+            actualizarCacheLocal(fecha, hora, 'reservando', reservaInfo.usuarioId);
+            console.log(`✅ ${hora} marcada como RESERVANDO por otro usuario (${reservaInfo.usuarioId})`);
+        } else if (esMiReserva && reservaActiva && reservaActiva.fecha === fecha && reservaActiva.hora === hora) {
+            // Es MI reserva activa
+            const tiempoTranscurrido = Date.now() - reservaActiva.inicio;
+            const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
+            const segundos = Math.ceil(tiempoRestante / 1000);
+            actualizarUIReservaActiva(horaBtn, hora, segundos);
+            console.log(`✅ ${hora} marcada como MI RESERVA ACTIVA`);
+        } else if (horaBtn.disabled && !horaBtn.classList.contains('ocupada') && !horaBtn.classList.contains('reservando')) {
+            // Restaurar a disponible
+            configurarBotonDisponible(horaBtn, hora, fecha);
+            actualizarCacheLocal(fecha, hora, 'disponible', null);
+            console.log(`✅ ${hora} marcada como DISPONIBLE`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error actualizando hora específica:', error);
     }
+}
 
             // ============ FUNCIONES EXISTENTES (MANTENIDAS) ============
 
