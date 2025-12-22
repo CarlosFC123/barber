@@ -1335,9 +1335,24 @@ if (header) {
 function mostrarEstadoReservandoEnUI(fecha, hora) {
     try {
         // Buscar el botón en la UI
-        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+        const horaSinSegundos = hora.includes(':') ? hora.split(':').slice(0, 2).join(':') : hora;
+        
+        console.log(`🔍 Buscando botón: ${fecha} ${horaSinSegundos} (original: ${hora})`);
+        
+        // Buscar el botón en la UI (SIN segundos)
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaSinSegundos}"]`);
+        
         if (!horaBtn) {
-            console.log(`⚠️ Botón no encontrado para ${fecha} ${hora}`);
+            console.log(`⚠️ Botón no encontrado para ${fecha} ${horaSinSegundos}`);
+            
+            // Intentar buscar de otra forma
+            const todosBotones = document.querySelectorAll('.hora-btn');
+            console.log(`🔍 Botones disponibles: ${todosBotones.length}`);
+            
+            todosBotones.forEach((btn, index) => {
+                console.log(`${index + 1}. ${btn.dataset.fecha} ${btn.dataset.hora}`);
+            });
+            
             return;
         }
         
@@ -1861,7 +1876,7 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
                                 break;
                                 
                             case 'reservando':
-                                mostrarEstadoReservandoEnUI(fechaFormateada, horaStr);
+                                mostrarEstadoReservando(btn, horaStr, fechaFormateada);
                                 break;
                                 
                             case 'mi-reserva-activa':
@@ -1884,6 +1899,7 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
                     actualizarEstadoAgendamiento(horasDisponibles);
 
                      setTimeout(() => {
+                        console.log('🎯 Verificando reservas después de generar horas...');
                         verificarYMostrarReservasActivas(fechaFormateada);
                     }, 100);
                     
@@ -2153,15 +2169,16 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             }
         }
         
-    } catch (error) {
+    } catch (error) { 
         console.error('Error verificando notificaciones:', error);
     }
 }
 
             async function actualizarHoraEspecifica(fecha, hora, tipoNotificacion = null) {
     try {
-        console.log(`🔄 Actualizando hora específica: ${fecha} ${hora} - Tipo: ${tipoNotificacion}`);
+        const horaSinSegundos = hora.includes(':') ? hora.split(':').slice(0, 2).join(':') : hora;
         
+        console.log(`🔄 Actualizando hora específica: ${fecha} ${horaSinSegundos} (original: ${hora}) - Tipo: ${tipoNotificacion}`);        
         // Forzar limpieza de caché para esta hora
         const claveCache = `${fecha}_${hora}`;
         cacheEstadosHoras.delete(claveCache);
