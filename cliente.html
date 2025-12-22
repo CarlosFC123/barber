@@ -1224,54 +1224,112 @@ function limpiarReservasExpiradas() {
     }
 }
 
-            async function obtenerSolicitudesPendientes() {
+           async function obtenerSolicitudesPendientes() {
     try {
+        console.log('🔄 Obteniendo solicitudes pendientes...');
+        
+        // Obtener hora actual UTC para comparación
+        const ahoraUTC = new Date().toISOString();
+        console.log('   - Hora actual (UTC):', ahoraUTC);
+        
         const { data: solicitudes, error } = await supabase
             .from('solicitudes_temporales')
             .select('*')
-            .gte('expira_en', new Date().toISOString()); // Solo las que no han expirado
+            .gte('expira_en', ahoraUTC); // Usar hora UTC para comparar
             
         if (error) {
-            console.error('Error obteniendo solicitudes:', error);
+            console.error('❌ Error obteniendo solicitudes:', error);
             return;
         }
+        
+        console.log(`📊 Solicitudes encontradas en BD (no expiradas): ${solicitudes?.length || 0}`);
         
         // Limpiar todas las locales primero
         solicitudesPendientes.clear();
         
         // Actualizar mapa local con datos frescos
         if (solicitudes) {
-            solicitudes.forEach(sol => {
+            solicitudes.forEach((sol, index) => {
                 const clave = `${sol.fecha}_${sol.hora}`;
                 const expiraEn = new Date(sol.expira_en);
                 const creadoEn = new Date(sol.creado_en);
                 
-                // Solo si aún no ha expirado
-                if (expiraEn > new Date()) {
-                    solicitudesPendientes.set(clave, {
-                        usuarioId: sol.usuario_id,
-                        timestamp: creadoEn,
-                        expira_en: expiraEn
-                    });
-                    
-                    console.log(`📌 Reserva encontrada: ${sol.fecha} ${sol.hora} - Usuario: ${sol.usuario_id}`);
-                    
-                    // Actualizar caché local
-                    actualizarCacheLocal(
-                        sol.fecha, 
-                        sol.hora, 
-                        sol.usuario_id === miUsuarioId ? 'mi-reserva-activa' : 'reservando', 
-                        sol.usuario_id
-                    );
-                }
+                // Convertir a hora local para el mapa
+                const expiraEnLocal = new Date(expiraEn);
+                
+                solicitudesPendientes.set(clave, {
+                    usuarioId: sol.usuario_id,
+                    timestamp: creadoEn,
+                    expira_en: expiraEnLocal,
+                    esMiReserva: sol.usuario_id === miUsuarioId
+                });
+                
+                console.log(`${index + 1}. ${clave} - Usuario: ${sol.usuario_id} ${sol.usuario_id === miUsuarioId ? '(MI RESERVA)' : '(OTRO USUARIO)'} - Expira UTC: ${sol.expira_en}`);
+                
+                // Actualizar caché local
+                actualizarCacheLocal(
+                    sol.fecha, 
+                    sol.hora, 
+                    sol.usuario_id === miUsuarioId ? 'mi-reserva-activa' : 'reservando', 
+                    sol.usuario_id
+                );
             });
         }
         
-        console.log(`📊 Solicitudes temporales activas: ${solicitudesPendientes.size}`);
+        console.log(`✅ Solicitudes en memoria: ${solicitudesPendientes.size}`);
         
     } catch (error) {
-        console.error('Error obteniendo solicitudes:', error);
+        console.error('❌ Error obteniendo solicitudes:', error);
     }
+}
+
+async function debugSolicitudesTemporales() {
+    try {
+        console.log('=== DEBUG SOLICITUDES TEMPORALES ===');
+        
+        // Ver todas las solicitudes en la BD
+        const { data: todasSolicitudes, error } = await supabase
+            .from('solicitudes_temporales')
+            .select('*')
+            .order('creado_en', { ascending: false });
+            
+        if (error) {
+            console.error('Error obteniendo todas las solicitudes:', error);
+            return;
+        }
+        
+        const ahora = new Date();
+        console.log('📊 Todas las solicitudes en BD:', todasSolicitudes?.length || 0);
+        
+        if (todasSolicitudes) {
+            todasSolicitudes.forEach((sol, index) => {
+                const expiraEn = new Date(sol.expira_en);
+                const estaExpirada = expiraEn < ahora;
+                
+                console.log(`${index + 1}. ${sol.fecha} ${sol.hora} - Usuario: ${sol.usuario_id}`);
+                console.log(`   Creado: ${sol.creado_en}`);
+                console.log(`   Expira: ${sol.expira_en} ${estaExpirada ? '❌ EXPIRADA' : '✅ ACTIVA'}`);
+                console.log(`   Diferencia: ${expiraEn - ahora}ms`);
+            });
+        }
+        
+        // Verificar RLS (Row Level Security)
+        console.log('👤 Mi ID:', miUsuarioId);
+        
+    } catch (error) {
+        console.error('Error en debug:', error);
+    }
+}
+
+// Agrega un botón para debug
+const header = document.querySelector('.header .user-info');
+if (header) {
+    const debugBtn = document.createElement('button');
+    debugBtn.className = 'btn btn-secondary';
+    debugBtn.style.marginLeft = '10px';
+    debugBtn.textContent = '🐛 Debug';
+    debugBtn.onclick = debugSolicitudesTemporales;
+    header.appendChild(debugBtn);
 }
 
 function mostrarEstadoReservandoEnUI(fecha, hora) {
@@ -1550,23 +1608,15 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
 
         async function registrarSolicitudTemporal(fecha, hora) {
     try {
-        // Usar hora local de Yucatán
-        const ahoraLocal = getCurrentTimeYucatan();
-        const ahora = new Date();
+        // Usar hora UTC directamente
+        const ahoraUTC = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const expiraEnUTC = getExpiraEnTime(30);
         
-        // Calcular expiración (30 segundos desde ahora)
-        const expiraEn = new Date(ahora.getTime() + 30000);
-        const expiraEnFormatted = `${expiraEn.getFullYear()}-${String(expiraEn.getMonth() + 1).padStart(2, '0')}-${String(expiraEn.getDate()).padStart(2, '0')} ${String(expiraEn.getHours()).padStart(2, '0')}:${String(expiraEn.getMinutes()).padStart(2, '0')}:${String(expiraEn.getSeconds()).padStart(2, '0')}`;
-        
-        console.log('🕐 Creando reserva temporal con hora LOCAL:');
+        console.log('🕐 Creando reserva temporal con hora UTC:');
         console.log('   - Fecha:', fecha);
         console.log('   - Hora:', hora);
-        console.log('   - Ahora (local Yucatán):', ahoraLocal);
-        console.log('   - Expira en (local Yucatán):', expiraEnFormatted);
-        console.log('   - Hora del dispositivo:', new Date().toLocaleString('es-MX'));
-        
-        // ... resto del código de la función se mantiene igual ...
-        // Solo asegúrate de usar ahoraLocal y expiraEnFormatted
+        console.log('   - Ahora (UTC):', ahoraUTC);
+        console.log('   - Expira en (UTC):', expiraEnUTC);
         
         const { data, error } = await supabase
             .from('solicitudes_temporales')
@@ -1574,26 +1624,36 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
                 fecha: fecha,
                 hora: hora,
                 usuario_id: miUsuarioId,
-                creado_en: ahoraLocal, // Usar hora local
-                expira_en: expiraEnFormatted // Usar hora local
+                creado_en: ahoraUTC, // Usar hora UTC
+                expira_en: expiraEnUTC // Usar hora UTC
             }])
             .select();
             
         if (error) {
-            // Manejo de errores...
+            // Si es error de duplicado, significa que otro usuario ya la reservó
+            if (error.code === '23505') {
+                console.log('❌ Hora ya reservada por otro usuario');
+                return false;
+            }
+            console.error('❌ Error creando solicitud temporal:', error);
+            return false;
         }
+        
+        // Calcular expira_en local para el mapa
+        const ahora = new Date();
+        const expiraEnLocal = new Date(ahora.getTime() + 30000);
         
         // Actualizar estructuras locales
         const clave = `${fecha}_${hora}`;
         solicitudesPendientes.set(clave, {
             usuarioId: miUsuarioId,
             timestamp: ahora,
-            expira_en: expiraEn
+            expira_en: expiraEnLocal
         });
         
-        actualizarCacheLocal(fecha, hora, 'reservando', miUsuarioId);
+        actualizarCacheLocal(fecha, hora, 'mi-reserva-activa', miUsuarioId);
         
-        console.log('✅ Nueva reserva creada con hora LOCAL Yucatán');
+        console.log('✅ Nueva reserva creada con hora UTC');
         return true;
         
     } catch (error) {
@@ -2422,33 +2482,33 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             }
 
     function getCurrentTimeYucatan() {
-    try {
-        const ahora = new Date();
-        
-        // Obtener diferencia UTC para Yucatán (UTC-6)
-        // Yucatán está en UTC-6 todo el año (sin horario de verano)
-        const offsetYucatan = -6; // UTC-6
-        
-        // Convertir a hora Yucatán
-        const utcTime = ahora.getTime() + (ahora.getTimezoneOffset() * 60000);
-        const yucatanTime = new Date(utcTime + (offsetYucatan * 3600000));
-        
-        // Formatear a string ISO simplificado
-        const year = yucatanTime.getFullYear();
-        const month = String(yucatanTime.getMonth() + 1).padStart(2, '0');
-        const day = String(yucatanTime.getDate()).padStart(2, '0');
-        const hour = String(yucatanTime.getHours()).padStart(2, '0');
-        const minute = String(yucatanTime.getMinutes()).padStart(2, '0');
-        const second = String(yucatanTime.getSeconds()).padStart(2, '0');
-        
-        return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
-        
-    } catch (error) {
-        console.error('Error obteniendo hora de Yucatán:', error);
-        // Fallback con formato simple
-        const ahora = new Date();
-        return ahora.toLocaleString('es-MX', { timeZone: 'America/Merida' });
-    }
+    // NO usar hora del dispositivo, usar UTC directamente
+    const ahora = new Date();
+    
+    // Formatear simplemente como string
+    const year = ahora.getUTCFullYear();
+    const month = String(ahora.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(ahora.getUTCDate()).padStart(2, '0');
+    const hour = String(ahora.getUTCHours()).padStart(2, '0');
+    const minute = String(ahora.getUTCMinutes()).padStart(2, '0');
+    const second = String(ahora.getUTCSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+
+function getExpiraEnTime(segundos = 30) {
+    const ahora = new Date();
+    const expiraEn = new Date(ahora.getTime() + (segundos * 1000));
+    
+    const year = expiraEn.getUTCFullYear();
+    const month = String(expiraEn.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(expiraEn.getUTCDate()).padStart(2, '0');
+    const hour = String(expiraEn.getUTCHours()).padStart(2, '0');
+    const minute = String(expiraEn.getUTCMinutes()).padStart(2, '0');
+    const second = String(expiraEn.getUTCSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
 
 
@@ -3616,6 +3676,8 @@ function getYucatanTimePlusHours(hours) {
             console.log('   - Hora actual navegador:', new Date().toLocaleString('es-MX'));
             console.log('   - Hora Yucatán (calculada):', getCurrentTimeYucatan());
             console.log('   - Hora Yucatán (ISO):', getCurrentISOTimeYucatan());
+
+            await debugSolicitudesTemporales();
 
             await limpiarSolicitudesCorruptas();
 
