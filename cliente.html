@@ -1780,63 +1780,75 @@ async function verificarMiReservaExistente(fecha, hora) {
             return { disponible: false, razon: 'error' };
         }
     }
-
-        async function registrarSolicitudTemporal(fecha, hora) {
+async function registrarSolicitudTemporal(fecha, hora) {
     try {
-        // Usar hora UTC directamente
-        const ahoraUTC = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        const expiraEnUTC = getExpiraEnTime(30);
+        console.log(`📝 Intentando registrar solicitud temporal: ${fecha} ${hora}`);
         
-        console.log('🕐 Creando reserva temporal con hora UTC:');
-        console.log('   - Fecha:', fecha);
-        console.log('   - Hora:', hora);
-        console.log('   - Ahora (UTC):', ahoraUTC);
-        console.log('   - Expira en (UTC):', expiraEnUTC);
-        
-        const clave = `${fecha}_${hora}`;
-        const reservaExistente = solicitudesPendientes.get(clave);
-        
-        if (reservaExistente && reservaExistente.usuarioId === miUsuarioId) {
-            console.log('⚠️ Ya tienes una reserva para esta hora');
-            return true; // Ya está reservada por ti
+        // Primero, eliminar cualquier reserva previa del mismo usuario
+        const { error: deleteError } = await supabase
+            .from('solicitudes_temporales')
+            .delete()
+            .eq('usuario_id', miUsuarioId);
+            
+        if (deleteError) {
+            console.error('❌ Error limpiando reservas previas:', deleteError);
         }
         
-        // Verificar si hay conflicto en la BD antes de insertar
-        const { data: conflicto } = await supabase
+        // Crear fecha de expiración (30 segundos desde ahora)
+        const ahora = new Date();
+        const expiraEn = new Date(ahora.getTime() + 30000);
+        
+        // Formatear para BD (usa UTC)
+        const expiraEnUTC = expiraEn.toISOString();
+        const creadoEnUTC = ahora.toISOString();
+        
+        console.log('🕐 Datos de tiempo:');
+        console.log('   - Ahora (local):', ahora.toLocaleString('es-MX'));
+        console.log('   - Ahora (UTC):', ahora.toISOString());
+        console.log('   - Expira en (UTC):', expiraEnUTC);
+        
+        // Insertar nueva reserva
+        const { data, error } = await supabase
             .from('solicitudes_temporales')
-            .select('id')
-            .eq('fecha', fecha)
-            .eq('hora', hora)
-            .maybeSingle();
+            .insert([{
+                usuario_id: miUsuarioId,
+                fecha: fecha,
+                hora: hora,
+                expira_en: expiraEnUTC,
+                creado_en: creadoEnUTC
+            }])
+            .select();
             
-        if (conflicto) {
-            console.log('❌ Hora ya reservada por otro usuario en BD');
+        if (error) {
+            console.error('❌ Error insertando reserva temporal:', error);
+            
+            // Verificar si es un error de conflicto
+            if (error.code === '23505') { // Violación de unique constraint
+                console.log('⚠️ Hora ya reservada por otro usuario');
+                return false;
+            }
             return false;
         }
         
-        // Calcular expira_en local para el mapa
-        const ahora = new Date();
-        const expiraEnLocal = new Date(ahora.getTime() + 30000);
+        console.log('✅ Reserva temporal creada en BD:', data);
         
         // Actualizar estructuras locales
-        
+        const clave = `${fecha}_${hora}`;
         solicitudesPendientes.set(clave, {
             usuarioId: miUsuarioId,
             timestamp: ahora,
-            expira_en: expiraEnLocal
+            expira_en: expiraEn
         });
         
         actualizarCacheLocal(fecha, hora, 'mi-reserva-activa', miUsuarioId);
         
-        console.log('✅ Nueva reserva creada con hora UTC');
         return true;
         
     } catch (error) {
-        console.error('❌ Error registrando solicitud temporal:', error);
+        console.error('❌ Error crítico en registrarSolicitudTemporal:', error);
         return false;
     }
 }
-
             async function liberarReserva(fecha, hora) {
         try {
             console.log(`🔓 Liberando reserva: ${fecha} ${hora}`);
