@@ -1845,8 +1845,16 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             // ============ GENERACIÓN DE HORAS MEJORADA ============
 
             async function generateHoras(selectedDateObj) {
+                console.log('=== GENERATE HORAS INICIADO ===');
+                console.log('selectedDate:', selectedDateObj);
+                console.log('calendarioHabilitado:', calendarioHabilitado);
+                console.log('barberoFijo:', barberoFijo);
+        
                 const horasGrid = document.getElementById('horasGrid');
-                if (!horasGrid) return;
+                if (!horasGrid) {
+                    console.log('❌ horasGrid no encontrado');
+                    return;
+                }
                 
                 horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
 
@@ -1859,6 +1867,9 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
                     const esHoy = selectedDateObj.toDateString() === now.toDateString();
                     const horaActual = now.getHours();
                     const minutosActual = now.getMinutes();
+
+                    console.log(`📅 Generando horas para: ${fechaFormateada}`);
+                    console.log(`🕐 Es hoy? ${esHoy}, Hora actual: ${horaActual}:${minutosActual}`);
                     
                     horasGrid.innerHTML = '';
                     let horasDisponibles = 0;
@@ -1876,6 +1887,8 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
                         // Determinar estado de la hora
                         const estado = determinarEstadoHora(fechaFormateada, horaStr, selectedDateObj, horaPasada);
                         
+                        console.log(`⏰ Hora ${horaStr}: estado = ${estado}, horaPasada = ${horaPasada}`);
+
                         switch (estado) {
                             case 'pasado':
                                 configurarBotonPasado(btn, horaStr);
@@ -1890,13 +1903,14 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
                                 break;
                                 
                             case 'mi-reserva-activa':
-                                // Calcular tiempo restante
+                            if (reservaActiva && reservaActiva.fecha === fechaFormateada && reservaActiva.hora === horaStr) {
                                 const tiempoTranscurrido = Date.now() - reservaActiva.inicio;
                                 const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
                                 const segundos = Math.ceil(tiempoRestante / 1000);
                                 actualizarUIReservaActiva(btn, horaStr, segundos);
-                                break;
-                                            
+                            }
+                            break;
+                                                    
                             case 'disponible':
                                 configurarBotonDisponible(btn, horaStr, fechaFormateada);
                                 horasDisponibles++;
@@ -1907,11 +1921,11 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
                     });
 
                     actualizarEstadoAgendamiento(horasDisponibles);
-
+                    debugUIHoras();
                      setTimeout(() => {
                         console.log('🎯 Verificando reservas después de generar horas...');
                         verificarYMostrarReservasActivas(fechaFormateada);
-                    }, 100);
+                    }, 200);
                     
                 } catch (error) {
                     console.error('❌ Error generando horas:', error);
@@ -1921,25 +1935,35 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
 
 
             function verificarYMostrarReservasActivas(fecha) {
-    console.log(`🔍 Verificando reservas activas para fecha: ${fecha}`);
-    
-    for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
-        const [reservaFecha, reservaHora] = clave.split('_');
-        
-        if (reservaFecha === fecha) {
-            console.log(`📌 Encontrada reserva activa: ${clave}`);
-            
-            // Verificar si es MI reserva
-            if (reservaInfo.usuarioId === miUsuarioId) {
-                // Ya está manejado
-                continue;
+                console.log(`🔍 Verificando reservas activas para fecha: ${fecha}`);
+                console.log(`📊 Total de reservas en memoria: ${solicitudesPendientes.size}`);
+                
+                let reservasMostradas = 0;
+                
+                for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
+                    const [reservaFecha, reservaHora] = clave.split('_');
+                    
+                    if (reservaFecha === fecha) {
+                        console.log(`📌 Encontrada reserva activa: ${clave}`);
+                        console.log(`   - Usuario: ${reservaInfo.usuarioId}`);
+                        console.log(`   - Es mi reserva? ${reservaInfo.usuarioId === miUsuarioId}`);
+                        console.log(`   - Expira en: ${reservaInfo.expira_en.toLocaleTimeString()}`);
+                        
+                        // Verificar si es MI reserva
+                        if (reservaInfo.usuarioId === miUsuarioId) {
+                            console.log(`✅ Es MI reserva - ya está manejada`);
+                            continue;
+                        }
+                        
+                        // Mostrar como reservando por otro usuario
+                        console.log(`🔄 Mostrando como reservando por otro usuario: ${reservaHora}`);
+                        mostrarEstadoReservandoEnUI(fecha, reservaHora);
+                        reservasMostradas++;
+                    }
+                }
+                
+                console.log(`✅ Mostradas ${reservasMostradas} reservas de otros usuarios`);
             }
-            
-            // Mostrar como reservando
-            mostrarEstadoReservandoEnUI(fecha, reservaHora);
-        }
-    }
-}
 
            function determinarEstadoHora(fecha, hora, fechaObj, horaPasada) {
     if (horaPasada) {
@@ -1981,6 +2005,28 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
     }
     
     return 'disponible';
+}
+
+function debugUIHoras() {
+    console.log('=== DEBUG UI HORAS ===');
+    const horasGrid = document.getElementById('horasGrid');
+    if (!horasGrid) {
+        console.log('❌ horasGrid no encontrado');
+        return;
+    }
+    
+    console.log(`📊 Contenedor de horas: ${horasGrid.children.length} elementos`);
+    
+    const botones = horasGrid.querySelectorAll('.hora-btn');
+    console.log(`🎯 Botones encontrados: ${botones.length}`);
+    
+    botones.forEach((btn, index) => {
+        console.log(`${index + 1}. ${btn.dataset.fecha} ${btn.dataset.hora} - Clases: ${btn.className}`);
+    });
+} 
+
+function mostrarEstadoReservando(btn, horaStr, fecha) {
+    configurarBotonReservando(btn, horaStr, fecha);
 }
 
 function iniciarLimpiezaPeriodica() {
@@ -2299,17 +2345,23 @@ function iniciarLimpiezaPeriodica() {
             // ============ FUNCIONES EXISTENTES (MANTENIDAS) ============
 
             function habilitarCalendario() {
-                const calendarContainer = document.getElementById('calendarContainer');
-                const calendarDisabledMessage = document.getElementById('calendarDisabledMessage');
-                
-                if (calendarioHabilitado) {
-                    calendarContainer.classList.remove('calendar-disabled');
-                    if (calendarDisabledMessage) calendarDisabledMessage.style.display = 'none';
-                } else {
-                    calendarContainer.classList.add('calendar-disabled');
-                    if (calendarDisabledMessage) calendarDisabledMessage.style.display = 'block';
-                }
-            }
+    const calendarContainer = document.getElementById('calendarContainer');
+    const calendarDisabledMessage = document.getElementById('calendarDisabledMessage');
+    
+    if (calendarioHabilitado) {
+        calendarContainer.classList.remove('calendar-disabled');
+        if (calendarDisabledMessage) calendarDisabledMessage.style.display = 'none';
+        
+        // IMPORTANTE: Generar horas si hay una fecha seleccionada
+        if (selectedDate) {
+            console.log('📅 Calendario habilitado - generando horas para fecha seleccionada');
+            generateHoras(selectedDate);
+        }
+    } else {
+        calendarContainer.classList.add('calendar-disabled');
+        if (calendarDisabledMessage) calendarDisabledMessage.style.display = 'block';
+    }
+}
 
             function generateCalendar(month = new Date()) {
                 const grid = document.getElementById('calendarGrid');
@@ -2383,30 +2435,41 @@ function iniciarLimpiezaPeriodica() {
             }
 
             function selectDate(date) {
-                if (!calendarioHabilitado) return;
-                
-                selectedDate = new Date(date);
-                selectedDate.setHours(0, 0, 0, 0);
-                
-                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const isToday = selectedDate.toDateString() === today.toDateString();
-                
-                const dateText = isToday ? 'Hoy' : date.toLocaleDateString('es-MX', options);
-                const dateDisplay = document.getElementById('selectedDateDisplay');
-                if (dateDisplay) {
-                    dateDisplay.textContent = `Fecha seleccionada: ${dateText}`;
-                }
-                
-                generateHoras(date);
-                const horasContainer = document.getElementById('horasContainer');
-                if (horasContainer) {
-                    horasContainer.style.display = 'block';
-                }
-                
-                generateCalendar(currentMonth);
-            }
+    if (!calendarioHabilitado) {
+        showAlert('Por favor, selecciona un servicio primero', 'warning');
+        return;
+    }
+    
+    selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isToday = selectedDate.toDateString() === today.toDateString();
+    
+    const dateText = isToday ? 'Hoy' : date.toLocaleDateString('es-MX', options);
+    const dateDisplay = document.getElementById('selectedDateDisplay');
+    if (dateDisplay) {
+        dateDisplay.textContent = `Fecha seleccionada: ${dateText}`;
+    }
+    
+    console.log(`📅 Fecha seleccionada: ${formatDate(selectedDate)}`);
+    
+    // Generar horas inmediatamente
+    generateHoras(date);
+    
+    const horasContainer = document.getElementById('horasContainer');
+    if (horasContainer) {
+        horasContainer.style.display = 'block';
+    }
+    
+    // Regenerar calendario para mostrar la fecha seleccionada
+    generateCalendar(currentMonth);
+    
+    // Iniciar polling específico para esta fecha
+    iniciarPollingInteligente();
+}
 
         async function precargarCitasFuturas() {
         try {
@@ -2517,6 +2580,18 @@ function iniciarLimpiezaPeriodica() {
                                 calendarioHabilitado = true;
                                 habilitarCalendario();
                                 generateCalendar(currentMonth);
+                                
+                                // Si ya hay una fecha seleccionada, generar horas inmediatamente
+                                if (selectedDate) {
+                                    console.log('🔄 Generando horas para fecha pre-seleccionada');
+                                    generateHoras(selectedDate);
+                                    
+                                    // Mostrar contenedor de horas
+                                    const horasContainer = document.getElementById('horasContainer');
+                                    if (horasContainer) {
+                                        horasContainer.style.display = 'block';
+                                    }
+                                }
                             });
                         });
                     }
@@ -3795,6 +3870,35 @@ function getYucatanTimePlusHours(hours) {
             inicializarEmailJS();
             iniciarPollingInteligente();
             iniciarLimpiezaPeriodica();
+
+            setInterval(() => {
+    if (selectedDate) {
+        const fecha = formatDate(selectedDate);
+        console.log(`=== ESTADO ACTUAL ===`);
+        console.log(`📅 Fecha seleccionada: ${fecha}`);
+        console.log(`📊 Reservas en memoria: ${solicitudesPendientes.size}`);
+        console.log(`🎯 Reserva activa: ${reservaActiva ? `${reservaActiva.fecha} ${reservaActiva.hora}` : 'Ninguna'}`);
+        console.log(`⏰ Polling activo: ${pollingActivo}`);
+        console.log(`📱 Calendario habilitado: ${calendarioHabilitado}`);
+        
+        // Verificar si hay horas visibles
+        const horasGrid = document.getElementById('horasGrid');
+        if (horasGrid) {
+            const botones = horasGrid.querySelectorAll('.hora-btn');
+            console.log(`🎯 Botones en UI: ${botones.length}`);
+            
+            // Verificar estados de algunos botones
+            if (botones.length > 0) {
+                console.log('🔍 Estados de primeros 3 botones:');
+                botones.forEach((btn, index) => {
+                    if (index < 3) {
+                        console.log(`${index + 1}. ${btn.dataset.hora} - Clases: ${btn.className}`);
+                    }
+                });
+            }
+        }
+    }
+}, 5000);
 
             setInterval(async () => {
                 try {
