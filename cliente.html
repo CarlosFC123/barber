@@ -2175,44 +2175,58 @@ async function verificarMiReservaExistente(fecha, hora) {
         return 'ocupada';
     }
     
-    // VERIFICACIÓN MEJORADA: Buscar en solicitudes pendientes
-    const clave = `${fecha}_${hora}`;
-    const ahora = new Date();
+    // CORRECCIÓN: Crear clave SIN segundos
+    const horaSinSegundos = hora.includes(':') ? hora.split(':').slice(0, 2).join(':') : hora;
+    const clave = `${fecha}_${horaSinSegundos}`;
     
     console.log(`🔍 Verificando reserva para ${clave}`);
-    console.log(`   - Solicitudes pendientes tiene clave? ${solicitudesPendientes.has(clave)}`);
-    console.log(`   - Total reservas en memoria: ${solicitudesPendientes.size}`);
     
-    if (solicitudesPendientes.has(clave)) {
-        const reserva = solicitudesPendientes.get(clave);
+    // También buscar con posibles formatos diferentes
+    let reservaInfo = solicitudesPendientes.get(clave);
+    
+    // Si no encuentra, intentar con formato con segundos
+    if (!reservaInfo) {
+        const claveConSegundos = `${fecha}_${horaSinSegundos}:00`;
+        reservaInfo = solicitudesPendientes.get(claveConSegundos);
+    }
+    
+    // También buscar cualquier clave que empiece con la fecha+hora
+    if (!reservaInfo) {
+        for (const [claveMap, info] of solicitudesPendientes.entries()) {
+            if (claveMap.startsWith(`${fecha}_${horaSinSegundos}`)) {
+                reservaInfo = info;
+                break;
+            }
+        }
+    }
+    
+    if (reservaInfo) {
+        const ahora = new Date();
         
-        console.log(`   - Reserva encontrada:`, reserva);
-        console.log(`   - Usuario: ${reserva.usuarioId}`);
-        console.log(`   - Mi usuario: ${miUsuarioId}`);
-        console.log(`   - Es mi reserva? ${reserva.usuarioId === miUsuarioId}`);
-        console.log(`   - Expira en: ${reserva.expira_en.toLocaleString()}`);
-        console.log(`   - Hora actual: ${ahora.toLocaleString()}`);
-        console.log(`   - Ya expiró? ${reserva.expira_en <= ahora}`);
+        console.log(`   ✓ Reserva encontrada para ${hora}`);
+        console.log(`     - Usuario: ${reservaInfo.usuarioId}`);
+        console.log(`     - Mi usuario: ${miUsuarioId}`);
+        console.log(`     - Expira en: ${reservaInfo.expira_en.toLocaleTimeString()}`);
         
         // Verificar si ha expirado
-        if (reserva.expira_en <= ahora) {
-            console.log(`🗑️ Reserva expirada eliminada: ${clave}`);
+        if (reservaInfo.expira_en <= ahora) {
+            console.log(`🗑️ Reserva expirada eliminada: ${hora}`);
             solicitudesPendientes.delete(clave);
             return 'disponible';
         }
         
-        // Si es MI reserva, mostrar como "mi-reserva-activa"
-        if (reserva.usuarioId === miUsuarioId) {
+        // Si es MI reserva
+        if (reservaInfo.usuarioId === miUsuarioId) {
             console.log(`⭐ Es MI reserva activa: ${hora}`);
             return 'mi-reserva-activa';
         }
         
-        // Si es de OTRO usuario, mostrar como "reservando"
+        // Si es de OTRO usuario
         console.log(`⏳ Hora ${hora} está siendo reservada por otro usuario`);
         return 'reservando';
     }
     
-    console.log(`✅ Hora ${hora} está disponible (no hay reservas)`);
+    console.log(`✅ Hora ${hora} está disponible`);
     return 'disponible';
 }
 
@@ -2419,22 +2433,34 @@ function iniciarLimpiezaPeriodica() {
             // ============ SISTEMA DE NOTIFICACIONES ============
 
             async function notificarCambioCita(fecha, hora, tipo = 'cita_agendada') {
-                try {
-                    await supabase
-                        .from('notificaciones_cambios')
-                        .insert([{
-                            tipo: tipo,
-                            fecha: fecha,
-                            hora: hora,
-                            usuario_id: miUsuarioId,
-                            creado_en: new Date().toISOString()
-                        }]);
-                        
-                    console.log(`📢 Notificación enviada: ${fecha} ${hora} - ${tipo}`);
-                } catch (error) {
-                    console.error('Error enviando notificación:', error);
-                }
-            }
+    try {
+        await supabase
+            .from('notificaciones_cambios')
+            .insert([{
+                tipo: tipo,
+                fecha: fecha,
+                hora: hora,
+                usuario_id: miUsuarioId,
+                creado_en: new Date().toISOString()
+            }]);
+            
+        console.log(`📢 Notificación enviada: ${fecha} ${hora} - ${tipo}`);
+        
+        // FORZAR sincronización inmediata para otros usuarios
+        if (tipo === 'reservando') {
+            // Enviar notificación push adicional
+            await supabase
+                .channel('reservas-cambios')
+                .send({
+                    type: 'broadcast',
+                    event: 'hora-reservada',
+                    payload: { fecha, hora, usuarioId: miUsuarioId }
+                });
+        }
+    } catch (error) {
+        console.error('Error enviando notificación:', error);
+    }
+}
 
             async function verificarNotificacionesCambios() {
     try {
