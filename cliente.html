@@ -1158,7 +1158,7 @@
             } catch (error) {
                 console.error('Error en polling:', error);
             }
-        }, 1000); // 1 segundo es suficiente
+        }, 2000); // 2 segundos es suficiente
     }
 
 
@@ -1941,44 +1941,66 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
     }
 }
 
-            function determinarEstadoHora(fecha, hora, fechaObj, horaPasada) {
-                if (horaPasada) {
-                    return 'pasado';
+           function determinarEstadoHora(fecha, hora, fechaObj, horaPasada) {
+    if (horaPasada) {
+        return 'pasado';
+    }
+    
+    // Primero verificar en citas futuras (ocupada)
+    const citaExistente = todasLasCitasFuturasCache.some(c => 
+        c.fecha === fecha && c.hora === hora
+    );
+    
+    if (citaExistente) {
+        return 'ocupada';
+    }
+    
+    // VERIFICACIÓN MEJORADA: Buscar en solicitudes pendientes
+    const clave = `${fecha}_${hora}`;
+    const ahora = new Date();
+    
+    if (solicitudesPendientes.has(clave)) {
+        const reserva = solicitudesPendientes.get(clave);
+        
+        // Verificar si ha expirado
+        if (reserva.expira_en <= ahora) {
+            // Eliminar si expiró
+            solicitudesPendientes.delete(clave);
+            return 'disponible';
+        }
+        
+        // Si es MI reserva, mostrar como "mi-reserva-activa"
+        if (reserva.usuarioId === miUsuarioId) {
+            return 'mi-reserva-activa';
+        }
+        
+        // Si es de OTRO usuario, mostrar como "reservando"
+        if (reserva.usuarioId !== miUsuarioId) {
+            return 'reservando';
+        }
+    }
+    
+    return 'disponible';
+}
+
+function iniciarLimpiezaPeriodica() {
+    // Limpiar reservas expiradas cada 10 segundos
+    setInterval(async () => {
+        await limpiarReservasExpiradasGlobalmente();
+        
+        // Limpiar notificaciones procesadas antiguas
+        const limite = Date.now() - 60000; // 1 minuto
+        for (const notif of ultimasNotificacionesProcesadas) {
+            const partes = notif.split('_');
+            if (partes.length > 3) {
+                const timestamp = parseInt(partes[partes.length - 1]);
+                if (timestamp < limite) {
+                    ultimasNotificacionesProcesadas.delete(notif);
                 }
-                
-                // Primero verificar en citas futuras (ocupada)
-                const citaExistente = todasLasCitasFuturasCache.some(c => 
-                    c.fecha === fecha && c.hora === hora
-                );
-                
-                if (citaExistente) {
-                    return 'ocupada';
-                }
-                
-                // VERIFICACIÓN MEJORADA: Buscar en solicitudes pendientes
-                const clave = `${fecha}_${hora}`;
-                if (solicitudesPendientes.has(clave)) {
-                    const reserva = solicitudesPendientes.get(clave);
-                    
-                    // Si es MI reserva, mostrar como "mi-reserva-activa"
-                    if (reserva.usuarioId === miUsuarioId) {
-                        return 'mi-reserva-activa';
-                    }
-                    
-                    // Si es de OTRO usuario, mostrar como "reservando"
-                    if (reserva.usuarioId !== miUsuarioId) {
-                        // Verificar que no haya expirado
-                        if (reserva.expira_en > new Date()) {
-                            return 'reservando';
-                        } else {
-                            // Si expiró, eliminarla del mapa
-                            solicitudesPendientes.delete(clave);
-                        }
-                    }
-                }
-                
-                return 'disponible';
             }
+        }
+    }, 10000);
+}
 
             function configurarBotonPasado(btn, horaStr) {
                 btn.disabled = true;
@@ -3339,6 +3361,52 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         }
     }
 
+    async function limpiarReservasExpiradasGlobalmente() {
+    try {
+        const ahora = new Date();
+        console.log('🌍 Limpiando reservas expiradas globalmente...');
+        
+        // Eliminar de la base de datos
+        const { error } = await supabase
+            .from('solicitudes_temporales')
+            .delete()
+            .lt('expira_en', ahora.toISOString());
+            
+        if (error) {
+            console.error('Error limpiando reservas globales:', error);
+        }
+        
+        // Limpiar mapa local
+        const clavesExpiradas = [];
+        for (const [clave, reserva] of solicitudesPendientes.entries()) {
+            if (reserva.expira_en < ahora) {
+                clavesExpiradas.push(clave);
+            }
+        }
+        
+        clavesExpiradas.forEach(clave => {
+            solicitudesPendientes.delete(clave);
+        });
+        
+        if (clavesExpiradas.length > 0) {
+            console.log(`🧹 Limpiadas ${clavesExpiradas.length} reservas expiradas globalmente`);
+            
+            // Si hay una fecha seleccionada, actualizar UI
+            if (selectedDate) {
+                const fechaActual = formatDate(selectedDate);
+                for (const clave of clavesExpiradas) {
+                    const [fecha, hora] = clave.split('_');
+                    if (fecha === fechaActual) {
+                        await actualizarHoraEspecifica(fecha, hora, 'reserva_expirada');
+                    }
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error en limpieza global:', error);
+    }
+}
     function refrescarContadores() {
         try {
             console.log('🔄 Refrescando contadores de citas...');
@@ -3726,6 +3794,7 @@ function getYucatanTimePlusHours(hours) {
 
             inicializarEmailJS();
             iniciarPollingInteligente();
+            iniciarLimpiezaPeriodica();
 
             setInterval(async () => {
                 try {
