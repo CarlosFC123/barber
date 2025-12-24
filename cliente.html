@@ -1158,7 +1158,7 @@
             } catch (error) {
                 console.error('Error en polling:', error);
             }
-        }, 2000); // 2 segundos es suficiente
+        }, 5000); // 2 segundos es suficiente
     }
 
 
@@ -1175,8 +1175,8 @@ async function sincronizarEstadosHoras() {
         const fechaFormateada = formatDate(selectedDate);
         const ahora = Date.now();
         
-        // Solo sincronizar si han pasado al menos 1 segundo
-        if (ahora - ultimaSincronizacionHoras < 1000) {
+        // Solo sincronizar si han pasado al menos 3 segundos
+        if (ahora - ultimaSincronizacionHoras < 3000) {
             return;
         }
         
@@ -1187,26 +1187,126 @@ async function sincronizarEstadosHoras() {
         // 1. Obtener citas actualizadas
         await precargarCitasFuturas();
         
-        // 2. Obtener solicitudes pendientes (FORZAR limpieza de expiradas)
-        await obtenerSolicitudesPendientes(true); // Pasar true para forzar
+        // 2. Obtener solicitudes pendientes
+        await obtenerSolicitudesPendientes(true);
         
         // 3. Verificar notificaciones
         await verificarNotificacionesCambios();
         
-        // 4. Actualizar UI
-        await generateHoras(selectedDate);
+        // 4. NO regenerar horas, solo actualizar estados existentes
+        await actualizarEstadosHorasExistentes(fechaFormateada);
         
         // 5. Limpiar caché viejo
         limpiarCacheExpirado();
-        
-        // 6. Limpiar intervalos de botones que ya no existen
-        limpiarIntervalosInactivos();
         
     } catch (error) {
         console.error('❌ Error sincronizando estados:', error);
     }
 }
 
+// Nueva función para actualizar solo estados
+async function actualizarEstadosHorasExistentes(fecha) {
+    const horasGrid = document.getElementById('horasGrid');
+    if (!horasGrid) return;
+    
+    const botones = horasGrid.querySelectorAll('.hora-btn');
+    console.log(`🔄 Actualizando ${botones.length} botones existentes`);
+    
+    for (const btn of botones) {
+        const horaStr = btn.dataset.hora;
+        const fechaStr = btn.dataset.fecha;
+        
+        if (fechaStr !== fecha) continue;
+        
+        const ahora = new Date();
+        const esHoy = selectedDate && selectedDate.toDateString() === ahora.toDateString();
+        const horaActual = ahora.getHours();
+        const minutosActual = ahora.getMinutes();
+        
+        const [h, m] = horaStr.split(':').map(Number);
+        const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
+        
+        const estado = determinarEstadoHora(fecha, horaStr, selectedDate, horaPasada);
+        
+        // Solo actualizar si el estado cambió
+        const estadoActual = btn.classList.contains('ocupada') ? 'ocupada' :
+                            btn.classList.contains('reservando') ? 'reservando' :
+                            btn.classList.contains('mi-reserva-activa') ? 'mi-reserva-activa' :
+                            btn.disabled ? 'pasado' : 'disponible';
+        
+        if (estado !== estadoActual) {
+            console.log(`🔄 Cambiando estado de ${horaStr}: ${estadoActual} -> ${estado}`);
+            
+            // Limpiar clases anteriores
+            btn.className = 'hora-btn';
+            
+            switch (estado) {
+                case 'pasado':
+                    configurarBotonPasado(btn, horaStr);
+                    break;
+                case 'ocupada':
+                    configurarBotonOcupada(btn, horaStr);
+                    break;
+                case 'reservando':
+                    mostrarEstadoReservando(btn, horaStr, fecha);
+                    break;
+                case 'mi-reserva-activa':
+                    btn.disabled = true;
+                    btn.classList.add('mi-reserva-activa');
+                    btn.innerHTML = `${horaStr}<br><small style="font-size: 10px; color: #90EE90;">⭐ Tu reserva</small>`;
+                    break;
+                case 'disponible':
+                    configurarBotonDisponible(btn, horaStr, fecha);
+                    break;
+            }
+        }
+    }
+}
+
+// Agrega esta función para depuración
+async function testSistemaReservas() {
+    console.log('🧪 === TEST SISTEMA DE RESERVAS ===');
+    
+    // 1. Verificar autenticación
+    console.log('1. ✅ Usuario autenticado:', miUsuarioId);
+    
+    // 2. Verificar fecha seleccionada
+    if (!selectedDate) {
+        console.log('❌ No hay fecha seleccionada');
+        return;
+    }
+    
+    const fecha = formatDate(selectedDate);
+    console.log('2. ✅ Fecha seleccionada:', fecha);
+    
+    // 3. Verificar calendario habilitado
+    console.log('3. ✅ Calendario habilitado:', calendarioHabilitado);
+    
+    // 4. Forzar sincronización
+    console.log('4. 🔄 Forzando sincronización...');
+    await obtenerSolicitudesPendientes(true);
+    
+    // 5. Mostrar estado actual
+    console.log('5. 📊 Estado actual:');
+    console.log(`   - Reservas en memoria: ${solicitudesPendientes.size}`);
+    console.log(`   - reservaActiva: ${reservaActiva ? 'Sí' : 'No'}`);
+    
+    // 6. Forzar generación de horas
+    console.log('6. 🔄 Forzando generación de horas...');
+    await generateHoras(selectedDate);
+}
+
+// Agrega un botón de prueba
+const testBtn2 = document.createElement('button');
+testBtn2.textContent = '🧪 Test Sistema';
+testBtn2.style.cssText = 'margin-left: 10px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;';
+testBtn2.onclick = testSistemaReservas;
+
+// Agregar al header
+const userInfo = document.querySelector('.user-info');
+if (userInfo) {
+    userInfo.appendChild(testBtn2);
+}
 function limpiarIntervalosInactivos() {
     // Limpiar intervalos de botones que ya no están en el DOM
     document.querySelectorAll('.hora-btn').forEach(btn => {
@@ -1527,6 +1627,10 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             inicio: Date.now(),
             timeoutId: null
         };
+
+        console.log(`🎯 reservaActiva establecida: ${fechaStr} ${horaStr}`);
+        actualizarCacheLocal(fechaStr, horaStr, 'mi-reserva-activa', miUsuarioId);
+
         
         // 6. Guardar selección
         const horaInput = document.getElementById('hora');
@@ -1845,93 +1949,116 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             // ============ GENERACIÓN DE HORAS MEJORADA ============
 
             async function generateHoras(selectedDateObj) {
-                console.log('=== GENERATE HORAS INICIADO ===');
-                console.log('selectedDate:', selectedDateObj);
-                console.log('calendarioHabilitado:', calendarioHabilitado);
-                console.log('barberoFijo:', barberoFijo);
+    console.log('=== GENERATE HORAS INICIADO ===');
+    console.log('selectedDate:', selectedDateObj);
+    console.log('calendarioHabilitado:', calendarioHabilitado);
+    console.log('barberoFijo:', barberoFijo);
+    console.log(`📊 Total reservas en memoria: ${solicitudesPendientes.size}`);
+    
+    // Mostrar todas las reservas actuales para depuración
+    console.log('📋 Reservas actuales:');
+    for (const [clave, reserva] of solicitudesPendientes.entries()) {
+        console.log(`   - ${clave}: usuario=${reserva.usuarioId}, expira=${reserva.expira_en.toLocaleTimeString()}`);
+    }
+    
+    const horasGrid = document.getElementById('horasGrid');
+    if (!horasGrid) {
+        console.log('❌ horasGrid no encontrado');
+        return;
+    }
+    
+    horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
+
+    // Generar lista de horas
+    const horas = generarHorasDisponibles();
+    
+    try {
+        const fechaFormateada = formatDate(selectedDateObj);
+        const now = new Date();
+        const esHoy = selectedDateObj.toDateString() === now.toDateString();
+        const horaActual = now.getHours();
+        const minutosActual = now.getMinutes();
         
-                const horasGrid = document.getElementById('horasGrid');
-                if (!horasGrid) {
-                    console.log('❌ horasGrid no encontrado');
-                    return;
-                }
-                
-                horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
+        console.log(`📅 Generando horas para: ${fechaFormateada}`);
+        console.log(`🕐 Es hoy? ${esHoy}, Hora actual: ${horaActual}:${minutosActual}`);
+        
+        horasGrid.innerHTML = '';
+        let horasDisponibles = 0;
 
-                // Generar lista de horas
-                const horas = generarHorasDisponibles();
-                
-                try {
-                    const fechaFormateada = formatDate(selectedDateObj);
-                    const now = new Date();
-                    const esHoy = selectedDateObj.toDateString() === now.toDateString();
-                    const horaActual = now.getHours();
-                    const minutosActual = now.getMinutes();
-
-                    console.log(`📅 Generando horas para: ${fechaFormateada}`);
-                    console.log(`🕐 Es hoy? ${esHoy}, Hora actual: ${horaActual}:${minutosActual}`);
+        horas.forEach(({ hora: h, minutos: m }) => {
+            const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'hora-btn';
+            btn.dataset.hora = horaStr;
+            btn.dataset.fecha = fechaFormateada;
+            
+            const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
+            
+            // Determinar estado de la hora
+            const estado = determinarEstadoHora(fechaFormateada, horaStr, selectedDateObj, horaPasada);
+            
+            console.log(`⏰ Hora ${horaStr}: estado = ${estado}, horaPasada = ${horaPasada}`);
+            
+            switch (estado) {
+                case 'pasado':
+                    configurarBotonPasado(btn, horaStr);
+                    break;
                     
-                    horasGrid.innerHTML = '';
-                    let horasDisponibles = 0;
-
-                    horas.forEach(({ hora: h, minutos: m }) => {
-                        const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'hora-btn';
-                        btn.dataset.hora = horaStr;
-                        btn.dataset.fecha = fechaFormateada;
-                        
-                        const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
-                        
-                        // Determinar estado de la hora
-                        const estado = determinarEstadoHora(fechaFormateada, horaStr, selectedDateObj, horaPasada);
-                        
-                        console.log(`⏰ Hora ${horaStr}: estado = ${estado}, horaPasada = ${horaPasada}`);
-
-                        switch (estado) {
-                            case 'pasado':
-                                configurarBotonPasado(btn, horaStr);
-                                break;
-                                
-                            case 'ocupada':
-                                configurarBotonOcupada(btn, horaStr);
-                                break;
-                                
-                            case 'reservando':
-                                mostrarEstadoReservando(btn, horaStr, fechaFormateada);
-                                break;
-                                
-                            case 'mi-reserva-activa':
-                            if (reservaActiva && reservaActiva.fecha === fechaFormateada && reservaActiva.hora === horaStr) {
-                                const tiempoTranscurrido = Date.now() - reservaActiva.inicio;
-                                const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
-                                const segundos = Math.ceil(tiempoRestante / 1000);
-                                actualizarUIReservaActiva(btn, horaStr, segundos);
-                            }
-                            break;
-                                                    
-                            case 'disponible':
-                                configurarBotonDisponible(btn, horaStr, fechaFormateada);
-                                horasDisponibles++;
-                                break;
-                        }
-                        
-                        horasGrid.appendChild(btn);
-                    });
-
-                    actualizarEstadoAgendamiento(horasDisponibles);
-                    debugUIHoras();
-                     setTimeout(() => {
-                        console.log('🎯 Verificando reservas después de generar horas...');
-                        verificarYMostrarReservasActivas(fechaFormateada);
-                    }, 200);
+                case 'ocupada':
+                    configurarBotonOcupada(btn, horaStr);
+                    break;
                     
-                } catch (error) {
-                    console.error('❌ Error generando horas:', error);
-                    horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
-                }
+                case 'reservando':
+                    mostrarEstadoReservando(btn, horaStr, fechaFormateada);
+                    break;
+                    
+                case 'mi-reserva-activa':
+                    if (reservaActiva && reservaActiva.fecha === fechaFormateada && reservaActiva.hora === horaStr) {
+                        const tiempoTranscurrido = Date.now() - reservaActiva.inicio;
+                        const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
+                        const segundos = Math.ceil(tiempoRestante / 1000);
+                        actualizarUIReservaActiva(btn, horaStr, segundos);
+                    } else {
+                        // Mostrar como reserva existente (no activa en este momento)
+                        btn.disabled = true;
+                        btn.classList.add('mi-reserva-activa');
+                        btn.innerHTML = `
+                            ${horaStr}
+                            <br>
+                            <small style="font-size: 10px; color: #90EE90;">
+                                ⭐ Tu reserva
+                            </small>
+                        `;
+                        btn.title = 'Ya tienes esta hora reservada';
+                    }
+                    break;
+                                
+                case 'disponible':
+                    configurarBotonDisponible(btn, horaStr, fechaFormateada);
+                    horasDisponibles++;
+                    break;
             }
+            
+            horasGrid.appendChild(btn);
+        });
+
+        actualizarEstadoAgendamiento(horasDisponibles);
+        
+        // Depurar la UI generada
+        debugUIHoras();
+
+        // Forzar verificación de reservas después de un pequeño delay
+        setTimeout(() => {
+            console.log('🎯 Verificando y mostrando reservas activas...');
+            verificarYMostrarReservasActivas(fechaFormateada);
+        }, 200);
+        
+    } catch (error) {
+        console.error('❌ Error generando horas:', error);
+        horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
+    }
+}
 
 
             function verificarYMostrarReservasActivas(fecha) {
@@ -1983,27 +2110,40 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
     const clave = `${fecha}_${hora}`;
     const ahora = new Date();
     
+    console.log(`🔍 Verificando reserva para ${clave}`);
+    console.log(`   - Solicitudes pendientes tiene clave? ${solicitudesPendientes.has(clave)}`);
+    console.log(`   - Total reservas en memoria: ${solicitudesPendientes.size}`);
+    
     if (solicitudesPendientes.has(clave)) {
         const reserva = solicitudesPendientes.get(clave);
         
+        console.log(`   - Reserva encontrada:`, reserva);
+        console.log(`   - Usuario: ${reserva.usuarioId}`);
+        console.log(`   - Mi usuario: ${miUsuarioId}`);
+        console.log(`   - Es mi reserva? ${reserva.usuarioId === miUsuarioId}`);
+        console.log(`   - Expira en: ${reserva.expira_en.toLocaleString()}`);
+        console.log(`   - Hora actual: ${ahora.toLocaleString()}`);
+        console.log(`   - Ya expiró? ${reserva.expira_en <= ahora}`);
+        
         // Verificar si ha expirado
         if (reserva.expira_en <= ahora) {
-            // Eliminar si expiró
+            console.log(`🗑️ Reserva expirada eliminada: ${clave}`);
             solicitudesPendientes.delete(clave);
             return 'disponible';
         }
         
         // Si es MI reserva, mostrar como "mi-reserva-activa"
         if (reserva.usuarioId === miUsuarioId) {
+            console.log(`⭐ Es MI reserva activa: ${hora}`);
             return 'mi-reserva-activa';
         }
         
         // Si es de OTRO usuario, mostrar como "reservando"
-        if (reserva.usuarioId !== miUsuarioId) {
-            return 'reservando';
-        }
+        console.log(`⏳ Hora ${hora} está siendo reservada por otro usuario`);
+        return 'reservando';
     }
     
+    console.log(`✅ Hora ${hora} está disponible (no hay reservas)`);
     return 'disponible';
 }
 
@@ -2125,12 +2265,33 @@ function iniciarLimpiezaPeriodica() {
 }
 
             function configurarBotonDisponible(btn, horaStr, fecha) {
-                btn.onclick = async () => {
-                    await reservarHoraTemporalmente(horaStr, fecha, btn);
-                };
-                btn.title = 'Hora disponible';
-                btn.textContent = horaStr;
-            }
+    const clave = `${fecha}_${horaStr}`;
+    
+    // Verificar si esta hora ya está reservada por mí
+    if (solicitudesPendientes.has(clave)) {
+        const reserva = solicitudesPendientes.get(clave);
+        if (reserva.usuarioId === miUsuarioId) {
+            // Ya es mi reserva, no permitir clic
+            btn.disabled = true;
+            btn.classList.add('mi-reserva-activa');
+            btn.innerHTML = `
+                ${horaStr}
+                <br>
+                <small style="font-size: 10px; color: #90EE90;">
+                    ⭐ Tu reserva
+                </small>
+            `;
+            btn.title = 'Ya tienes esta hora reservada';
+            return;
+        }
+    }
+    
+    btn.onclick = async () => {
+        await reservarHoraTemporalmente(horaStr, fecha, btn);
+    };
+    btn.title = 'Hora disponible';
+    btn.textContent = horaStr;
+}
 
             function generarHorasDisponibles() {
                 const horas = [];
