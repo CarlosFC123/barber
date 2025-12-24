@@ -735,18 +735,29 @@
         cursor: not-allowed;
     }
 
-    .hora-btn.reservando {
+.hora-btn.reservando {
     background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%) !important;
     border-color: #A0522D !important;
     color: white !important;
     cursor: not-allowed !important;
     opacity: 0.9 !important;
-    animation: pulse-marron 2s infinite !important;
     pointer-events: none !important;
+    /* Quitar animación de parpadeo */
+    animation: none !important;
+    /* Transición suave para cambios de estado */
+    transition: all 0.3s ease !important;
 }
 
+.hora-btn.reservando small {
+    /* Animación sutil solo para el texto */
+    animation: subtle-pulse 3s infinite !important;
+}
 
-
+@keyframes subtle-pulse {
+    0% { opacity: 0.8; }
+    50% { opacity: 1; }
+    100% { opacity: 0.8; }
+}
     .hora-btn.reservando:hover {
     transform: none !important;
     box-shadow: 0 0 10px rgba(139, 69, 19, 0.7) !important;
@@ -1151,47 +1162,61 @@
     }
 
 
-        async function sincronizarEstadosHoras() {
-        // NO sincronizar si hay una reserva activa
-        if (reservaActiva) {
-            console.log('⏸️ Saltando sincronización durante reserva activa');
+async function sincronizarEstadosHoras() {
+    // NO sincronizar si hay una reserva activa
+    if (reservaActiva) {
+        console.log('⏸️ Saltando sincronización durante reserva activa');
+        return;
+    }
+    
+    try {
+        if (!selectedDate || !barberoFijo) return;
+        
+        const fechaFormateada = formatDate(selectedDate);
+        const ahora = Date.now();
+        
+        // Solo sincronizar si han pasado al menos 1 segundo
+        if (ahora - ultimaSincronizacionHoras < 1000) {
             return;
         }
         
-        try {
-            if (!selectedDate || !barberoFijo) return;
-            
-            const fechaFormateada = formatDate(selectedDate);
-            const ahora = Date.now();
-            
-            // Solo sincronizar si han pasado al menos 500ms
-            if (ahora - ultimaSincronizacionHoras < 500) {
-                return;
-            }
-            
-            ultimaSincronizacionHoras = ahora;
-            
-            console.log(`🔄 Sincronizando estado de horas para: ${fechaFormateada}`);
-            
-            // 1. Obtener citas actualizadas (FORZAR actualización)
-            await precargarCitasFuturas();
-            
-            // 2. Obtener solicitudes pendientes (FORZAR actualización)
-            await obtenerSolicitudesPendientes();
-            
-            // 3. Verificar notificaciones de cambios
-            await verificarNotificacionesCambios();
-            
-            // 4. Forzar actualización completa de UI
-            await generateHoras(selectedDate);
-            
-            // 5. Limpiar caché viejo
-            limpiarCacheExpirado();
-            
-        } catch (error) {
-            console.error('❌ Error sincronizando estados:', error);
-        }
+        ultimaSincronizacionHoras = ahora;
+        
+        console.log(`🔄 Sincronizando estado de horas para: ${fechaFormateada}`);
+        
+        // 1. Obtener citas actualizadas
+        await precargarCitasFuturas();
+        
+        // 2. Obtener solicitudes pendientes (FORZAR limpieza de expiradas)
+        await obtenerSolicitudesPendientes(true); // Pasar true para forzar
+        
+        // 3. Verificar notificaciones
+        await verificarNotificacionesCambios();
+        
+        // 4. Actualizar UI
+        await generateHoras(selectedDate);
+        
+        // 5. Limpiar caché viejo
+        limpiarCacheExpirado();
+        
+        // 6. Limpiar intervalos de botones que ya no existen
+        limpiarIntervalosInactivos();
+        
+    } catch (error) {
+        console.error('❌ Error sincronizando estados:', error);
     }
+}
+
+function limpiarIntervalosInactivos() {
+    // Limpiar intervalos de botones que ya no están en el DOM
+    document.querySelectorAll('.hora-btn').forEach(btn => {
+        if (!btn.isConnected && btn.dataset.intervaloContador) {
+            clearInterval(btn.dataset.intervaloContador);
+            delete btn.dataset.intervaloContador;
+        }
+    });
+}
+
 function limpiarReservasExpiradas() {
     const ahora = new Date();
     const clavesAEliminar = [];
@@ -1224,27 +1249,36 @@ function limpiarReservasExpiradas() {
     }
 }
 
-           async function obtenerSolicitudesPendientes() {
+           async function obtenerSolicitudesPendientes(forzar = false) {
     try {
         console.log('🔄 Obteniendo solicitudes pendientes...');
         
-        // Obtener hora actual UTC para comparación
-        const ahoraUTC = new Date().toISOString();
-        console.log('   - Hora actual (UTC):', ahoraUTC);
+        const ahoraUTC = new Date();
+        console.log('   - Hora actual (UTC):', ahoraUTC.toISOString());
         
+        // PRIMERO: Eliminar solicitudes expiradas directamente
+        const { error: deleteError } = await supabase
+            .from('solicitudes_temporales')
+            .delete()
+            .lt('expira_en', ahoraUTC.toISOString());
+            
+        if (deleteError) {
+            console.error('❌ Error eliminando solicitudes expiradas:', deleteError);
+        }
+        
+        // LUEGO: Obtener las que quedan
         const { data: solicitudes, error } = await supabase
             .from('solicitudes_temporales')
-            .select('*')
-            .gte('expira_en', ahoraUTC); // Usar hora UTC para comparar
+            .select('*');
             
         if (error) {
             console.error('❌ Error obteniendo solicitudes:', error);
             return;
         }
         
-        console.log(`📊 Solicitudes encontradas en BD (no expiradas): ${solicitudes?.length || 0}`);
+        console.log(`📊 Solicitudes activas en BD: ${solicitudes?.length || 0}`);
         
-        // Limpiar todas las locales primero
+        // Limpiar mapa local
         solicitudesPendientes.clear();
         
         // Actualizar mapa local con datos frescos
@@ -1252,27 +1286,20 @@ function limpiarReservasExpiradas() {
             solicitudes.forEach((sol, index) => {
                 const clave = `${sol.fecha}_${sol.hora}`;
                 const expiraEn = new Date(sol.expira_en);
-                const creadoEn = new Date(sol.creado_en);
                 
-                // Convertir a hora local para el mapa
-                const expiraEnLocal = new Date(expiraEn);
-                
-                solicitudesPendientes.set(clave, {
-                    usuarioId: sol.usuario_id,
-                    timestamp: creadoEn,
-                    expira_en: expiraEnLocal,
-                    esMiReserva: sol.usuario_id === miUsuarioId
-                });
-                
-                console.log(`${index + 1}. ${clave} - Usuario: ${sol.usuario_id} ${sol.usuario_id === miUsuarioId ? '(MI RESERVA)' : '(OTRO USUARIO)'} - Expira UTC: ${sol.expira_en}`);
-                
-                // Actualizar caché local
-                actualizarCacheLocal(
-                    sol.fecha, 
-                    sol.hora, 
-                    sol.usuario_id === miUsuarioId ? 'mi-reserva-activa' : 'reservando', 
-                    sol.usuario_id
-                );
+                // Solo agregar si no ha expirado (doble verificación)
+                if (expiraEn > ahoraUTC) {
+                    solicitudesPendientes.set(clave, {
+                        usuarioId: sol.usuario_id,
+                        timestamp: new Date(sol.creado_en),
+                        expira_en: expiraEn,
+                        esMiReserva: sol.usuario_id === miUsuarioId
+                    });
+                    
+                    console.log(`${index + 1}. ${clave} - Usuario: ${sol.usuario_id} ${sol.usuario_id === miUsuarioId ? '(MI RESERVA)' : '(OTRO USUARIO)'} - Expira: ${sol.expira_en}`);
+                } else {
+                    console.log(`${index + 1}. ${clave} - EXPIRADA (omitida)`);
+                }
             });
         }
         
@@ -1282,7 +1309,6 @@ function limpiarReservasExpiradas() {
         console.error('❌ Error obteniendo solicitudes:', error);
     }
 }
-
 async function debugSolicitudesTemporales() {
     try {
         console.log('=== DEBUG SOLICITUDES TEMPORALES ===');
@@ -1334,29 +1360,29 @@ if (header) {
 
 function mostrarEstadoReservandoEnUI(fecha, hora) {
     try {
-        // Buscar el botón en la UI
         const horaSinSegundos = hora.includes(':') ? hora.split(':').slice(0, 2).join(':') : hora;
         
-        console.log(`🔍 Buscando botón: ${fecha} ${horaSinSegundos} (original: ${hora})`);
+        console.log(`🔍 Mostrando RESERVANDO: ${fecha} ${horaSinSegundos}`);
         
-        // Buscar el botón en la UI (SIN segundos)
         const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaSinSegundos}"]`);
         
         if (!horaBtn) {
-            console.log(`⚠️ Botón no encontrado para ${fecha} ${horaSinSegundos}`);
-            
-            // Intentar buscar de otra forma
+            // Intentar buscar sin formato específico
             const todosBotones = document.querySelectorAll('.hora-btn');
-            console.log(`🔍 Botones disponibles: ${todosBotones.length}`);
-            
-            todosBotones.forEach((btn, index) => {
-                console.log(`${index + 1}. ${btn.dataset.fecha} ${btn.dataset.hora}`);
-            });
-            
-            return;
+            for (const btn of todosBotones) {
+                const btnFecha = btn.dataset.fecha;
+                const btnHora = btn.dataset.hora;
+                if (btnFecha === fecha && btnHora === horaSinSegundos) {
+                    horaBtn = btn;
+                    break;
+                }
+            }
+            if (!horaBtn) {
+                console.log(`⚠️ Botón no encontrado: ${fecha} ${horaSinSegundos}`);
+                return;
+            }
         }
         
-        // Verificar si es MI reserva
         const clave = `${fecha}_${hora}`;
         const reservaInfo = solicitudesPendientes.get(clave);
         
@@ -1369,60 +1395,44 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
         
         if (esMiReserva) {
             console.log(`✅ Es MI reserva: ${fecha} ${hora}`);
-            // Ya está manejado por actualizarUIReservaActiva
             return;
         }
         
-        console.log(`🔄 Mostrando estado RESERVANDO para: ${fecha} ${hora}`);
-        
-        // Configurar como reservando
-        horaBtn.disabled = true;
-        horaBtn.classList.add('reservando');
-        horaBtn.classList.remove('selected', 'mi-reserva-activa');
-        
-        const ahora = new Date();
-        const tiempoRestante = reservaInfo.expira_en - ahora;
-        const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
-        
-        horaBtn.innerHTML = `
-            ${hora}
-            <br>
-            <small style="font-size: 10px; background: rgba(139, 69, 19, 0.3); padding: 2px 6px; border-radius: 4px; color: #ffa500;">
-                ⏳ ${segundos}s
-            </small>
-        `;
+        console.log(`🔄 Configurando botón como RESERVANDO POR OTRO USUARIO: ${fecha} ${hora}`);
         
         // Limpiar intervalo anterior si existe
         if (horaBtn.dataset.intervaloContador) {
             clearInterval(horaBtn.dataset.intervaloContador);
+            delete horaBtn.dataset.intervaloContador;
         }
         
-        // Configurar contador descendente
+        // Configurar clase y contenido SIN contador descendente
+        horaBtn.disabled = true;
+        horaBtn.classList.add('reservando');
+        horaBtn.classList.remove('selected', 'mi-reserva-activa');
+        
+        horaBtn.innerHTML = `
+            ${horaSinSegundos}
+            <br>
+            <small style="font-size: 10px; color: #ffa500; background: rgba(139, 69, 19, 0.3); padding: 2px 6px; border-radius: 4px; margin-top: 3px; display: inline-block;">
+                ⏳ Reservando por otro usuario
+            </small>
+        `;
+        
+        // En lugar de actualizar segundos, verificamos expiración cada 5 segundos
         const intervalo = setInterval(() => {
-            const ahora = new Date();
-            const tiempoRestante = reservaInfo.expira_en - ahora;
-            const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
-            
-            if (horaBtn.querySelector('small')) {
-                horaBtn.querySelector('small').textContent = `⏳ ${segundos}s`;
-                
-                if (segundos <= 10) {
-                    horaBtn.querySelector('small').style.background = 'rgba(255, 0, 0, 0.3)';
-                    horaBtn.querySelector('small').style.color = '#ff6b6b';
-                } else if (segundos <= 20) {
-                    horaBtn.querySelector('small').style.background = 'rgba(255, 165, 0, 0.3)';
-                    horaBtn.querySelector('small').style.color = '#ffa500';
-                }
-                
-                if (segundos === 0) {
-                    clearInterval(intervalo);
-                    setTimeout(() => {
-                        // Cuando expire, verificar si sigue reservada
-                        sincronizarEstadosHoras();
-                    }, 500);
-                }
+            if (!horaBtn.isConnected) {
+                clearInterval(intervalo);
+                return;
             }
-        }, 1000);
+            
+            const ahora = new Date();
+            if (reservaInfo.expira_en <= ahora) {
+                clearInterval(intervalo);
+                // Forzar actualización
+                sincronizarEstadosHoras();
+            }
+        }, 5000); // Verificar cada 5 segundos
         
         horaBtn.dataset.intervaloContador = intervalo;
         
@@ -1991,63 +2001,60 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             }
 
             function configurarBotonReservando(btn, horaStr, fecha) {
-                btn.disabled = true;
-                btn.classList.add('reservando');
-                
-                const reservaInfo = solicitudesPendientes.get(`${fecha}_${horaStr}`);
-                if (reservaInfo && reservaInfo.expira_en) {
-                    const ahora = new Date();
-                    const tiempoRestante = reservaInfo.expira_en - ahora;
-                    const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
-                    
-                    btn.innerHTML = `
-                        ${horaStr}
-                        <br>
-                        <small style="font-size: 10px; background: rgba(255, 165, 0, 0.3); padding: 2px 6px; border-radius: 4px; color: #ffa500;">
-                            ⏳ ${segundos}s
-                        </small>
-                    `;
-                    
-                    // Actualizar contador
-                    if (btn.dataset.intervaloContador) {
-                        clearInterval(btn.dataset.intervaloContador);
-                    }
-                    
-                    const intervalo = setInterval(() => {
-                        const ahora = new Date();
-                        const tiempoRestante = reservaInfo.expira_en - ahora;
-                        const segundos = Math.max(0, Math.ceil(tiempoRestante / 1000));
-                        
-                        if (btn.querySelector('small')) {
-                            btn.querySelector('small').textContent = `⏳ ${segundos}s`;
-                            
-                            if (segundos <= 10) {
-                                btn.querySelector('small').style.background = 'rgba(255, 0, 0, 0.3)';
-                                btn.querySelector('small').style.color = '#ff6b6b';
-                            }
-                            
-                            if (segundos === 0) {
-                                clearInterval(intervalo);
-                                setTimeout(() => {
-                                    sincronizarEstadosHoras();
-                                }, 500);
-                            }
-                        }
-                    }, 1000);
-                    
-                    btn.dataset.intervaloContador = intervalo;
-                } else {
-                    btn.innerHTML = `
-                        ${horaStr}
-                        <br>
-                        <small style="font-size: 10px; color: #ffa500;">
-                            ⏳ Reservando...
-                        </small>
-                    `;
-                }
-                
-                btn.title = 'Hora siendo reservada por otro usuario';
-            }
+    const horaSinSegundos = horaStr.includes(':') ? horaStr.split(':').slice(0, 2).join(':') : horaStr;
+    const clave = `${fecha}_${horaStr}`;
+    const reservaInfo = solicitudesPendientes.get(clave);
+    
+    if (!reservaInfo) {
+        btn.disabled = true;
+        btn.classList.add('reservando');
+        btn.innerHTML = `
+            ${horaSinSegundos}
+            <br>
+            <small style="font-size: 10px; color: #ffa500;">
+                ⏳ Reservando...
+            </small>
+        `;
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.classList.add('reservando');
+    btn.classList.remove('selected', 'mi-reserva-activa');
+    
+    // Mostrar texto fijo sin contador descendente
+    const esMiReserva = reservaInfo.usuarioId === miUsuarioId;
+    
+    if (esMiReserva) {
+        // Esto debería manejarse en otra función
+        return;
+    }
+    
+    btn.innerHTML = `
+        ${horaSinSegundos}
+        <br>
+        <small style="font-size: 10px; color: #ffa500; background: rgba(139, 69, 19, 0.3); padding: 2px 6px; border-radius: 4px; margin-top: 3px; display: inline-block;">
+            ⏳ Reservando por otro usuario
+        </small>
+    `;
+    
+    // Limpiar intervalo anterior
+    if (btn.dataset.intervaloContador) {
+        clearInterval(btn.dataset.intervaloContador);
+    }
+    
+    // Solo verificar expiración periódicamente
+    const intervalo = setInterval(() => {
+        const ahora = new Date();
+        if (reservaInfo.expira_en <= ahora) {
+            clearInterval(intervalo);
+            sincronizarEstadosHoras();
+        }
+    }, 5000);
+    
+    btn.dataset.intervaloContador = intervalo;
+    btn.title = 'Hora siendo reservada por otro usuario';
+}
 
             function configurarBotonDisponible(btn, horaStr, fecha) {
                 btn.onclick = async () => {
