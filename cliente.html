@@ -1351,44 +1351,32 @@ function limpiarReservasExpiradas() {
 
            async function obtenerSolicitudesPendientes(forzar = false) {
     try {
-        console.log('🔄 Obteniendo solicitudes pendientes...');
+        console.log('🔄 OBTENIENDO SOLICITUDES DESDE BD...');
         
-        const ahoraUTC = new Date();
-        console.log('   - Hora actual (UTC):', ahoraUTC.toISOString());
-        
-        // PRIMERO: Eliminar solicitudes expiradas directamente
-        const { error: deleteError } = await supabase
-            .from('solicitudes_temporales')
-            .delete()
-            .lt('expira_en', ahoraUTC.toISOString());
-            
-        if (deleteError) {
-            console.error('❌ Error eliminando solicitudes expiradas:', deleteError);
-        }
-        
-        // LUEGO: Obtener las que quedan
+        const ahora = new Date();
         const { data: solicitudes, error } = await supabase
             .from('solicitudes_temporales')
             .select('*');
             
         if (error) {
-            console.error('❌ Error obteniendo solicitudes:', error);
+            console.error('❌ ERROR BD:', error);
             return;
         }
         
-        console.log(`📊 Solicitudes activas en BD: ${solicitudes?.length || 0}`);
+        console.log(`📊 TOTAL EN BD: ${solicitudes?.length || 0}`);
         
-        // Limpiar mapa local
+        // Limpiar el mapa local
         solicitudesPendientes.clear();
         
-        // Actualizar mapa local con datos frescos
         if (solicitudes) {
             solicitudes.forEach((sol, index) => {
-                const clave = `${sol.fecha}_${sol.hora}`;
                 const expiraEn = new Date(sol.expira_en);
+                const ahora = new Date();
                 
-                // Solo agregar si no ha expirado (doble verificación)
-                if (expiraEn > ahoraUTC) {
+                const clave = `${sol.fecha}_${sol.hora}`;
+                
+                // Solo agregar si no ha expirado
+                if (expiraEn > ahora) {
                     solicitudesPendientes.set(clave, {
                         usuarioId: sol.usuario_id,
                         timestamp: new Date(sol.creado_en),
@@ -1396,9 +1384,16 @@ function limpiarReservasExpiradas() {
                         esMiReserva: sol.usuario_id === miUsuarioId
                     });
                     
-                    console.log(`${index + 1}. ${clave} - Usuario: ${sol.usuario_id} ${sol.usuario_id === miUsuarioId ? '(MI RESERVA)' : '(OTRO USUARIO)'} - Expira: ${sol.expira_en}`);
+                    console.log(`${index + 1}. ${clave} - Usuario: ${sol.usuario_id} ${sol.usuario_id === miUsuarioId ? '⭐' : '👤'}`);
                 } else {
-                    console.log(`${index + 1}. ${clave} - EXPIRADA (omitida)`);
+                    // Si está expirada, eliminarla de la BD
+                    supabase
+                        .from('solicitudes_temporales')
+                        .delete()
+                        .eq('id', sol.id)
+                        .then(() => {
+                            console.log(`🧹 Eliminada solicitud expirada: ${clave}`);
+                        });
                 }
             });
         }
