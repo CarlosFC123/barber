@@ -3270,7 +3270,7 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
 }
 
 
-           async function agendarCita(e) {
+async function agendarCita(e) {
     if (e) e.preventDefault();
     
     const servicioInput = document.getElementById('servicio');
@@ -3291,11 +3291,13 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
     const fechaFormateada = formatDate(selectedDate);
     
     try {
+        // Verificar que tenemos una reserva activa para esta hora
         if (!reservaActiva || reservaActiva.fecha !== fechaFormateada || reservaActiva.hora !== hora) {
-            showAlert('Por favor, selecciona una hora primero', 'error');
+            showAlert('Por favor, selecciona una hora primero (haz clic en una hora disponible)', 'error');
             return;
         }
 
+        // Verificación en caché
         const citaExistenteCache = todasLasCitasFuturasCache.some(cita => 
             cita.fecha === fechaFormateada && cita.hora === hora
         );
@@ -3307,7 +3309,7 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
             return;
         }
 
-        // Verificación final
+        // Verificación final en BD
         const { data: verificacionFinal } = await supabase
             .from('citas')
             .select('id')
@@ -3318,14 +3320,15 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
             .maybeSingle();
             
         if (verificacionFinal) {
-            showAlert('❌ Esta hora ya fue tomada. Por favor selecciona otra.', 'error');
+            showAlert('❌ Esta hora ya fue tomada por otro usuario. Por favor selecciona otra.', 'error');
             await cancelarReservaAnterior();
             await generateHoras(selectedDate);
             return;
         }
 
-        // IMPORTANTE: Ya no necesitamos calcular expira_en aquí
-        // El trigger solo lo calculará cuando la cita se cancele o complete
+        console.log('✅ Creando cita en la base de datos...');
+
+        // IMPORTANTE: Crear la cita con estado 'aceptada'
         const { data, error } = await supabase
             .from('citas')
             .insert([{
@@ -3337,7 +3340,7 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
                 notas: notas,
                 estado: 'aceptada',
                 creado_en: getCurrentTimeYucatan()
-                // NOTA: expira_en NO se establece aquí
+                // expira_en será establecido automáticamente por el trigger cuando se cancele o complete
             }])
             .select(`
                 *,
@@ -3345,26 +3348,37 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
                 barberos(nombre)
             `);
 
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Error creando cita:', error);
+            
+            if (error.code === '23505') { // Violación de unique constraint
+                showAlert('❌ Esta hora ya fue tomada por otro usuario. Por favor selecciona otra.', 'error');
+                await cancelarReservaAnterior();
+                await generateHoras(selectedDate);
+                return;
+            }
+            
+            throw error;
+        }
 
-        console.log('✅ Cita agendada exitosamente (expira_en será establecido por trigger)');
+        console.log('✅ Cita agendada exitosamente:', data[0]);
         
-        // Limpiar reserva y actualizar
+        // 1. Cancelar la reserva temporal
         await cancelarReservaAnterior();
+        
+        // 2. Actualizar caché de citas futuras
         await precargarCitasFuturas();
+        
+        // 3. Notificar a otros usuarios que esta hora ahora está OCUPADA
         await notificarCambioCita(fechaFormateada, hora, 'cita_confirmada');
         
-        // Enviar correo de confirmación
+        // 4. Enviar correo de confirmación
+        let correoEnviado = false;
         if (data && data[0]) {
-            const correoEnviado = await enviarNotificacionCita(data[0]);
-            if (correoEnviado) {
-                showAlert('✅ ¡Cita agendada y aceptada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
-            } else {
-                showAlert('✅ ¡Cita agendada y aceptada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
-            }
+            correoEnviado = await enviarNotificacionCita(data[0]);
         }
         
-        // Limpiar formulario
+        // 5. Limpiar formulario
         document.querySelectorAll('.servicio-option').forEach(opt => {
             opt.classList.remove('selected');
         });
@@ -3372,6 +3386,7 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         if (horaInput) horaInput.value = '';
         if (notasInput) notasInput.value = '';
         
+        // 6. Limpiar selección de fecha
         selectedDate = null;
         const selectedDateDisplay = document.getElementById('selectedDateDisplay');
         if (selectedDateDisplay) selectedDateDisplay.textContent = 'Selecciona una fecha';
@@ -3379,28 +3394,41 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         const horasContainer = document.getElementById('horasContainer');
         if (horasContainer) horasContainer.style.display = 'none';
         
+        // 7. Resetear calendario
         calendarioHabilitado = false;
         habilitarCalendario();
         currentMonth = new Date();
         generateCalendar(currentMonth);
+        
+        // 8. Limpiar caché
         await limpiarCacheDespuesDeAgendar();
         
-        // Recargar citas y reiniciar contadores
+        // 9. Recargar citas del usuario
         await cargarMisCitas();
         
-        // Asegurar que los contadores se inicien
-        setTimeout(() => {
-            iniciarContadoresCitas();
-        }, 500);
+        // 10. Mostrar mensaje de éxito
+        if (correoEnviado) {
+            showAlert('✅ ¡Cita agendada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
+        } else {
+            showAlert('✅ ¡Cita agendada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
+        }
         
+        // 11. Redirigir a "mis-citas"
         cambiarPestana('mis-citas');
 
     } catch (error) {
-        await cancelarReservaAnterior();
         console.error('❌ Error agendando cita:', error);
-        showAlert('❌ Error al agendar la cita: ' + error.message, 'error');
+        
+        // Cancelar cualquier reserva activa en caso de error
+        if (reservaActiva) {
+            await cancelarReservaAnterior();
+        }
+        
+        showAlert(`❌ Error al agendar la cita: ${error.message}`, 'error');
     }
 }
+
+
     async function limpiarSolicitudesCorruptas() {
         try {
             console.log('🧹 Limpiando solicitudes temporales corruptas...');
