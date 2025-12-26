@@ -1131,27 +1131,14 @@ function iniciarPollingInteligente() {
         clearInterval(intervaloPolling);
     }
     
-    // Sincronización más frecuente
+    // Sincronización cada 2 segundos
     intervaloPolling = setInterval(async () => {
         try {
             // Siempre limpiar reservas expiradas
             await limpiarReservasExpiradasGlobalmente();
             
-            // NO saltar sincronización si hay reserva activa
-            // En lugar de saltar, sincronizar de todas formas pero respetando la reserva activa
-            if (reservaActiva) {
-                // Solo verificar si MI reserva sigue activa
-                const clave = `${reservaActiva.fecha}_${reservaActiva.hora}`;
-                const reservaEnBD = solicitudesPendientes.get(clave);
-                
-                if (!reservaEnBD || reservaEnBD.usuarioId !== miUsuarioId) {
-                    console.log('⚠️ Mi reserva ya no está activa en BD');
-                    if (reservaActiva) {
-                        await cancelarReservaAnterior();
-                    }
-                }
-            }
-            
+            // Sincronizar incluso si hay reserva activa
+            // Esto permite ver las reservas de otros usuarios
             const estaEnAgendar = document.getElementById('agendar').classList.contains('active');
             const hayFechaSeleccionada = selectedDate !== null;
             
@@ -1166,16 +1153,13 @@ function iniciarPollingInteligente() {
         }
     }, 2000); // Cada 2 segundos
     
+    pollingActivo = true;
     console.log('🔄 Polling inteligente iniciado (2 segundos)');
 }
 
-
 async function sincronizarEstadosHoras() {
-    // NO sincronizar si hay una reserva activa
-    if (reservaActiva) {
-        console.log('⏸️ Saltando sincronización durante reserva activa');
-        return;
-    }
+    // NO saltar sincronización si hay reserva activa
+    // SIEMPRE sincronizar para ver las reservas de otros usuarios
     
     try {
         if (!selectedDate || !barberoFijo) return;
@@ -1183,8 +1167,8 @@ async function sincronizarEstadosHoras() {
         const fechaFormateada = formatDate(selectedDate);
         const ahora = Date.now();
         
-        // Solo sincronizar si han pasado al menos 3 segundos
-        if (ahora - ultimaSincronizacionHoras < 3000) {
+        // Solo sincronizar si han pasado al menos 1 segundo
+        if (ahora - ultimaSincronizacionHoras < 1000) {
             return;
         }
         
@@ -1201,7 +1185,7 @@ async function sincronizarEstadosHoras() {
         // 3. Verificar notificaciones
         await verificarNotificacionesCambios();
         
-        // 4. NO regenerar horas, solo actualizar estados existentes
+        // 4. Actualizar estados existentes
         await actualizarEstadosHorasExistentes(fechaFormateada);
         
         // 5. Limpiar caché viejo
@@ -1211,6 +1195,7 @@ async function sincronizarEstadosHoras() {
         console.error('❌ Error sincronizando estados:', error);
     }
 }
+
 
 // Nueva función para actualizar solo estados
 async function actualizarEstadosHorasExistentes(fecha) {
@@ -1852,7 +1837,7 @@ async function registrarSolicitudTemporal(fecha, hora) {
         return false;
     }
 }
-            async function liberarReserva(fecha, hora) {
+           async function liberarReserva(fecha, hora) {
     try {
         console.log(`🔓 LIBERANDO RESERVA: ${fecha} ${hora}`);
         
@@ -1896,10 +1881,14 @@ async function registrarSolicitudTemporal(fecha, hora) {
         
         console.log(`✅ Reserva completamente liberada: ${fecha} ${hora}`);
         
+        // Notificar liberación
+        await notificarCambioCita(fecha, hora, 'reserva_liberada');
+        
         // Forzar sincronización inmediata
-        setTimeout(() => {
-            sincronizarEstadosHoras();
-        }, 500);
+        setTimeout(async () => {
+            await obtenerSolicitudesPendientes(true);
+            await sincronizarEstadosHoras();
+        }, 300);
         
     } catch (error) {
         console.error('❌ Error liberando reserva:', error);
@@ -2268,42 +2257,48 @@ async function forzarDisponibilidadHora(fecha, hora) {
     
     console.log(`🔍 Verificando reserva para ${clave}`);
     
-    // También buscar con posibles formatos diferentes
-    let reservaInfo = solicitudesPendientes.get(clave);
+    // Verificar si la reserva existe y no ha expirado
+    const reservaInfo = solicitudesPendientes.get(clave);
     
-    // Si no encuentra, intentar con formato con segundos
+    // Si no encuentra con ese formato, buscar alternativas
+    let reservaAlternativa = null;
     if (!reservaInfo) {
-        const claveConSegundos = `${fecha}_${horaSinSegundos}:00`;
-        reservaInfo = solicitudesPendientes.get(claveConSegundos);
-    }
-    
-    // También buscar cualquier clave que empiece con la fecha+hora
-    if (!reservaInfo) {
-        for (const [claveMap, info] of solicitudesPendientes.entries()) {
-            if (claveMap.startsWith(`${fecha}_${horaSinSegundos}`)) {
-                reservaInfo = info;
-                break;
+        // Buscar con formato con segundos
+        reservaAlternativa = solicitudesPendientes.get(`${fecha}_${horaSinSegundos}:00`);
+        // Buscar cualquier clave que empiece con la fecha+hora
+        if (!reservaAlternativa) {
+            for (const [claveMap, info] of solicitudesPendientes.entries()) {
+                if (claveMap.startsWith(`${fecha}_${horaSinSegundos}`)) {
+                    reservaAlternativa = info;
+                    break;
+                }
             }
         }
     }
     
-    if (reservaInfo) {
+    const reservaFinal = reservaInfo || reservaAlternativa;
+    
+    if (reservaFinal) {
         const ahora = new Date();
         
         console.log(`   ✓ Reserva encontrada para ${hora}`);
-        console.log(`     - Usuario: ${reservaInfo.usuarioId}`);
+        console.log(`     - Usuario: ${reservaFinal.usuarioId}`);
         console.log(`     - Mi usuario: ${miUsuarioId}`);
-        console.log(`     - Expira en: ${reservaInfo.expira_en.toLocaleTimeString()}`);
+        console.log(`     - Expira en: ${reservaFinal.expira_en.toLocaleTimeString()}`);
+        console.log(`     - Ya expiró? ${reservaFinal.expira_en <= ahora}`);
         
         // Verificar si ha expirado
-        if (reservaInfo.expira_en <= ahora) {
+        if (reservaFinal.expira_en <= ahora) {
             console.log(`🗑️ Reserva expirada eliminada: ${hora}`);
+            // Eliminar de memoria local
             solicitudesPendientes.delete(clave);
+            // Intentar eliminar de BD en segundo plano
+            setTimeout(() => forzarDisponibilidadHora(fecha, horaSinSegundos), 100);
             return 'disponible';
         }
         
         // Si es MI reserva
-        if (reservaInfo.usuarioId === miUsuarioId) {
+        if (reservaFinal.usuarioId === miUsuarioId) {
             console.log(`⭐ Es MI reserva activa: ${hora}`);
             return 'mi-reserva-activa';
         }
@@ -2355,7 +2350,45 @@ function iniciarLimpiezaPeriodica() {
                 }
             }
         }
-    }, 10000);
+    }, 4000);
+}
+
+async function forzarLimpiezaReserva(fecha, hora) {
+    try {
+        const clave = `${fecha}_${hora}`;
+        
+        // 1. Eliminar de BD
+        const { error } = await supabase
+            .from('solicitudes_temporales')
+            .delete()
+            .or(`and(fecha.eq.${fecha},hora.eq.${hora}),and(fecha.eq.${fecha},hora.eq.${hora}:00)`);
+            
+        if (error) {
+            console.error('Error forzando limpieza:', error);
+        }
+        
+        // 2. Eliminar de memoria local
+        solicitudesPendientes.delete(clave);
+        solicitudesPendientes.delete(`${fecha}_${hora}:00`);
+        
+        // 3. Actualizar caché
+        cacheEstadosHoras.delete(clave);
+        
+        console.log(`🧹 Reserva forzada eliminada: ${fecha} ${hora}`);
+        
+        // 4. Si estamos viendo esta fecha, actualizar UI inmediatamente
+        if (selectedDate) {
+            const fechaActual = formatDate(selectedDate);
+            if (fecha === fechaActual) {
+                setTimeout(() => {
+                    actualizarHoraEspecifica(fecha, hora, 'limpieza_forzada');
+                }, 100);
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error forzando limpieza:', error);
+    }
 }
 
             function configurarBotonPasado(btn, horaStr) {
@@ -2598,11 +2631,32 @@ function iniciarLimpiezaPeriodica() {
         
         console.log(`🔄 ACTUALIZANDO HORA: ${fecha} ${horaSinSegundos} - Tipo: ${tipoNotificacion}`);        
         
-        // 1. Obtener estado ACTUAL de la BD
+        // 1. Verificar si la reserva sigue existente en BD
+        const clave = `${fecha}_${horaSinSegundos}`;
+        const ahora = new Date();
+        
+        // Si es una notificación de expiración, verificar inmediatamente
+        if (tipoNotificacion === 'reserva_expirada' || tipoNotificacion === 'reserva_liberada') {
+            // Forzar verificación en BD
+            const { data: reservaActual, error } = await supabase
+                .from('solicitudes_temporales')
+                .select('*')
+                .eq('fecha', fecha)
+                .eq('hora', horaSinSegundos)
+                .maybeSingle();
+                
+            if (!reservaActual || error) {
+                // La reserva ya no existe, eliminarla de memoria
+                solicitudesPendientes.delete(clave);
+                console.log(`🧹 Reserva eliminada de memoria: ${clave}`);
+            }
+        }
+        
+        // 2. Obtener estado ACTUAL de la BD
         await obtenerSolicitudesPendientes(true);
         
-        // 2. Buscar el botón
-        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaSinSegundos}"]`);
+        // 3. Buscar el botón
+        let horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaSinSegundos}"]`);
         if (!horaBtn) {
             // Intentar buscar con formato diferente
             const todosBotones = document.querySelectorAll('.hora-btn');
@@ -2615,17 +2669,30 @@ function iniciarLimpiezaPeriodica() {
             if (!horaBtn) return;
         }
         
-        // 3. Determinar estado actual
-        const ahora = new Date();
+        // 4. Determinar estado actual
         const esHoy = fecha === formatDate(new Date());
         const [h, m] = horaSinSegundos.split(':').map(Number);
-        const horaPasada = esHoy && (h < ahora.getHours() || (h === ahora.getHours() && m <= ahora.getMinutes()));
+        const horaActual = ahora.getHours();
+        const minutosActual = ahora.getMinutes();
+        const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
         
         const estado = determinarEstadoHora(fecha, horaSinSegundos, selectedDate, horaPasada);
         
         console.log(`📊 Estado determinado para ${horaSinSegundos}: ${estado}`);
         
-        // 4. Aplicar estado al botón
+        // 5. Si la reserva expiró pero sigue en memoria, forzar limpieza
+        if (estado === 'reservando') {
+            const reservaInfo = solicitudesPendientes.get(clave);
+            if (reservaInfo && reservaInfo.expira_en <= ahora) {
+                console.log(`🗑️ Reserva expirada detectada: ${clave}`);
+                solicitudesPendientes.delete(clave);
+                // Intentar forzar disponibilidad en BD
+                await forzarDisponibilidadHora(fecha, horaSinSegundos);
+                return;
+            }
+        }
+        
+        // 6. Aplicar estado al botón
         // Limpiar clases anteriores
         horaBtn.className = 'hora-btn';
         
@@ -4211,6 +4278,11 @@ function getYucatanTimePlusHours(hours) {
         console.log(`⏰ Polling activo: ${pollingActivo}`);
         console.log(`📱 Calendario habilitado: ${calendarioHabilitado}`);
         
+         console.log('📋 Reservas activas:');
+        for (const [clave, reserva] of solicitudesPendientes.entries()) {
+            const tiempoRestante = reserva.expira_en.getTime() - Date.now();
+            console.log(`   - ${clave}: usuario=${reserva.usuarioId}, expira en ${Math.floor(tiempoRestante/1000)}s`);
+        }
         // Verificar si hay horas visibles
         const horasGrid = document.getElementById('horasGrid');
         if (horasGrid) {
