@@ -1832,7 +1832,7 @@ async function registrarSolicitudTemporal(fecha, hora) {
         return false;
     }
 }
-          async function liberarReserva(fecha, hora) {
+         async function liberarReserva(fecha, hora) {
     try {
         console.log(`🔓 LIBERANDO RESERVA: ${fecha} ${hora}`);
         
@@ -1871,12 +1871,17 @@ async function registrarSolicitudTemporal(fecha, hora) {
         cacheEstadosHoras.delete(`${fecha}_${hora}`);
         cacheEstadosHoras.delete(`${fecha}_${hora}:00`);
         
-        // 5. Resetear reserva activa
+        // 5. NO limpiar reservaActiva aquí - se limpiará en cancelarReservaAnterior
+        // Solo verificar si es la misma reserva y limpiar timeoutId
         if (reservaActiva && reservaActiva.fecha === fecha && reservaActiva.hora === hora) {
-            reservaActiva = null;
+            if (reservaActiva.timeoutId) {
+                clearTimeout(reservaActiva.timeoutId);
+            }
+            // Guardamos referencia al botón pero marcamos como que ya fue liberada
+            reservaActiva.liberada = true;
         }
         
-        console.log(`✅ Reserva completamente liberada: ${fecha} ${hora}`);
+        console.log(`✅ Reserva liberada: ${fecha} ${hora}`);
         
         // 6. Notificar liberación
         await notificarCambioCita(fecha, hora, 'reserva_liberada');
@@ -1892,8 +1897,7 @@ async function registrarSolicitudTemporal(fecha, hora) {
     }
 }
 
-
-           async function cancelarReservaAnterior() {
+        async function cancelarReservaAnterior() {
     if (reservaActiva) {
         console.log('🔄 CANCELANDO RESERVA ANTERIOR:', reservaActiva.fecha, reservaActiva.hora);
         
@@ -1905,8 +1909,8 @@ async function registrarSolicitudTemporal(fecha, hora) {
         // Liberar la reserva
         await liberarReserva(reservaActiva.fecha, reservaActiva.hora);
         
-        // Resetear UI del botón si existe
-        if (reservaActiva.boton && reservaActiva.boton.isConnected) {
+        // Resetear UI del botón si existe Y si no está ya liberado
+        if (reservaActiva.boton && reservaActiva.boton.isConnected && !reservaActiva.liberada) {
             resetearUIReserva(reservaActiva.boton, reservaActiva.hora);
         }
         
@@ -2232,21 +2236,22 @@ async function forzarDisponibilidadHora(fecha, hora) {
     console.log(`✅ Mostradas ${reservasMostradas} reservas de otros usuarios`);
 }
 
-           function determinarEstadoHora(fecha, hora, fechaObj, horaPasada) {
+        function determinarEstadoHora(fecha, hora, fechaObj, horaPasada) {
     if (horaPasada) {
         return 'pasado';
     }
     
-    // Primero verificar en citas futuras (ocupada)
+    // Primero verificar en citas futuras (ocupada) - ESTO ES LO MÁS IMPORTANTE
     const citaExistente = todasLasCitasFuturasCache.some(c => 
         c.fecha === fecha && c.hora === hora
     );
     
     if (citaExistente) {
+        console.log(`🔒 Hora ${hora} ya está ocupada en caché`);
         return 'ocupada';
     }
     
-    // CORRECCIÓN: Crear clave SIN segundos
+    // Solo si no está ocupada, verificar reservas temporales
     const horaSinSegundos = hora.includes(':') ? hora.split(':').slice(0, 2).join(':') : hora;
     const clave = `${fecha}_${horaSinSegundos}`;
     
@@ -3340,7 +3345,6 @@ async function agendarCita(e) {
                 notas: notas,
                 estado: 'aceptada',
                 creado_en: getCurrentTimeYucatan()
-                // expira_en será establecido automáticamente por el trigger cuando se cancele o complete
             }])
             .select(`
                 *,
@@ -3366,19 +3370,32 @@ async function agendarCita(e) {
         // 1. Cancelar la reserva temporal
         await cancelarReservaAnterior();
         
-        // 2. Actualizar caché de citas futuras
-        await precargarCitasFuturas();
+        // 2. Actualizar caché de citas futuras INMEDIATAMENTE
+        todasLasCitasFuturasCache.push({
+            id: data[0].id,
+            fecha: fechaFormateada,
+            hora: hora,
+            estado: 'aceptada',
+            barbero_id: barberoFijo.id,
+            cliente_id: usuarioActual.id
+        });
         
-        // 3. Notificar a otros usuarios que esta hora ahora está OCUPADA
+        // 3. Actualizar la UI INMEDIATAMENTE a "ocupada"
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fechaFormateada}"][data-hora="${hora}"]`);
+        if (horaBtn) {
+            configurarBotonOcupada(horaBtn, hora);
+        }
+        
+        // 4. Notificar a otros usuarios que esta hora ahora está OCUPADA
         await notificarCambioCita(fechaFormateada, hora, 'cita_confirmada');
         
-        // 4. Enviar correo de confirmación
+        // 5. Enviar correo de confirmación
         let correoEnviado = false;
         if (data && data[0]) {
             correoEnviado = await enviarNotificacionCita(data[0]);
         }
         
-        // 5. Limpiar formulario
+        // 6. Limpiar formulario
         document.querySelectorAll('.servicio-option').forEach(opt => {
             opt.classList.remove('selected');
         });
@@ -3386,7 +3403,7 @@ async function agendarCita(e) {
         if (horaInput) horaInput.value = '';
         if (notasInput) notasInput.value = '';
         
-        // 6. Limpiar selección de fecha
+        // 7. Limpiar selección de fecha
         selectedDate = null;
         const selectedDateDisplay = document.getElementById('selectedDateDisplay');
         if (selectedDateDisplay) selectedDateDisplay.textContent = 'Selecciona una fecha';
@@ -3394,28 +3411,30 @@ async function agendarCita(e) {
         const horasContainer = document.getElementById('horasContainer');
         if (horasContainer) horasContainer.style.display = 'none';
         
-        // 7. Resetear calendario
+        // 8. Resetear calendario
         calendarioHabilitado = false;
         habilitarCalendario();
         currentMonth = new Date();
         generateCalendar(currentMonth);
         
-        // 8. Limpiar caché
-        await limpiarCacheDespuesDeAgendar();
+        // 9. Limpiar caché
+        await precargarCitasFuturas();
         
-        // 9. Recargar citas del usuario
+        // 10. Recargar citas del usuario
         await cargarMisCitas();
         
-        // 10. Mostrar mensaje de éxito
+        // 11. Mostrar mensaje de éxito
         if (correoEnviado) {
             showAlert('✅ ¡Cita agendada exitosamente! Se ha enviado una confirmación a tu correo.', 'success');
         } else {
             showAlert('✅ ¡Cita agendada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
         }
         
-        // 11. Redirigir a "mis-citas"
-        cambiarPestana('mis-citas');
-
+        // 12. Redirigir a "mis-citas"
+        setTimeout(() => {
+            cambiarPestana('mis-citas');
+        }, 500);
+        
     } catch (error) {
         console.error('❌ Error agendando cita:', error);
         
