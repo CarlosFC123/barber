@@ -710,9 +710,15 @@
                 color: #90EE90; 
             }
             .no-horas-disponibles {
-                animation: fadeIn 0.5s ease;
-            }
-
+    text-align: center;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    border: 2px solid #d4af37;
+    border-radius: 12px;
+    margin: 20px 0;
+    box-shadow: 0 8px 24px rgba(212, 175, 55, 0.15);
+    animation: fadeIn 0.5s ease;
+}
             .no-horas-disponibles ul li {
                 color: #cccccc;
                 margin-bottom: 5px;
@@ -724,9 +730,94 @@
                 color: #d4af37;
                 margin-right: 8px;
             }
+.no-horas-disponibles-icon {
+    font-size: 48px;
+    color: #d4af37;
+    margin-bottom: 20px;
+    animation: pulse 2s infinite;
+}
 
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.05); opacity: 1; }
+    100% { transform: scale(1); opacity: 0.7; }
+}
 
+.no-horas-disponibles h3 {
+    color: #d4af37;
+    font-size: 24px;
+    margin-bottom: 15px;
+    font-weight: 700;
+}
 
+.no-horas-disponibles p {
+    color: #cccccc;
+    font-size: 16px;
+    line-height: 1.6;
+    margin-bottom: 25px;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.no-horas-disponibles-acciones {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 25px;
+}
+
+.no-horas-disponibles .btn {
+    padding: 12px 24px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.no-horas-disponibles .btn:hover {
+    transform: translateY(-2px);
+}
+
+.no-horas-sugerencias {
+    background: rgba(212, 175, 55, 0.1);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 25px;
+    border-left: 4px solid #d4af37;
+}
+
+.no-horas-sugerencias h4 {
+    color: #d4af37;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.no-horas-sugerencias ul {
+    list-style: none;
+    padding: 0;
+    text-align: left;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.no-horas-sugerencias ul li {
+    color: #cccccc;
+    margin-bottom: 12px;
+    font-size: 15px;
+    padding-left: 25px;
+    position: relative;
+}
+
+.no-horas-sugerencias ul li:before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #d4af37;
+    font-weight: bold;
+    font-size: 16px;
+}
             /* Estilos adicionales para el sistema mejorado */
     .hora-btn.ocupada {
         background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
@@ -2051,18 +2142,11 @@ async function forzarDisponibilidadHora(fecha, hora) {
 
             // ============ GENERACIÓN DE HORAS MEJORADA ============
 
-            async function generateHoras(selectedDateObj) {
+async function generateHoras(selectedDateObj) {
     console.log('=== GENERATE HORAS INICIADO ===');
     console.log('selectedDate:', selectedDateObj);
     console.log('calendarioHabilitado:', calendarioHabilitado);
     console.log('barberoFijo:', barberoFijo);
-    console.log(`📊 Total reservas en memoria: ${solicitudesPendientes.size}`);
-    
-    // Mostrar todas las reservas actuales para depuración
-    console.log('📋 Reservas actuales:');
-    for (const [clave, reserva] of solicitudesPendientes.entries()) {
-        console.log(`   - ${clave}: usuario=${reserva.usuarioId}, expira=${reserva.expira_en.toLocaleTimeString()}`);
-    }
     
     const horasGrid = document.getElementById('horasGrid');
     if (!horasGrid) {
@@ -2082,11 +2166,10 @@ async function forzarDisponibilidadHora(fecha, hora) {
         const horaActual = now.getHours();
         const minutosActual = now.getMinutes();
         
-        console.log(`📅 Generando horas para: ${fechaFormateada}`);
-        console.log(`🕐 Es hoy? ${esHoy}, Hora actual: ${horaActual}:${minutosActual}`);
-        
         horasGrid.innerHTML = '';
         let horasDisponibles = 0;
+        let horasOcupadas = 0;
+        let horasPasadas = 0;
 
         horas.forEach(({ hora: h, minutos: m }) => {
             const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
@@ -2101,19 +2184,20 @@ async function forzarDisponibilidadHora(fecha, hora) {
             // Determinar estado de la hora
             const estado = determinarEstadoHora(fechaFormateada, horaStr, selectedDateObj, horaPasada);
             
-            console.log(`⏰ Hora ${horaStr}: estado = ${estado}, horaPasada = ${horaPasada}`);
-            
             switch (estado) {
                 case 'pasado':
                     configurarBotonPasado(btn, horaStr);
+                    horasPasadas++;
                     break;
                     
                 case 'ocupada':
                     configurarBotonOcupada(btn, horaStr);
+                    horasOcupadas++;
                     break;
                     
                 case 'reservando':
                     mostrarEstadoReservando(btn, horaStr, fechaFormateada);
+                    horasOcupadas++;
                     break;
                     
                 case 'mi-reserva-activa':
@@ -2123,7 +2207,6 @@ async function forzarDisponibilidadHora(fecha, hora) {
                         const segundos = Math.ceil(tiempoRestante / 1000);
                         actualizarUIReservaActiva(btn, horaStr, segundos);
                     } else {
-                        // Mostrar como reserva existente (no activa en este momento)
                         btn.disabled = true;
                         btn.classList.add('mi-reserva-activa');
                         btn.innerHTML = `
@@ -2133,8 +2216,8 @@ async function forzarDisponibilidadHora(fecha, hora) {
                                 ⭐ Tu reserva
                             </small>
                         `;
-                        btn.title = 'Ya tienes esta hora reservada';
                     }
+                    horasOcupadas++;
                     break;
                                 
                 case 'disponible':
@@ -2146,11 +2229,47 @@ async function forzarDisponibilidadHora(fecha, hora) {
             horasGrid.appendChild(btn);
         });
 
+        // VERIFICAR SI TODAS LAS HORAS ESTÁN OCUPADAS
+        const totalHoras = horas.length;
+        const horasOcupadasTotales = horasOcupadas + horasPasadas;
+        
+        if (horasOcupadasTotales === totalHoras && horasDisponibles === 0) {
+            // Mostrar mensaje elegante en lugar de las horas
+            horasGrid.innerHTML = `
+                <div class="no-horas-disponibles">
+                    <div class="no-horas-disponibles-icon">⏰</div>
+                    <h3>Todas las horas están ocupadas</h3>
+                    <p>Lo sentimos, todas las horas disponibles para esta fecha han sido reservadas. 
+                    Por favor, selecciona otra fecha o intenta de nuevo más tarde.</p>
+                    
+                    <div class="no-horas-sugerencias">
+                        <h4>💡 Sugerencias:</h4>
+                        <ul>
+                            <li>Intenta seleccionar una fecha diferente</li>
+                            <li>Prueba con horarios de lunes a jueves</li>
+                            <li>Consulta por la mañana temprano</li>
+                            <li>Algunas reservas pueden cancelarse, verifica más tarde</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="no-horas-disponibles-acciones">
+                        <button class="btn btn-primary" onclick="app.cambiarPestana('mis-citas')">
+                            📋 Ver mis citas
+                        </button>
+                        <button class="btn btn-secondary" onclick="location.reload()">
+                            🔄 Recargar horarios
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Ocultar contenedor de horas (ya está incluido en el mensaje)
+            actualizarEstadoAgendamiento(0);
+            return;
+        }
+
         actualizarEstadoAgendamiento(horasDisponibles);
         
-        // Depurar la UI generada
-        debugUIHoras();
-
         // Forzar verificación de reservas después de un pequeño delay
         setTimeout(() => {
             console.log('🎯 Verificando y mostrando reservas activas...');
@@ -2159,7 +2278,35 @@ async function forzarDisponibilidadHora(fecha, hora) {
         
     } catch (error) {
         console.error('❌ Error generando horas:', error);
-        horasGrid.innerHTML = '<div class="alert alert-error">Error al cargar las horas disponibles</div>';
+        horasGrid.innerHTML = `
+            <div class="no-horas-disponibles">
+                <div class="no-horas-disponibles-icon">⚠️</div>
+                <h3>Error al cargar los horarios</h3>
+                <p>No se pudieron cargar los horarios disponibles. Por favor, intenta de nuevo.</p>
+                <div class="no-horas-disponibles-acciones">
+                    <button class="btn btn-primary" onclick="location.reload()">
+                        🔄 Recargar página
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function resetearEstadoHoras() {
+    const horasGrid = document.getElementById('horasGrid');
+    if (horasGrid) {
+        horasGrid.innerHTML = '';
+    }
+    
+    const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+    if (selectedDateDisplay) {
+        selectedDateDisplay.textContent = 'Selecciona una fecha';
+    }
+    
+    const horasContainer = document.getElementById('horasContainer');
+    if (horasContainer) {
+        horasContainer.style.display = 'none';
     }
 }
 
@@ -2554,21 +2701,23 @@ async function resetearTodosLosBotones(fecha) {
             }
 
             function actualizarEstadoAgendamiento(horasDisponibles) {
-                const btnAgendar = document.getElementById('btnAgendarCita');
-                if (!btnAgendar) return;
-                
-                if (horasDisponibles === 0) {
-                    btnAgendar.disabled = true;
-                    btnAgendar.style.opacity = '0.6';
-                    btnAgendar.style.cursor = 'not-allowed';
-                    btnAgendar.title = 'No hay horas disponibles para esta fecha';
-                } else {
-                    btnAgendar.disabled = false;
-                    btnAgendar.style.opacity = '1';
-                    btnAgendar.style.cursor = 'pointer';
-                    btnAgendar.title = 'Agendar cita';
-                }
-            }
+    const btnAgendar = document.getElementById('btnAgendarCita');
+    if (!btnAgendar) return;
+    
+    if (horasDisponibles === 0) {
+        btnAgendar.disabled = true;
+        btnAgendar.style.opacity = '0.6';
+        btnAgendar.style.cursor = 'not-allowed';
+        btnAgendar.title = 'No hay horas disponibles para esta fecha';
+        btnAgendar.innerHTML = '📅 Sin horas disponibles';
+    } else {
+        btnAgendar.disabled = false;
+        btnAgendar.style.opacity = '1';
+        btnAgendar.style.cursor = 'pointer';
+        btnAgendar.title = 'Agendar cita';
+        btnAgendar.innerHTML = 'Agendar Cita';
+    }
+}
 
             // ============ SISTEMA DE NOTIFICACIONES ============
 
@@ -2876,6 +3025,9 @@ async function resetearTodosLosBotones(fecha) {
         return;
     }
     
+    // Resetear estado anterior
+    resetearEstadoHoras();
+    
     selectedDate = new Date(date);
     selectedDate.setHours(0, 0, 0, 0);
     
@@ -2892,13 +3044,16 @@ async function resetearTodosLosBotones(fecha) {
     
     console.log(`📅 Fecha seleccionada: ${formatDate(selectedDate)}`);
     
-    // Generar horas inmediatamente
-    generateHoras(date);
-    
+    // Mostrar contenedor de horas primero
     const horasContainer = document.getElementById('horasContainer');
     if (horasContainer) {
         horasContainer.style.display = 'block';
     }
+    
+    // Generar horas
+    setTimeout(() => {
+        generateHoras(date);
+    }, 300);
     
     // Regenerar calendario para mostrar la fecha seleccionada
     generateCalendar(currentMonth);
