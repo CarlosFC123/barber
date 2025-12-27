@@ -661,62 +661,11 @@ h2 {
     font-weight: 700 !important;
 }
 
-.horas-grid .no-horas-disponibles p {
-    color: #cccccc !important;
-    font-size: 16px !important;
-    line-height: 1.6 !important;
-    margin-bottom: 25px !important;
-    max-width: 500px !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-}
 
-.horas-grid .no-horas-disponibles .no-horas-sugerencias {
-    background: rgba(212, 175, 55, 0.1) !important;
-    border-radius: 8px !important;
-    padding: 20px !important;
-    margin-top: 25px !important;
-    border-left: 4px solid #d4af37 !important;
-}
 
-.horas-grid .no-horas-disponibles .no-horas-sugerencias h4 {
-    color: #d4af37 !important;
-    margin-bottom: 15px !important;
-    font-size: 18px !important;
-}
 
-.horas-grid .no-horas-disponibles .no-horas-sugerencias ul {
-    list-style: none !important;
-    padding: 0 !important;
-    text-align: left !important;
-    max-width: 400px !important;
-    margin: 0 auto !important;
-}
 
-.horas-grid .no-horas-disponibles .no-horas-sugerencias ul li {
-    color: #cccccc !important;
-    margin-bottom: 12px !important;
-    font-size: 15px !important;
-    padding-left: 25px !important;
-    position: relative !important;
-}
 
-.horas-grid .no-horas-disponibles .no-horas-sugerencias ul li:before {
-    content: "✓" !important;
-    position: absolute !important;
-    left: 0 !important;
-    color: #d4af37 !important;
-    font-weight: bold !important;
-    font-size: 16px !important;
-}
-
-.horas-grid .no-horas-disponibles .no-horas-disponibles-acciones {
-    display: flex !important;
-    gap: 15px !important;
-    justify-content: center !important;
-    flex-wrap: wrap !important;
-    margin-top: 25px !important;
-}
 
 .horas-grid .no-horas-disponibles .btn {
     padding: 12px 24px !important;
@@ -902,13 +851,7 @@ h2 {
         font-size: 22px;
     }
     
-    .no-horas-disponibles p {
-        font-size: 15px;
-    }
     
-    .no-horas-disponibles-acciones {
-        gap: 12px;
-    }
     
     .no-horas-disponibles .btn {
         padding: 10px 20px;
@@ -950,19 +893,7 @@ h2 {
         font-size: 20px;
         margin-bottom: 12px;
     }
-    
-    .no-horas-disponibles p {
-        font-size: 14px;
-        line-height: 1.5;
-        margin-bottom: 20px;
-    }
-    
-    .no-horas-disponibles-acciones {
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-    }
-    
+        
     .no-horas-disponibles .btn {
         width: 100%;
         max-width: 250px;
@@ -2313,28 +2244,7 @@ async function generateHoras(selectedDateObj) {
             horasGrid.innerHTML = `
                 <div class="no-horas-disponibles">
                     <div class="no-horas-disponibles-icon">⏰</div>
-                    <h3>Todas las horas están ocupadas</h3>
-                    <p>Lo sentimos, todas las horas disponibles para esta fecha han sido reservadas. 
-                    Por favor, selecciona otra fecha o intenta de nuevo más tarde.</p>
-                    
-                    <div class="no-horas-sugerencias">
-                        <h4>💡 Sugerencias:</h4>
-                        <ul>
-                            <li>Intenta seleccionar una fecha diferente</li>
-                            <li>Prueba con horarios de lunes a jueves</li>
-                            <li>Consulta por la mañana temprano</li>
-                            <li>Algunas reservas pueden cancelarse, verifica más tarde</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="no-horas-disponibles-acciones">
-                        <button class="btn btn-primary" onclick="app.cambiarPestana('mis-citas')">
-                            📋 Ver mis citas
-                        </button>
-                        <button class="btn btn-secondary" onclick="location.reload()">
-                            🔄 Recargar horarios
-                        </button>
-                    </div>
+                    <h3>Todas las horas están ocupadas</h3>      
                 </div>
             `;
             
