@@ -8,728 +8,644 @@
     <!-- Agregar EmailJS SDK -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <style>
-        /* ESTILOS CON TEMA NEGRO Y DORADO */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        body {
-            background: #0a0a0a;
-            min-height: 100vh;
-            color: #ffffff;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
-            color: #d4af37;
-            padding: 25px 20px;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            border-bottom: 3px solid #d4af37;
-        }
-
-        .header h1 {
-            font-size: 28px;
-            margin-bottom: 5px;
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-
-        .user-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 15px;
-            max-width: 1200px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .nav-tabs {
-            display: flex;
-            background: #1a1a1a;
-            border-radius: 12px 12px 0 0;
-            overflow: hidden;
-            margin-bottom: 0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            border: 1px solid #333;
-        }
-
-        .nav-tab {
-            flex: 1;
-            padding: 16px;
-            text-align: center;
-            background: #2a2a2a;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            font-size: 15px;
-            color: #d4af37;
-        }
-
-        .nav-tab.active {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000000;
-            border-bottom: none;
-        }
-
-        .nav-tab:hover:not(.active) {
-            background: #333;
-        }
-
-        .tab-content {
-            display: none;
-            background: #1a1a1a;
-            padding: 35px;
-            border-radius: 0 0 12px 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            border: 1px solid #333;
-            border-top: none;
-        }
-
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000000;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
-        }
-
-        .btn-secondary {
-            background: #333;
-            color: #d4af37;
-            border: 2px solid #d4af37;
-        }
-
-        .btn-secondary:hover {
-            background: #d4af37;
-            color: #000000;
-        }
-
-        .btn-danger {
-            background: #8B0000;
-            color: white;
-            border: 2px solid #FF0000;
-        }
-
-        .btn-danger:hover {
-            background: #FF0000;
-        }
-
-        .alert {
-            padding: 14px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            display: none;
-            border-left: 4px solid;
-        }
-
-        .alert-success {
-            background: #1a3c27;
-            color: #90EE90;
-            border-color: #28a745;
-        }
-
-        .alert-error {
-            background: #3c1a1a;
-            color: #FF6B6B;
-            border-color: #dc3545;
-        }
-
-        .form-group {
-            margin-bottom: 24px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: 600;
-            color: #d4af37;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        input, select {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #333;
-            border-radius: 8px;
-            font-size: 15px;
-            transition: all 0.3s ease;
-            background: #2a2a2a;
-            color: #ffffff;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: #d4af37;
-            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
-        }
-
-        input::placeholder {
-            color: #666;
-        }
-
-        /* CALENDARIO COMPACTO */
-        .calendar-picker {
-            background: #2a2a2a;
-            border: 2px solid #333;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .calendar-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .calendar-header h3 {
-            color: #d4af37;
-            font-size: 18px;
-            font-weight: 700;
-        }
-
-        .calendar-nav {
-            display: flex;
-            gap: 8px;
-        }
-
-        .calendar-nav button {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000000;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 12px;
-            transition: all 0.3s ease;
-        }
-
-        .calendar-nav button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
-        }
-
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 6px;
-            margin-bottom: 15px;
-        }
-
-        .day-label {
-            text-align: center;
-            font-weight: 700;
-            color: #d4af37;
-            padding: 8px 4px;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .day-cell {
-            aspect-ratio: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid #333;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            background: #1a1a1a;
-            font-size: 13px;
-            min-height: 35px;
-            color: #ffffff;
-        }
-
-        .day-cell.available:hover {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000000;
-            transform: scale(1.05);
-            border-color: #d4af37;
-        }
-
-        .day-cell.selected {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000000;
-            border-color: #d4af37;
-            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
-        }
-
-        .day-cell.today {
-            border: 2px solid #d4af37;
-            font-weight: 700;
-            color: #d4af37;
-        }
-
-        .day-cell.today.selected {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000000;
-            border-color: #d4af37;
-        }
-
-        .day-cell.weekend {
-            background: #2a2a2a;
-            color: #888;
-        }
-
-        .day-cell.disabled {
-            background: #333;
-            color: #555;
-            cursor: not-allowed;
-        }
-
-        .selected-date-display {
-            margin-top: 15px;
-            padding: 12px;
-            background: #2a2a2a;
-            border-radius: 8px;
-            text-align: center;
-            color: #d4af37;
-            font-weight: 700;
-            font-size: 14px;
-            border: 2px solid #d4af37;
-        }
-
-        .horas-container {
-            margin-top: 25px;
-            padding-top: 20px;
-            border-top: 2px solid #333;
-        }
-
-        .horas-container label {
-            display: block;
-            margin-bottom: 12px;
-            color: #d4af37;
-            font-size: 15px;
-            font-weight: 700;
-        }
-
-        .horas-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-            gap: 8px;
-        }
-
-        .hora-btn {
-            padding: 10px 8px;
-            border: 2px solid #333;
-            border-radius: 6px;
-            background: #1a1a1a;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            font-size: 13px;
-            color: #ffffff;
-        }
-
-        .hora-btn:hover:not(:disabled) {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000000;
-            transform: translateY(-2px);
-            border-color: #d4af37;
-            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
-        }
-
-        /* .hora-btn.selected {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000000;
-            border-color: #d4af37;
-            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
-        } */
-
-        .hora-btn:disabled {
-            background: #333;
-            color: #555;
-            cursor: not-allowed;
-            border-color: #333;
-        }
-
-        /* .hora-btn.ocupada {
-            background: #3c1a1a;
-            color: #FF6B6B;
-            border-color: #dc3545;
-        } */
-
-        .citas-grid {
-            display: grid;
-            gap: 20px;
-            margin-top: 25px;
-        }
-
-        .cita-card {
-            background: #2a2a2a;
-            border: 1px solid #333;
-            border-radius: 12px;
-            padding: 24px;
-            transition: all 0.3s ease;
-        }
-
-        .cita-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 24px rgba(212, 175, 55, 0.2);
-            border-color: #d4af37;
-        }
-
-        .cita-card.pendiente {
-            border-left: 5px solid #d4af37;
-        }
-
-        .cita-card.confirmada {
-            border-left: 5px solid #28a745;
-        }
-
-        .cita-card.completada {
-            border-left: 5px solid #d4af37;
-        }
-
-        .cita-card.cancelada {
-            border-left: 5px solid #dc3545;
-            opacity: 0.7;
-        }
-
-        .cita-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .cita-estado {
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .estado-pendiente { background: #3c2f00; color: #d4af37; }
-        .estado-confirmada { background: #1a3c27; color: #90EE90; }
-        .estado-completada { background: #1a3c3c; color: #d4af37; }
-        .estado-cancelada { background: #3c1a1a; color: #FF6B6B; }
-
-        .cita-detalles p {
-            margin: 10px 0;
-            color: #cccccc;
-            font-size: 15px;
-        }
-
-        .cita-detalles strong {
-            color: #d4af37;
-        }
-
-        .cita-acciones {
-            margin-top: 20px;
-            display: flex;
-            gap: 12px;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 50px;
-            color: #d4af37;
-        }
-
-        .spinner {
-            border: 4px solid #333;
-            border-top: 4px solid #d4af37;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 50px 20px;
-            color: #888;
-        }
-
-        .empty-state div {
-            font-size: 48px;
-            margin-bottom: 15px;
-            color: #d4af37;
-        }
-
-        .servicios-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 24px;
-            margin-top: 25px;
-        }
-
-        .servicio-card {
-            background: #2a2a2a;
-            border: 2px solid #333;
-            border-radius: 12px;
-            padding: 24px;
-            text-align: center;
-            transition: all 0.3s ease;
-        }
-
-        .servicio-card:hover {
-            transform: translateY(-4px);
-            border-color: #d4af37;
-            box-shadow: 0 12px 24px rgba(212, 175, 55, 0.15);
-        }
-
-        .servicio-precio {
-            font-size: 28px;
-            font-weight: 700;
-            color: #d4af37;
-            margin: 15px 0;
-        }
-
-        .servicio-duracion {
-            color: #888;
-            font-size: 14px;
-        }
-
-        .logout-btn {
-            background: #8B0000;
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            border: 2px solid #FF0000;
-        }
-
-        .logout-btn:hover {
-            background: #FF0000;
-            transform: translateY(-1px);
-        }
-
-        /* NUEVOS ESTILOS PARA SERVICIOS EN AGENDAR CITA */
-        .servicios-seleccion {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 25px;
-        }
-
-        .servicio-option {
-            background: #2a2a2a;
-            border: 2px solid #333;
-            border-radius: 12px;
-            padding: 20px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-align: center;
-            color: #ffffff;
-        }
-
-        .servicio-option:hover {
-            transform: translateY(-2px);
-            border-color: #d4af37;
-            box-shadow: 0 8px 20px rgba(212, 175, 55, 0.15);
-        }
-
-        .servicio-option.selected {
-            background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-            color: #000000;
-            border-color: #d4af37;
-            box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
-        }
-
-        .servicio-option h3 {
-            margin-bottom: 10px;
-            font-size: 18px;
-        }
-
-        .servicio-option .precio {
-            font-size: 24px;
-            font-weight: 700;
-            margin: 10px 0;
-        }
-
-        .servicio-option .duracion {
-            color: #888;
-            font-size: 14px;
-        }
-
-        .servicio-option.selected .duracion {
-            color: rgba(0, 0, 0, 0.8);
-        }
-
-        .barbero-info {
-            background: #2a2a2a;
-            border: 2px solid #333;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 25px;
-            text-align: center;
-        }
-
-        .barbero-info h3 {
-            color: #d4af37;
-            margin-bottom: 10px;
-        }
-
-        .barbero-info p {
-            color: #cccccc;
-            margin-bottom: 5px;
-        }
-
-        .calendar-disabled {
-            opacity: 0.6;
-            pointer-events: none;
-        }
-
-        .calendar-disabled-message {
-            text-align: center;
-            padding: 15px;
-            background: #3c2f00;
-            border: 1px solid #d4af37;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            color: #d4af37;
-        }
-
-        h2 {
-            color: #d4af37;
-            margin-bottom: 20px;
-            font-size: 24px;
-        }
-
-        @media (max-width: 768px) {
-            .nav-tabs {
-                flex-direction: column;
-            }
-
-            .cita-acciones {
-                flex-direction: column;
-            }
-
-            .user-info {
-                flex-direction: column;
-                gap: 15px;
-            }
-
-            .horas-grid {
-                grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-            }
-
-            .calendar-grid {
-                grid-template-columns: repeat(7, 1fr);
-            }
-
-            .tab-content {
-                padding: 20px;
-            }
-
-            .day-cell {
-                min-height: 30px;
-                font-size: 12px;
-            }
-
-            .day-label {
-                font-size: 10px;
-                padding: 6px 2px;
-            }
-
-            .servicios-seleccion {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .calendar-grid {
-                gap: 4px;
-            }
-
-            .day-cell {
-                min-height: 25px;
-                font-size: 11px;
-            }
-
-            .horas-grid {
-                grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-            }
-
-            .hora-btn {
-                padding: 8px 4px;
-                font-size: 12px;
-            }
-
-            .cita-card.aceptada {
-                border-left: 5px solid #28a745;
-            }
-            
-            .estado-aceptada { 
-                background: #1a3c27; 
-                color: #90EE90; 
-            }
-            .no-horas-disponibles {
+       /* ESTILOS CON TEMA NEGRO Y DORADO */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background: #0a0a0a;
+    min-height: 100vh;
+    color: #ffffff;
+}
+
+.header {
+    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+    color: #d4af37;
+    padding: 25px 20px;
     text-align: center;
-    padding: 40px 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border-bottom: 3px solid #d4af37;
+}
+
+.header h1 {
+    font-size: 28px;
+    margin-bottom: 5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.user-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.nav-tabs {
+    display: flex;
+    background: #1a1a1a;
+    border-radius: 12px 12px 0 0;
+    overflow: hidden;
+    margin-bottom: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    border: 1px solid #333;
+}
+
+.nav-tab {
+    flex: 1;
+    padding: 16px;
+    text-align: center;
+    background: #2a2a2a;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    font-size: 15px;
+    color: #d4af37;
+}
+
+.nav-tab.active {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000000;
+    border-bottom: none;
+}
+
+.nav-tab:hover:not(.active) {
+    background: #333;
+}
+
+.tab-content {
+    display: none;
+    background: #1a1a1a;
+    padding: 35px;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    border: 1px solid #333;
+    border-top: none;
+}
+
+.tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000000;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
+}
+
+.btn-secondary {
+    background: #333;
+    color: #d4af37;
+    border: 2px solid #d4af37;
+}
+
+.btn-secondary:hover {
+    background: #d4af37;
+    color: #000000;
+}
+
+.btn-danger {
+    background: #8B0000;
+    color: white;
+    border: 2px solid #FF0000;
+}
+
+.btn-danger:hover {
+    background: #FF0000;
+}
+
+.alert {
+    padding: 14px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    display: none;
+    border-left: 4px solid;
+}
+
+.alert-success {
+    background: #1a3c27;
+    color: #90EE90;
+    border-color: #28a745;
+}
+
+.alert-error {
+    background: #3c1a1a;
+    color: #FF6B6B;
+    border-color: #dc3545;
+}
+
+.form-group {
+    margin-bottom: 24px;
+}
+
+label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #d4af37;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+input, select {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #333;
+    border-radius: 8px;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    background: #2a2a2a;
+    color: #ffffff;
+}
+
+input:focus, select:focus {
+    outline: none;
+    border-color: #d4af37;
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+}
+
+input::placeholder {
+    color: #666;
+}
+
+/* CALENDARIO COMPACTO */
+.calendar-picker {
+    background: #2a2a2a;
+    border: 2px solid #333;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.calendar-header h3 {
+    color: #d4af37;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.calendar-nav {
+    display: flex;
+    gap: 8px;
+}
+
+.calendar-nav button {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000000;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+    transition: all 0.3s ease;
+}
+
+.calendar-nav button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    margin-bottom: 15px;
+}
+
+.day-label {
+    text-align: center;
+    font-weight: 700;
+    color: #d4af37;
+    padding: 8px 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.day-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #333;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    background: #1a1a1a;
+    font-size: 13px;
+    min-height: 35px;
+    color: #ffffff;
+}
+
+.day-cell.available:hover {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000000;
+    transform: scale(1.05);
+    border-color: #d4af37;
+}
+
+.day-cell.selected {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000000;
+    border-color: #d4af37;
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.day-cell.today {
+    border: 2px solid #d4af37;
+    font-weight: 700;
+    color: #d4af37;
+}
+
+.day-cell.today.selected {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000000;
+    border-color: #d4af37;
+}
+
+.day-cell.weekend {
+    background: #2a2a2a;
+    color: #888;
+}
+
+.day-cell.disabled {
+    background: #333;
+    color: #555;
+    cursor: not-allowed;
+}
+
+.selected-date-display {
+    margin-top: 15px;
+    padding: 12px;
+    background: #2a2a2a;
+    border-radius: 8px;
+    text-align: center;
+    color: #d4af37;
+    font-weight: 700;
+    font-size: 14px;
+    border: 2px solid #d4af37;
+}
+
+.horas-container {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 2px solid #333;
+}
+
+.horas-container label {
+    display: block;
+    margin-bottom: 12px;
+    color: #d4af37;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.horas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+    min-height: 200px; /* Añade una altura mínima */
+}
+
+.hora-btn {
+    padding: 10px 8px;
+    border: 2px solid #333;
+    border-radius: 6px;
+    background: #1a1a1a;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    font-size: 13px;
+    color: #ffffff;
+}
+
+.hora-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000000;
+    transform: translateY(-2px);
+    border-color: #d4af37;
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.hora-btn:disabled {
+    background: #333;
+    color: #555;
+    cursor: not-allowed;
+    border-color: #333;
+}
+
+.citas-grid {
+    display: grid;
+    gap: 20px;
+    margin-top: 25px;
+}
+
+.cita-card {
+    background: #2a2a2a;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.3s ease;
+}
+
+.cita-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(212, 175, 55, 0.2);
+    border-color: #d4af37;
+}
+
+.cita-card.pendiente {
+    border-left: 5px solid #d4af37;
+}
+
+.cita-card.confirmada {
+    border-left: 5px solid #28a745;
+}
+
+.cita-card.completada {
+    border-left: 5px solid #d4af37;
+}
+
+.cita-card.cancelada {
+    border-left: 5px solid #dc3545;
+    opacity: 0.7;
+}
+
+.cita-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.cita-estado {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.estado-pendiente { background: #3c2f00; color: #d4af37; }
+.estado-confirmada { background: #1a3c27; color: #90EE90; }
+.estado-completada { background: #1a3c3c; color: #d4af37; }
+.estado-cancelada { background: #3c1a1a; color: #FF6B6B; }
+
+.cita-detalles p {
+    margin: 10px 0;
+    color: #cccccc;
+    font-size: 15px;
+}
+
+.cita-detalles strong {
+    color: #d4af37;
+}
+
+.cita-acciones {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+}
+
+.loading {
+    text-align: center;
+    padding: 50px;
+    color: #d4af37;
+}
+
+.spinner {
+    border: 4px solid #333;
+    border-top: 4px solid #d4af37;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: #888;
+}
+
+.empty-state div {
+    font-size: 48px;
+    margin-bottom: 15px;
+    color: #d4af37;
+}
+
+.servicios-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 24px;
+    margin-top: 25px;
+}
+
+.servicio-card {
+    background: #2a2a2a;
+    border: 2px solid #333;
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.servicio-card:hover {
+    transform: translateY(-4px);
+    border-color: #d4af37;
+    box-shadow: 0 12px 24px rgba(212, 175, 55, 0.15);
+}
+
+.servicio-precio {
+    font-size: 28px;
+    font-weight: 700;
+    color: #d4af37;
+    margin: 15px 0;
+}
+
+.servicio-duracion {
+    color: #888;
+    font-size: 14px;
+}
+
+.logout-btn {
+    background: #8B0000;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: 2px solid #FF0000;
+}
+
+.logout-btn:hover {
+    background: #FF0000;
+    transform: translateY(-1px);
+}
+
+/* NUEVOS ESTILOS PARA SERVICIOS EN AGENDAR CITA */
+.servicios-seleccion {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.servicio-option {
+    background: #2a2a2a;
+    border: 2px solid #333;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    color: #ffffff;
+}
+
+.servicio-option:hover {
+    transform: translateY(-2px);
+    border-color: #d4af37;
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.15);
+}
+
+.servicio-option.selected {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000000;
+    border-color: #d4af37;
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
+}
+
+.servicio-option h3 {
+    margin-bottom: 10px;
+    font-size: 18px;
+}
+
+.servicio-option .precio {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 10px 0;
+}
+
+.servicio-option .duracion {
+    color: #888;
+    font-size: 14px;
+}
+
+.servicio-option.selected .duracion {
+    color: rgba(0, 0, 0, 0.8);
+}
+
+.barbero-info {
+    background: #2a2a2a;
+    border: 2px solid #333;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.barbero-info h3 {
+    color: #d4af37;
+    margin-bottom: 10px;
+}
+
+.barbero-info p {
+    color: #cccccc;
+    margin-bottom: 5px;
+}
+
+.calendar-disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.calendar-disabled-message {
+    text-align: center;
+    padding: 15px;
+    background: #3c2f00;
+    border: 1px solid #d4af37;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    color: #d4af37;
+}
+
+h2 {
+    color: #d4af37;
+    margin-bottom: 20px;
+    font-size: 24px;
+}
+
+/* =========================================== */
+/* ESTILOS PARA "NO HORAS DISPONIBLES" - DEBE ESTAR FUERA DE MEDIA QUERIES */
+/* =========================================== */
+
+.no-horas-disponibles {
+    width: 100%;
+    max-width: 600px;
+    margin: 40px auto;
+    text-align: center;
+    padding: 40px 30px;
     background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
     border: 2px solid #d4af37;
     border-radius: 12px;
-    margin: 20px 0;
     box-shadow: 0 8px 24px rgba(212, 175, 55, 0.15);
     animation: fadeIn 0.5s ease;
 }
-            .no-horas-disponibles ul li {
-                color: #cccccc;
-                margin-bottom: 5px;
-                font-size: 14px;
-            }
 
-            .no-horas-disponibles ul li:before {
-                content: "•";
-                color: #d4af37;
-                margin-right: 8px;
-            }
 .no-horas-disponibles-icon {
     font-size: 48px;
     color: #d4af37;
@@ -818,13 +734,17 @@
     font-weight: bold;
     font-size: 16px;
 }
-            /* Estilos adicionales para el sistema mejorado */
-    .hora-btn.ocupada {
-        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
-        border-color: #bd2130 !important;
-        color: white !important;
-        cursor: not-allowed;
-    }
+
+/* =========================================== */
+/* ESTILOS PARA EL SISTEMA MEJORADO */
+/* =========================================== */
+
+.hora-btn.ocupada {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+    border-color: #bd2130 !important;
+    color: white !important;
+    cursor: not-allowed;
+}
 
 .hora-btn.reservando {
     background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%) !important;
@@ -833,14 +753,11 @@
     cursor: not-allowed !important;
     opacity: 0.9 !important;
     pointer-events: none !important;
-    /* Quitar animación de parpadeo */
     animation: none !important;
-    /* Transición suave para cambios de estado */
     transition: all 0.3s ease !important;
 }
 
 .hora-btn.reservando small {
-    /* Animación sutil solo para el texto */
     animation: subtle-pulse 3s infinite !important;
 }
 
@@ -849,30 +766,12 @@
     50% { opacity: 1; }
     100% { opacity: 0.8; }
 }
-    .hora-btn.reservando:hover {
+
+.hora-btn.reservando:hover {
     transform: none !important;
     box-shadow: 0 0 10px rgba(139, 69, 19, 0.7) !important;
 }
 
-@keyframes pulse-marron {
-    0% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
-    50% { box-shadow: 0 0 15px rgba(139, 69, 19, 0.8); }
-    100% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
-}
-
-    @keyframes pulse-marron {
-        0% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
-        50% { box-shadow: 0 0 15px rgba(139, 69, 19, 0.8); }
-        100% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
-    }
-
-    /* @keyframes pulse-verde {
-        0% { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
-        50% { box-shadow: 0 0 20px rgba(40, 167, 69, 0.9); }
-        100% { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
-    } */
-
-    /* Estilos para el botón de reserva activa */
 .hora-btn.mi-reserva-activa {
     background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
     border-color: #1e7e34 !important;
@@ -891,6 +790,7 @@
     color: #000000 !important;
     box-shadow: 0 0 15px rgba(212, 175, 55, 0.5) !important;
 }
+
 .hora-btn.selected {
     background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%) !important;
     border-color: #d4af37 !important;
@@ -898,21 +798,181 @@
     box-shadow: 0 0 15px rgba(212, 175, 55, 0.5) !important;
 }
 
-@keyframes pulse-verde {
+@keyframes pulse-verde-fuerte {
     0% { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
     50% { box-shadow: 0 0 20px rgba(40, 167, 69, 0.9); }
     100% { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
 }
 
+@keyframes pulse-marron {
+    0% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
+    50% { box-shadow: 0 0 15px rgba(139, 69, 19, 0.8); }
+    100% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
+}
+
 .hora-btn.mi-reserva-activa small {
     animation: pulse-text 1s infinite alternate;
 }
+
 @keyframes pulse-text {
     from { opacity: 0.8; }
     to { opacity: 1; }
 }
-            
-        }
+
+/* =========================================== */
+/* ESTILOS PARA CITAS ACEPTADAS */
+/* =========================================== */
+
+.cita-card.aceptada {
+    border-left: 5px solid #28a745;
+}
+
+.estado-aceptada { 
+    background: #1a3c27; 
+    color: #90EE90; 
+}
+
+/* =========================================== */
+/* MEDIA QUERIES (RESPONSIVE) */
+/* =========================================== */
+
+@media (max-width: 768px) {
+    .nav-tabs {
+        flex-direction: column;
+    }
+
+    .cita-acciones {
+        flex-direction: column;
+    }
+
+    .user-info {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .horas-grid {
+        grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    }
+
+    .calendar-grid {
+        grid-template-columns: repeat(7, 1fr);
+    }
+
+    .tab-content {
+        padding: 20px;
+    }
+
+    .day-cell {
+        min-height: 30px;
+        font-size: 12px;
+    }
+
+    .day-label {
+        font-size: 10px;
+        padding: 6px 2px;
+    }
+
+    .servicios-seleccion {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Ajustes para no-horas-disponibles en tablets */
+    .no-horas-disponibles {
+        padding: 30px 20px;
+        margin: 30px auto;
+        max-width: 90%;
+    }
+    
+    .no-horas-disponibles h3 {
+        font-size: 22px;
+    }
+    
+    .no-horas-disponibles p {
+        font-size: 15px;
+    }
+    
+    .no-horas-disponibles-acciones {
+        gap: 12px;
+    }
+    
+    .no-horas-disponibles .btn {
+        padding: 10px 20px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-grid {
+        gap: 4px;
+    }
+
+    .day-cell {
+        min-height: 25px;
+        font-size: 11px;
+    }
+
+    .horas-grid {
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    }
+
+    .hora-btn {
+        padding: 8px 4px;
+        font-size: 12px;
+    }
+    
+    /* Ajustes para no-horas-disponibles en móviles */
+    .no-horas-disponibles {
+        padding: 25px 15px;
+        margin: 20px auto;
+        max-width: 95%;
+    }
+    
+    .no-horas-disponibles-icon {
+        font-size: 40px;
+    }
+    
+    .no-horas-disponibles h3 {
+        font-size: 20px;
+        margin-bottom: 12px;
+    }
+    
+    .no-horas-disponibles p {
+        font-size: 14px;
+        line-height: 1.5;
+        margin-bottom: 20px;
+    }
+    
+    .no-horas-disponibles-acciones {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .no-horas-disponibles .btn {
+        width: 100%;
+        max-width: 250px;
+        padding: 12px 16px;
+    }
+    
+    .no-horas-sugerencias {
+        padding: 15px;
+        margin-top: 20px;
+    }
+    
+    .no-horas-sugerencias h4 {
+        font-size: 16px;
+    }
+    
+    .no-horas-sugerencias ul li {
+        font-size: 14px;
+        padding-left: 20px;
+        margin-bottom: 10px;
+    }
+    
+    .no-horas-sugerencias ul li:before {
+        font-size: 14px;
+    }
+}
     </style>
 </head>
 <body>
