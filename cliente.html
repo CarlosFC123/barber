@@ -709,282 +709,23 @@
                 background: #1a3c27; 
                 color: #90EE90; 
             }
-           .no-horas-disponibles {
-    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
-    border: 2px solid #d4af37;
-    border-radius: 16px;
-    padding: 40px 30px;
-    text-align: center;
-    margin: 20px auto;
-    max-width: 800px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    animation: fadeInUp 0.6s ease-out;
-}
+            .no-horas-disponibles {
+                animation: fadeIn 0.5s ease;
+            }
 
-.no-horas-disponibles-header {
-    margin-bottom: 25px;
-}
+            .no-horas-disponibles ul li {
+                color: #cccccc;
+                margin-bottom: 5px;
+                font-size: 14px;
+            }
 
-.no-horas-disponibles-header .icon {
-    font-size: 64px;
-    margin-bottom: 20px;
-    display: block;
-    animation: bounce 2s infinite;
-}
+            .no-horas-disponibles ul li:before {
+                content: "•";
+                color: #d4af37;
+                margin-right: 8px;
+            }
 
-.no-horas-disponibles h3 {
-    color: #d4af37;
-    font-size: 26px;
-    margin-bottom: 15px;
-    font-weight: 700;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
 
-.no-horas-disponibles p {
-    color: #cccccc;
-    font-size: 16px;
-    line-height: 1.6;
-    margin-bottom: 25px;
-}
-
-.no-horas-disponibles strong {
-    color: #f4e4a6;
-    font-weight: 700;
-}
-.recomendaciones-box {
-    background: rgba(212, 175, 55, 0.1);
-    border-left: 4px solid #d4af37;
-    border-radius: 10px;
-    padding: 25px;
-    margin: 30px 0;
-    text-align: left;
-}
-
-.recomendaciones-box h4 {
-    color: #f4e4a6;
-    font-size: 18px;
-    margin-bottom: 15px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.recomendaciones-box ul {
-    list-style: none;
-    padding-left: 0;
-}
-
-.recomendaciones-box li {
-    color: #cccccc;
-    margin-bottom: 12px;
-    padding-left: 28px;
-    position: relative;
-    font-size: 15px;
-    line-height: 1.5;
-}
-
-.recomendaciones-box li:before {
-    content: "✓";
-    position: absolute;
-    left: 0;
-    color: #d4af37;
-    font-weight: bold;
-    background: rgba(212, 175, 55, 0.2);
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-}
-
-.fechas-sugeridas {
-    margin: 30px 0;
-}
-
-.fechas-sugeridas h4 {
-    color: #d4af37;
-    font-size: 18px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-}
-
-.fechas-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 15px;
-    margin-top: 15px;
-}
-
-.fecha-opcion-btn {
-    background: rgba(51, 51, 51, 0.8);
-    border: 2px solid #444;
-    border-radius: 12px;
-    padding: 18px 12px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    color: #ffffff;
-    font-weight: 600;
-    font-size: 14px;
-    position: relative;
-    overflow: hidden;
-}
-
-.fecha-opcion-btn:hover {
-    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-    color: #000000;
-    transform: translateY(-3px);
-    border-color: #d4af37;
-    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
-}
-
-.fecha-opcion-btn .fecha-dia {
-    display: block;
-    font-size: 13px;
-    color: #d4af37;
-    margin-bottom: 5px;
-    font-weight: 700;
-}
-
-.fecha-opcion-btn:hover .fecha-dia {
-    color: #000000;
-}
-
-.fecha-opcion-btn .fecha-numero {
-    display: block;
-    font-size: 24px;
-    font-weight: 800;
-    margin-bottom: 5px;
-}
-
-.fecha-opcion-btn .fecha-mes {
-    display: block;
-    font-size: 13px;
-    color: #888;
-    text-transform: uppercase;
-}
-
-.fecha-opcion-btn:hover .fecha-mes {
-    color: rgba(0, 0, 0, 0.8);
-}
-
-.ver-todas-btn {
-    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
-    color: #000000;
-    border: none;
-    border-radius: 12px;
-    padding: 16px 32px;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-top: 20px;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    box-shadow: 0 6px 15px rgba(212, 175, 55, 0.4);
-}
-
-.ver-todas-btn:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 25px rgba(212, 175, 55, 0.6);
-}
-
-.contacto-box {
-    margin-top: 30px;
-    padding-top: 25px;
-    border-top: 1px solid #444;
-}
-
-.contacto-box p {
-    color: #888;
-    font-size: 14px;
-    margin-bottom: 15px;
-}
-
-.contacto-btn {
-    background: transparent;
-    border: 2px solid #d4af37;
-    color: #d4af37;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.contacto-btn:hover {
-    background: #d4af37;
-    color: #000000;
-}
-
-/* Animaciones */
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes bounce {
-    0%, 100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-10px);
-    }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .no-horas-disponibles {
-        padding: 30px 20px;
-        margin: 15px;
-    }
-    
-    .no-horas-disponibles h3 {
-        font-size: 22px;
-    }
-    
-    .fechas-grid {
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    }
-    
-    .fecha-opcion-btn {
-        padding: 15px 10px;
-    }
-    
-    .fecha-opcion-btn .fecha-numero {
-        font-size: 20px;
-    }
-}
-
-@media (max-width: 480px) {
-    .no-horas-disponibles {
-        padding: 25px 15px;
-    }
-    
-    .no-horas-disponibles h3 {
-        font-size: 20px;
-    }
-    
-    .recomendaciones-box {
-        padding: 20px;
-    }
-    
-    .fechas-grid {
-        grid-template-columns: 1fr;
-    }
-}
 
             /* Estilos adicionales para el sistema mejorado */
     .hora-btn.ocupada {
@@ -2773,51 +2514,34 @@ function startApplication(supabase) {
         }
         
         horasGrid.innerHTML = `
-    <div class="no-horas-disponibles">
-        <div class="no-horas-disponibles-header">
-            <span class="icon">📅</span>
-            <h3>¡Todas las horas están ocupadas para esta fecha!</h3>
-            <p>Para <strong>${selectedDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong> no quedan horarios disponibles.</p>
-        </div>
-        
-        <div class="recomendaciones-box">
-            <h4><span>💡</span> Te recomendamos</h4>
-            <ul>
-                <li>Intenta agendar para otra fecha disponible</li>
-                <li>Los días martes a jueves suelen tener mayor disponibilidad</li>
-                <li>Agenda con mayor anticipación para asegurar tu horario preferido</li>
-                <li>Contacta directamente para opciones especiales o urgencias</li>
-            </ul>
-        </div>
-        
-        <div class="fechas-sugeridas">
-            <h4><span>📅</span> Prueba con estas fechas disponibles</h4>
-            <div class="fechas-grid">
-                ${opcionesFechas.map(opcion => `
-                    <button class="fecha-opcion-btn" onclick="app.seleccionarOtraFecha('${opcion.fecha}')">
-                        <span class="fecha-dia">${opcion.diaSemana}</span>
-                        <span class="fecha-numero">${opcion.diaNumero}</span>
-                        <span class="fecha-mes">${opcion.mes}</span>
-                        <small style="display: block; margin-top: 5px; color: #d4af37; font-size: 12px;">
-                            ${opcion.horasDisponibles} horas disponibles
-                        </small>
-                    </button>
-                `).join('')}
+            <div class="no-horas-disponibles">
+                <h3>😕 ¡Todas las horas están ocupadas para esta fecha!</h3>
+                <p>Para <strong>${selectedDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}</strong> no quedan horarios disponibles.</p>
+                
+                <div class="recomendaciones-box">
+                    <h4>💡 Te recomendamos:</h4>
+                    <ul>
+                        <li>Intenta con otra fecha</li>
+                        <li>Revisa horarios de días menos concurridos (martes a jueves)</li>
+                        <li>Agenda con más anticipación</li>
+                        <li>Contacta al barbero para opciones especiales</li>
+                    </ul>
+                </div>
+                
+                <h4 style="color: #d4af37; margin-top: 20px;">📅 Prueba con estas fechas:</h4>
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 15px;">
+                    ${opcionesFechas.map(opcion => `
+                        <button class="btn btn-secondary" onclick="app.seleccionarOtraFecha('${opcion.fecha}')" style="min-width: 150px;">
+                            ${opcion.texto}
+                        </button>
+                    `).join('')}
+                </div>
+                
+                <button class="btn btn-primary" onclick="app.mostrarMasOpciones()" style="margin-top: 20px;">
+                    📋 Ver todas las fechas disponibles
+                </button>
             </div>
-        </div>
-        
-        <button class="ver-todas-btn" onclick="app.mostrarMasOpciones()">
-            <span>📋</span> Ver calendario completo
-        </button>
-        
-        <div class="contacto-box">
-            <p>¿Necesitas una cita urgente o tienes alguna pregunta?</p>
-            <button class="contacto-btn" onclick="app.contactarBarbero()">
-                <span>✉️</span> Contactar al barbero
-            </button>
-        </div>
-    </div>
-`;
+        `;
         
         // Deshabilitar botón de agendar
         const btnAgendar = document.getElementById('btnAgendarCita');
