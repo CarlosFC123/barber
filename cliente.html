@@ -695,6 +695,15 @@
         font-size: 16px;
         margin-bottom: 25px;
         line-height: 1.5;
+        text-align: left;
+        padding: 15px;
+        background: rgba(42, 42, 42, 0.6);
+        border-radius: 10px;
+        border: 1px solid #444;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: normal;
+        word-break: break-word;
     }
 
     .no-horas-disponibles > p strong {
@@ -703,6 +712,84 @@
         background: rgba(212, 175, 55, 0.1);
         padding: 2px 8px;
         border-radius: 6px;
+        display: inline-block;
+    }
+
+    /* Estilos específicos para los mensajes dentro del contenedor */
+    .no-horas-disponibles .mensaje-principal {
+        font-size: 16px;
+        color: #FF6B6B;
+        background: rgba(220, 53, 69, 0.1);
+        padding: 12px 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        border-left: 4px solid #dc3545;
+        text-align: left;
+        line-height: 1.5;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: normal;
+    }
+
+    .no-horas-disponibles .mensaje-principal i {
+        color: #d4af37;
+        margin-right: 8px;
+        font-style: normal;
+        font-weight: bold;
+    }
+
+    /* Mensaje de fecha disponible */
+    .no-horas-disponibles .mensaje-disponible {
+        font-size: 15px;
+        color: #90EE90;
+        background: rgba(40, 167, 69, 0.1);
+        padding: 12px 20px;
+        border-radius: 10px;
+        margin-bottom: 25px;
+        border-left: 4px solid #28a745;
+        text-align: left;
+        line-height: 1.5;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: normal;
+    }
+
+    .no-horas-disponibles .mensaje-disponible strong {
+        color: #d4af37;
+        font-weight: 700;
+        display: inline-block;
+    }
+
+    /* Alternativa: un solo párrafo con mejor formato */
+    .no-horas-disponibles .mensaje-combinado {
+        color: #cccccc;
+        font-size: 16px;
+        line-height: 1.6;
+        padding: 20px;
+        background: rgba(42, 42, 42, 0.6);
+        border-radius: 12px;
+        border: 1px solid #444;
+        margin: 20px 0;
+        text-align: left;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: normal;
+    }
+
+    .no-horas-disponibles .mensaje-combinado .alerta {
+        color: #FF6B6B;
+        display: block;
+        margin-bottom: 10px;
+        font-weight: 600;
+        word-break: break-word;
+    }
+
+    .no-horas-disponibles .mensaje-combinado .alternativa {
+        color: #90EE90;
+        display: block;
+        margin-top: 10px;
+        font-weight: 600;
+        word-break: break-word;
     }
 
     /* Tarjeta de recomendaciones */
@@ -1091,6 +1178,21 @@
             background: #1a3c27; 
             color: #90EE90; 
         }
+
+        /* Estilos específicos para mensajes en móviles */
+        .no-horas-disponibles > p,
+        .no-horas-disponibles .mensaje-principal,
+        .no-horas-disponibles .mensaje-disponible {
+            font-size: 14px;
+            padding: 10px 15px;
+            line-height: 1.4;
+            text-align: left;
+        }
+        
+        .no-horas-disponibles h3 {
+            font-size: 20px;
+            text-align: center;
+        }
     }
 
     @media (max-width: 480px) {
@@ -1121,18 +1223,6 @@
             font-size: 18px;
         }
 
-        .no-horas-disponibles ul li {
-            color: #cccccc;
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
-
-        .no-horas-disponibles ul li:before {
-            content: "•";
-            color: #d4af37;
-            margin-right: 8px;
-        }
-
         .btn-ver-todas-fechas {
             padding: 14px 24px;
             font-size: 14px;
@@ -1143,115 +1233,36 @@
             font-size: 16px;
         }
 
-        .no-horas-disponibles .mensaje-principal {
-    font-size: 16px;
-    color: #FF6B6B;
-    background: rgba(220, 53, 69, 0.1);
-    padding: 12px 20px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-    border-left: 4px solid #dc3545;
-    text-align: left;
-    line-height: 1.5;
-}
+        /* Estilos específicos para mensajes en móviles pequeños */
+        .no-horas-disponibles > p,
+        .no-horas-disponibles .mensaje-principal,
+        .no-horas-disponibles .mensaje-disponible,
+        .no-horas-disponibles .mensaje-combinado {
+            font-size: 13px;
+            padding: 8px 12px;
+            line-height: 1.3;
+            word-break: break-word;
+            hyphens: auto;
+        }
+        
+        .no-horas-disponibles h3 {
+            font-size: 18px;
+            text-align: center;
+        }
+        
+        /* Estilos para los bullets de la lista */
+        .no-horas-disponibles ul li {
+            color: #cccccc;
+            margin-bottom: 5px;
+            font-size: 14px;
+            word-break: break-word;
+        }
 
-.no-horas-disponibles .mensaje-principal i {
-    color: #d4af37;
-    margin-right: 8px;
-    font-style: normal;
-    font-weight: bold;
-}
-
-/* Mensaje de fecha disponible */
-.no-horas-disponibles .mensaje-disponible {
-    font-size: 15px;
-    color: #90EE90;
-    background: rgba(40, 167, 69, 0.1);
-    padding: 12px 20px;
-    border-radius: 10px;
-    margin-bottom: 25px;
-    border-left: 4px solid #28a745;
-    text-align: left;
-    line-height: 1.5;
-}
-
-.no-horas-disponibles .mensaje-disponible strong {
-    color: #d4af37;
-    font-weight: 700;
-}
-
-/* Ajuste para el texto largo */
-.no-horas-disponibles > p {
-    color: #cccccc;
-    font-size: 16px;
-    margin-bottom: 25px;
-    line-height: 1.5;
-    text-align: left;
-    padding: 15px;
-    background: rgba(42, 42, 42, 0.6);
-    border-radius: 10px;
-    border: 1px solid #444;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
-
-/* Estilo para pantallas pequeñas */
-@media (max-width: 768px) {
-    .no-horas-disponibles .mensaje-principal,
-    .no-horas-disponibles .mensaje-disponible,
-    .no-horas-disponibles > p {
-        font-size: 14px;
-        padding: 10px 15px;
-        line-height: 1.4;
-        text-align: left;
-    }
-    
-    .no-horas-disponibles h3 {
-        font-size: 20px;
-        text-align: center;
-    }
-}
-
-@media (max-width: 480px) {
-    .no-horas-disponibles .mensaje-principal,
-    .no-horas-disponibles .mensaje-disponible,
-    .no-horas-disponibles > p {
-        font-size: 13px;
-        padding: 8px 12px;
-        line-height: 1.3;
-    }
-    
-    .no-horas-disponibles h3 {
-        font-size: 18px;
-    }
-}
-
-/* Alternativa: un solo párrafo con mejor formato */
-.no-horas-disponibles .mensaje-combinado {
-    color: #cccccc;
-    font-size: 16px;
-    line-height: 1.6;
-    padding: 20px;
-    background: rgba(42, 42, 42, 0.6);
-    border-radius: 12px;
-    border: 1px solid #444;
-    margin: 20px 0;
-    text-align: left;
-}
-
-.no-horas-disponibles .mensaje-combinado .alerta {
-    color: #FF6B6B;
-    display: block;
-    margin-bottom: 10px;
-    font-weight: 600;
-}
-
-.no-horas-disponibles .mensaje-combinado .alternativa {
-    color: #90EE90;
-    display: block;
-    margin-top: 10px;
-    font-weight: 600;
-}
+        .no-horas-disponibles ul li:before {
+            content: "•";
+            color: #d4af37;
+            margin-right: 8px;
+        }
     }
 </style>
 </head>
@@ -2919,27 +2930,32 @@ function startApplication(supabase) {
     // ============ FUNCIÓN PARA MOSTRAR MENSAJE CUANDO NO HAY HORAS ============
 
     function mostrarMensajeNoHorasDisponibles(fechaFormateada) {
-        const horasGrid = document.getElementById('horasGrid');
-        if (!horasGrid) return;
-        
-        // Crear opciones para otras fechas (próximos 3 días)
-        const opcionesFechas = [];
-        for (let i = 1; i <= 3; i++) {
-            const nuevaFecha = new Date(selectedDate);
-            nuevaFecha.setDate(nuevaFecha.getDate() + i);
-            opcionesFechas.push({
-                fecha: formatDate(nuevaFecha),
-                texto: nuevaFecha.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
-            });
-        }
-        
-        horasGrid.innerHTML = `
+    const horasGrid = document.getElementById('horasGrid');
+    if (!horasGrid) return;
+    
+    // Crear opciones para otras fechas (próximos 3 días)
+    const opcionesFechas = [];
+    for (let i = 1; i <= 3; i++) {
+        const nuevaFecha = new Date(selectedDate);
+        nuevaFecha.setDate(nuevaFecha.getDate() + i);
+        opcionesFechas.push({
+            fecha: formatDate(nuevaFecha),
+            texto: nuevaFecha.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
+        });
+    }
+    
+    horasGrid.innerHTML = `
     <div class="no-horas-disponibles">
-        <h3>¡Todas las horas están ocupadas para esta fecha!</h3>
-        <p>Para <strong>${selectedDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}</strong> no quedan horarios disponibles.</p>
+        <div class="mensaje-principal">
+            <i>¡Atención!</i> ¡Todas las horas están ocupadas para esta fecha!
+        </div>
+        
+        <div class="mensaje-disponible">
+            Para <strong>viernes 26 de diciembre</strong> quedan horarios disponibles.
+        </div>
         
         <div class="recomendaciones-box">
-            <h4>Te recomendamos</h4>
+            <h4>💡 Te recomendamos</h4>
             <ul>
                 <li>Intenta con otra fecha diferente</li>
                 <li>Revisa horarios de días menos concurridos (martes a jueves)</li>
@@ -2949,7 +2965,7 @@ function startApplication(supabase) {
         </div>
         
         <div class="fechas-alternativas">
-            <h4>Prueba con estas fechas disponibles</h4>
+            <h4>📅 Prueba con estas fechas disponibles</h4>
             <div class="grid-fechas-alternativas">
                 ${opcionesFechas.map((opcion, index) => {
                     const fechaObj = new Date(opcion.fecha);
@@ -2971,21 +2987,20 @@ function startApplication(supabase) {
         </div>
         
         <button class="btn-ver-todas-fechas" onclick="app.mostrarMasOpciones()">
-            Ver todas las fechas disponibles
+            📋 Ver todas las fechas disponibles
         </button>
     </div>
 `;
-        
-        // Deshabilitar botón de agendar
-        const btnAgendar = document.getElementById('btnAgendarCita');
-        if (btnAgendar) {
-            btnAgendar.disabled = true;
-            btnAgendar.style.opacity = '0.6';
-            btnAgendar.style.cursor = 'not-allowed';
-            btnAgendar.title = 'No hay horas disponibles para agendar';
-        }
+    
+    // Deshabilitar botón de agendar
+    const btnAgendar = document.getElementById('btnAgendarCita');
+    if (btnAgendar) {
+        btnAgendar.disabled = true;
+        btnAgendar.style.opacity = '0.6';
+        btnAgendar.style.cursor = 'not-allowed';
+        btnAgendar.title = 'No hay horas disponibles para agendar';
     }
-
+}
     // ============ FUNCIONES PARA ANIMACIONES Y CARGANDO ============
 
     function mostrarCargandoAgendando() {
