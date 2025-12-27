@@ -710,21 +710,342 @@
                 color: #90EE90; 
             }
             .no-horas-disponibles {
-                animation: fadeIn 0.5s ease;
-            }
+    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+    border: 2px solid #d4af37;
+    border-radius: 16px;
+    padding: 30px;
+    margin-top: 20px;
+    animation: fadeIn 0.5s ease;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+}
 
-            .no-horas-disponibles ul li {
-                color: #cccccc;
-                margin-bottom: 5px;
-                font-size: 14px;
-            }
 
-            .no-horas-disponibles ul li:before {
-                content: "•";
-                color: #d4af37;
-                margin-right: 8px;
-            }
+            .no-horas-disponibles:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #d4af37, #f4e4a6, #d4af37);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite linear;
+}
 
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.no-horas-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #333;
+}
+
+.no-horas-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+    color: #d4af37;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.no-horas-header h3 {
+    color: #ff6b6b;
+    margin-bottom: 10px;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.fecha-destacada {
+    color: #d4af37;
+    font-size: 18px;
+    font-weight: 600;
+    background: rgba(212, 175, 55, 0.1);
+    padding: 8px 16px;
+    border-radius: 8px;
+    display: inline-block;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.no-horas-contenido {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.recomendacion-card {
+    background: linear-gradient(135deg, #2a2a2a 0%, #333 100%);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #444;
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.recomendacion-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    border-color: #d4af37;
+}
+
+.recomendacion-icon {
+    font-size: 32px;
+    color: #d4af37;
+    background: rgba(212, 175, 55, 0.1);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.recomendacion-info {
+    flex: 1;
+}
+
+.recomendacion-info h4 {
+    color: #d4af37;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.recomendacion-lista {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.recomendacion-lista li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    transition: background 0.3s ease;
+}
+
+.recomendacion-lista li:hover {
+    background: rgba(212, 175, 55, 0.1);
+}
+
+.recomendacion-badge {
+    background: linear-gradient(135deg, #d4af37, #f4e4a6);
+    color: #000;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.recomendacion-texto {
+    color: #cccccc;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.fechas-alternativas {
+    background: rgba(26, 26, 26, 0.8);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #444;
+}
+
+.fechas-alternativas h4 {
+    color: #d4af37;
+    margin-bottom: 20px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.calendar-icon {
+    font-size: 20px;
+}
+
+.fechas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.fecha-card {
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+    border: 1px solid #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.fecha-card:hover {
+    transform: translateY(-5px);
+    border-color: #d4af37;
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.2);
+}
+
+.fecha-card:hover:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #d4af37, #f4e4a6);
+}
+
+.fecha-header {
+    margin-bottom: 10px;
+}
+
+.dia-semana {
+    display: block;
+    color: #888;
+    font-size: 12px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.numero-dia {
+    display: block;
+    color: #ffffff;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+    margin-top: 5px;
+}
+
+.fecha-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mes {
+    color: #d4af37;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.btn-seleccionar-fecha {
+    background: rgba(212, 175, 55, 0.1);
+    color: #d4af37;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-seleccionar-fecha:hover {
+    background: linear-gradient(135deg, #d4af37, #f4e4a6);
+    color: #000;
+    border-color: #d4af37;
+}
+
+.acciones-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.btn-block {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.btn-icon {
+    font-size: 18px;
+}
+
+.btn-primary.btn-block:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
+}
+
+.btn-secondary.btn-block:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(255, 255, 255, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .no-horas-disponibles {
+        padding: 20px;
+    }
+    
+    .fechas-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .recomendacion-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .recomendacion-icon {
+        align-self: center;
+    }
+    
+    .no-horas-header h3 {
+        font-size: 20px;
+    }
+    
+    .fecha-destacada {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .fechas-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .acciones-container {
+        flex-direction: column;
+    }
+    
+    .btn-block {
+        font-size: 14px;
+        padding: 12px;
+    }
+}
 
 
             /* Estilos adicionales para el sistema mejorado */
@@ -2514,34 +2835,73 @@ function startApplication(supabase) {
         }
         
         horasGrid.innerHTML = `
-            <div class="no-horas-disponibles">
-                <h3>😕 ¡Todas las horas están ocupadas para esta fecha!</h3>
-                <p>Para <strong>${selectedDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}</strong> no quedan horarios disponibles.</p>
-                
-                <div class="recomendaciones-box">
-                    <h4>💡 Te recomendamos:</h4>
-                    <ul>
-                        <li>Intenta con otra fecha</li>
-                        <li>Revisa horarios de días menos concurridos (martes a jueves)</li>
-                        <li>Agenda con más anticipación</li>
-                        <li>Contacta al barbero para opciones especiales</li>
+    <div class="no-horas-disponibles">
+        <div class="no-horas-header">
+            <div class="no-horas-icon">📅</div>
+            <h3>Todas las horas están ocupadas</h3>
+            <p class="fecha-destacada">${selectedDate.toLocaleDateString('es-MX', { 
+                weekday: 'long', 
+                day: 'numeric', 
+                month: 'long',
+                year: 'numeric'
+            })}</p>
+        </div>
+        
+        <div class="no-horas-contenido">
+            <div class="recomendacion-card">
+                <div class="recomendacion-icon">💡</div>
+                <div class="recomendacion-info">
+                    <h4>Recomendaciones</h4>
+                    <ul class="recomendacion-lista">
+                        <li>
+                            <span class="recomendacion-badge">1</span>
+                            <span class="recomendacion-texto">Selecciona otra fecha disponible</span>
+                        </li>
+                        <li>
+                            <span class="recomendacion-badge">2</span>
+                            <span class="recomendacion-texto">Agenda con más anticipación</span>
+                        </li>
+                        <li>
+                            <span class="recomendacion-badge">3</span>
+                            <span class="recomendacion-texto">Los horarios de la mañana suelen tener más disponibilidad</span>
+                        </li>
                     </ul>
                 </div>
-                
-                <h4 style="color: #d4af37; margin-top: 20px;">📅 Prueba con estas fechas:</h4>
-                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 15px;">
+            </div>
+            
+            <div class="fechas-alternativas">
+                <h4><span class="calendar-icon">📋</span> Fechas con disponibilidad</h4>
+                <div class="fechas-grid">
                     ${opcionesFechas.map(opcion => `
-                        <button class="btn btn-secondary" onclick="app.seleccionarOtraFecha('${opcion.fecha}')" style="min-width: 150px;">
-                            ${opcion.texto}
-                        </button>
+                        <div class="fecha-card" onclick="app.seleccionarOtraFecha('${opcion.fecha}')">
+                            <div class="fecha-header">
+                                <span class="dia-semana">${new Date(opcion.fecha).toLocaleDateString('es-MX', { weekday: 'short' })}</span>
+                                <span class="numero-dia">${new Date(opcion.fecha).getDate()}</span>
+                            </div>
+                            <div class="fecha-body">
+                                <span class="mes">${new Date(opcion.fecha).toLocaleDateString('es-MX', { month: 'short' })}</span>
+                                <button class="btn-seleccionar-fecha">
+                                    Seleccionar
+                                </button>
+                            </div>
+                        </div>
                     `).join('')}
                 </div>
-                
-                <button class="btn btn-primary" onclick="app.mostrarMasOpciones()" style="margin-top: 20px;">
-                    📋 Ver todas las fechas disponibles
+            </div>
+            
+            <div class="acciones-container">
+                <button class="btn btn-primary btn-block" onclick="app.mostrarMasOpciones()">
+                    <span class="btn-icon">🔍</span>
+                    Ver calendario completo
+                </button>
+                <button class="btn btn-secondary btn-block" onclick="generarHoras(selectedDate)">
+                    <span class="btn-icon">🔄</span>
+                    Reintentar con esta fecha
                 </button>
             </div>
-        `;
+        </div>
+    </div>
+`;
         
         // Deshabilitar botón de agendar
         const btnAgendar = document.getElementById('btnAgendarCita');
