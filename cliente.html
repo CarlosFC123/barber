@@ -1269,50 +1269,6 @@ async function actualizarEstadosHorasExistentes(fecha) {
     }
 }
 
-// Agrega esta función para depuración
-async function testSistemaReservas() {
-    console.log('🧪 === TEST SISTEMA DE RESERVAS ===');
-    
-    // 1. Verificar autenticación
-    console.log('1. ✅ Usuario autenticado:', miUsuarioId);
-    
-    // 2. Verificar fecha seleccionada
-    if (!selectedDate) {
-        console.log('❌ No hay fecha seleccionada');
-        return;
-    }
-    
-    const fecha = formatDate(selectedDate);
-    console.log('2. ✅ Fecha seleccionada:', fecha);
-    
-    // 3. Verificar calendario habilitado
-    console.log('3. ✅ Calendario habilitado:', calendarioHabilitado);
-    
-    // 4. Forzar sincronización
-    console.log('4. 🔄 Forzando sincronización...');
-    await obtenerSolicitudesPendientes(true);
-    
-    // 5. Mostrar estado actual
-    console.log('5. 📊 Estado actual:');
-    console.log(`   - Reservas en memoria: ${solicitudesPendientes.size}`);
-    console.log(`   - reservaActiva: ${reservaActiva ? 'Sí' : 'No'}`);
-    
-    // 6. Forzar generación de horas
-    console.log('6. 🔄 Forzando generación de horas...');
-    await generateHoras(selectedDate);
-}
-
-// Agrega un botón de prueba
-const testBtn2 = document.createElement('button');
-testBtn2.textContent = '🧪 Test Sistema';
-testBtn2.style.cssText = 'margin-left: 10px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;';
-testBtn2.onclick = testSistemaReservas;
-
-// Agregar al header
-const userInfo = document.querySelector('.user-info');
-if (userInfo) {
-    userInfo.appendChild(testBtn2);
-}
 function limpiarIntervalosInactivos() {
     // Limpiar intervalos de botones que ya no están en el DOM
     document.querySelectorAll('.hora-btn').forEach(btn => {
@@ -1409,54 +1365,6 @@ function limpiarReservasExpiradas() {
     } catch (error) {
         console.error('❌ Error obteniendo solicitudes:', error);
     }
-}
-async function debugSolicitudesTemporales() {
-    try {
-        console.log('=== DEBUG SOLICITUDES TEMPORALES ===');
-        
-        // Ver todas las solicitudes en la BD
-        const { data: todasSolicitudes, error } = await supabase
-            .from('solicitudes_temporales')
-            .select('*')
-            .order('creado_en', { ascending: false });
-            
-        if (error) {
-            console.error('Error obteniendo todas las solicitudes:', error);
-            return;
-        }
-        
-        const ahora = new Date();
-        console.log('📊 Todas las solicitudes en BD:', todasSolicitudes?.length || 0);
-        
-        if (todasSolicitudes) {
-            todasSolicitudes.forEach((sol, index) => {
-                const expiraEn = new Date(sol.expira_en);
-                const estaExpirada = expiraEn < ahora;
-                
-                console.log(`${index + 1}. ${sol.fecha} ${sol.hora} - Usuario: ${sol.usuario_id}`);
-                console.log(`   Creado: ${sol.creado_en}`);
-                console.log(`   Expira: ${sol.expira_en} ${estaExpirada ? '❌ EXPIRADA' : '✅ ACTIVA'}`);
-                console.log(`   Diferencia: ${expiraEn - ahora}ms`);
-            });
-        }
-        
-        // Verificar RLS (Row Level Security)
-        console.log('👤 Mi ID:', miUsuarioId);
-        
-    } catch (error) {
-        console.error('Error en debug:', error);
-    }
-}
-
-// Agrega un botón para debug
-const header = document.querySelector('.header .user-info');
-if (header) {
-    const debugBtn = document.createElement('button');
-    debugBtn.className = 'btn btn-secondary';
-    debugBtn.style.marginLeft = '10px';
-    debugBtn.textContent = '🐛 Debug';
-    debugBtn.onclick = debugSolicitudesTemporales;
-    header.appendChild(debugBtn);
 }
 
 function mostrarEstadoReservandoEnUI(fecha, hora) {
@@ -1604,9 +1512,7 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             return;
         }
         
-        // 3. IMPORTANTE: NO desactivar el polling
-        // pollingActivo = false; // <-- QUITA ESTA LÍNEA
-        // El polling debe seguir funcionando
+        
         
         // 4. Registrar nueva reserva
         const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
@@ -4464,26 +4370,6 @@ function getYucatanTimePlusHours(hours) {
 
             console.log('✅ Sistema de sincronización iniciado correctamente');
 
-            // Agrega esto al final de verificarAutenticacion()
-const resetBtn = document.createElement('button');
-resetBtn.textContent = '🔄 Reset UI';
-resetBtn.style.cssText = 'margin-left: 10px; padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;';
-resetBtn.onclick = async () => {
-    console.log('🔄 Reseteando UI completa...');
-    if (reservaActiva) {
-        await cancelarReservaAnterior();
-    }
-    if (selectedDate) {
-        const fecha = formatDate(selectedDate);
-        await resetearTodosLosBotones(fecha);
-        showAlert('UI reseteada', 'info');
-    }
-};
-
-const userInfo = document.querySelector('.user-info');
-if (userInfo) {
-    userInfo.appendChild(resetBtn);
-}
 
         } catch (error) {
             console.error('Error de autenticación:', error);
