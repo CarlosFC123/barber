@@ -634,19 +634,22 @@ h2 {
 /* =========================================== */
 
 .horas-grid .no-horas-disponibles {
+    grid-column: 1 / -1 !important; /* Ocupa todas las columnas del grid */
     width: 100% !important;
-    max-width: 600px !important;
-    margin: 40px auto !important;
+    max-width: 100% !important;
+    margin: 20px 0 !important;
     text-align: center !important;
-    padding: 40px 30px !important;
+    padding: 40px 20px !important;
     background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%) !important;
     border: 2px solid #d4af37 !important;
     border-radius: 12px !important;
     box-shadow: 0 8px 24px rgba(212, 175, 55, 0.15) !important;
     animation: fadeIn 0.5s ease !important;
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
-
 .horas-grid .no-horas-disponibles .no-horas-disponibles-icon {
     font-size: 48px !important;
     color: #d4af37 !important;
@@ -659,13 +662,23 @@ h2 {
     font-size: 24px !important;
     margin-bottom: 15px !important;
     font-weight: 700 !important;
+    width: 100% !important;
 }
 
+.horas-grid .no-horas-disponibles p {
+    color: #cccccc !important;
+    margin-bottom: 25px !important;
+    font-size: 16px !important;
+    max-width: 600px !important;
+}
 
-
-
-
-
+.horas-grid .no-horas-disponibles .no-horas-disponibles-acciones {
+    display: flex !important;
+    gap: 15px !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    width: 100% !important;
+}
 
 .horas-grid .no-horas-disponibles .btn {
     padding: 12px 24px !important;
@@ -675,6 +688,7 @@ h2 {
     transition: all 0.3s ease !important;
     cursor: pointer !important;
     border: none !important;
+    min-width: 180px !important;
 }
 
 .horas-grid .no-horas-disponibles .btn-primary {
@@ -686,6 +700,46 @@ h2 {
     background: #333 !important;
     color: #d4af37 !important;
     border: 2px solid #d4af37 !important;
+}
+
+@media (max-width: 768px) {
+    .horas-grid .no-horas-disponibles {
+        padding: 30px 15px !important;
+        margin: 15px 0 !important;
+    }
+    
+    .horas-grid .no-horas-disponibles h3 {
+        font-size: 20px !important;
+    }
+    
+    .horas-grid .no-horas-disponibles p {
+        font-size: 14px !important;
+    }
+    
+    .horas-grid .no-horas-disponibles .no-horas-disponibles-acciones {
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+    
+    .horas-grid .no-horas-disponibles .btn {
+        width: 100% !important;
+        max-width: 300px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .horas-grid .no-horas-disponibles {
+        padding: 25px 12px !important;
+        margin: 10px 0 !important;
+    }
+    
+    .horas-grid .no-horas-disponibles h3 {
+        font-size: 18px !important;
+    }
+    
+    .horas-grid .no-horas-disponibles-icon {
+        font-size: 40px !important;
+    }
 }
 
 /* Animaciones */
@@ -2239,19 +2293,30 @@ async function generateHoras(selectedDateObj) {
         const totalHoras = horas.length;
         const horasOcupadasTotales = horasOcupadas + horasPasadas;
         
-        if (horasOcupadasTotales === totalHoras && horasDisponibles === 0) {
-            // Mostrar mensaje elegante en lugar de las horas
-            horasGrid.innerHTML = `
-                <div class="no-horas-disponibles">
-                    <div class="no-horas-disponibles-icon">⏰</div>
-                    <h3>Todas las horas están ocupadas</h3>      
-                </div>
-            `;
-            
-            // Ocultar contenedor de horas (ya está incluido en el mensaje)
-            actualizarEstadoAgendamiento(0);
-            return;
-        }
+        // En la función generateHoras, donde muestras el mensaje:
+if (horasOcupadasTotales === totalHoras && horasDisponibles === 0) {
+    // Limpiar completamente el grid primero
+    horasGrid.innerHTML = '';
+    
+    // Crear contenedor del mensaje que ocupará todo el ancho
+    const noHorasDiv = document.createElement('div');
+    noHorasDiv.className = 'no-horas-disponibles';
+    noHorasDiv.innerHTML = `
+        <div class="no-horas-disponibles-icon">⏰</div>
+        <h3>Todas las horas están ocupadas</h3>
+        <p>No hay horarios disponibles para esta fecha. Por favor, selecciona otra fecha.</p>
+    `;
+    
+    // Agregar al grid
+    horasGrid.appendChild(noHorasDiv);
+    
+    // Asegurarse de que el grid tenga solo este elemento
+    horasGrid.style.display = 'block';
+    horasGrid.style.gridTemplateColumns = '1fr';
+    
+    actualizarEstadoAgendamiento(0);
+    return;
+}
 
         actualizarEstadoAgendamiento(horasDisponibles);
         
