@@ -4447,25 +4447,7 @@ function getYucatanTimePlusHours(hours) {
             console.log('✅ Sistema de sincronización iniciado correctamente');
 
             // Agrega esto al final de verificarAutenticacion()
-const resetBtn = document.createElement('button');
-resetBtn.textContent = '🔄 Reset UI';
-resetBtn.style.cssText = 'margin-left: 10px; padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;';
-resetBtn.onclick = async () => {
-    console.log('🔄 Reseteando UI completa...');
-    if (reservaActiva) {
-        await cancelarReservaAnterior();
-    }
-    if (selectedDate) {
-        const fecha = formatDate(selectedDate);
-        await resetearTodosLosBotones(fecha);
-        showAlert('UI reseteada', 'info');
-    }
-};
 
-const userInfo = document.querySelector('.user-info');
-if (userInfo) {
-    userInfo.appendChild(resetBtn);
-}
 
         } catch (error) {
             console.error('Error de autenticación:', error);
