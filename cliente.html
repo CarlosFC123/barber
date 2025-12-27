@@ -773,10 +773,43 @@ h2 {
     pointer-events: none !important;
     animation: none !important;
     transition: all 0.3s ease !important;
+    min-height: 60px; /* Aumentar altura mínima */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 8px 4px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
 }
 
 .hora-btn.reservando small {
     animation: subtle-pulse 3s infinite !important;
+    font-size: 9px !important; /* Reducir tamaño de fuente */
+    line-height: 1.2 !important;
+    color: #ffa500 !important;
+    background: rgba(139, 69, 19, 0.3) !important;
+    padding: 2px 4px !important; /* Reducir padding */
+    border-radius: 4px !important;
+    margin-top: 3px !important;
+    display: block !important;
+    text-align: center !important;
+    white-space: normal !important; /* Permitir salto de línea */
+    max-width: 100% !important;
+    word-break: break-word !important; /* Romper palabras largas */
+}
+
+@media (max-width: 480px) {
+    .hora-btn.reservando {
+        min-height: 55px !important;
+        padding: 6px 2px !important;
+    }
+    
+    .hora-btn.reservando small {
+        font-size: 8px !important;
+        padding: 1px 3px !important;
+        line-height: 1.1 !important;
+    }
 }
 
 @keyframes subtle-pulse {
@@ -2610,8 +2643,8 @@ async function forzarLimpiezaReserva(fecha, hora) {
         btn.innerHTML = `
             ${horaSinSegundos}
             <br>
-            <small style="font-size: 10px; color: #ffa500;">
-                ⏳ Reservando...
+            <small style="font-size: 5px; color: #ffa500;">
+                ⏳ Reservando por otro usuario
             </small>
         `;
         return;
