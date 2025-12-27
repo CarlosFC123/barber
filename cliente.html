@@ -1269,44 +1269,7 @@ async function actualizarEstadosHorasExistentes(fecha) {
     }
 }
 
-// Agrega esta función para depuración
-async function testSistemaReservas() {
-    console.log('🧪 === TEST SISTEMA DE RESERVAS ===');
-    
-    // 1. Verificar autenticación
-    console.log('1. ✅ Usuario autenticado:', miUsuarioId);
-    
-    // 2. Verificar fecha seleccionada
-    if (!selectedDate) {
-        console.log('❌ No hay fecha seleccionada');
-        return;
-    }
-    
-    const fecha = formatDate(selectedDate);
-    console.log('2. ✅ Fecha seleccionada:', fecha);
-    
-    // 3. Verificar calendario habilitado
-    console.log('3. ✅ Calendario habilitado:', calendarioHabilitado);
-    
-    // 4. Forzar sincronización
-    console.log('4. 🔄 Forzando sincronización...');
-    await obtenerSolicitudesPendientes(true);
-    
-    // 5. Mostrar estado actual
-    console.log('5. 📊 Estado actual:');
-    console.log(`   - Reservas en memoria: ${solicitudesPendientes.size}`);
-    console.log(`   - reservaActiva: ${reservaActiva ? 'Sí' : 'No'}`);
-    
-    // 6. Forzar generación de horas
-    console.log('6. 🔄 Forzando generación de horas...');
-    await generateHoras(selectedDate);
-}
 
-// Agrega un botón de prueba
-const testBtn2 = document.createElement('button');
-testBtn2.textContent = '🧪 Test Sistema';
-testBtn2.style.cssText = 'margin-left: 10px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;';
-testBtn2.onclick = testSistemaReservas;
 
 // Agregar al header
 const userInfo = document.querySelector('.user-info');
