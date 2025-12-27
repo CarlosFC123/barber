@@ -1604,7 +1604,9 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             return;
         }
         
-        
+        // 3. IMPORTANTE: NO desactivar el polling
+        // pollingActivo = false; // <-- QUITA ESTA LÍNEA
+        // El polling debe seguir funcionando
         
         // 4. Registrar nueva reserva
         const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
