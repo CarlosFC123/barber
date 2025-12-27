@@ -2051,24 +2051,151 @@ async function forzarDisponibilidadHora(fecha, hora) {
 
             // ============ GENERACIÓN DE HORAS MEJORADA ============
 
-            async function generateHoras(selectedDateObj) {
-    console.log('=== GENERATE HORAS INICIADO ===');
-    console.log('selectedDate:', selectedDateObj);
-    console.log('calendarioHabilitado:', calendarioHabilitado);
-    console.log('barberoFijo:', barberoFijo);
-    console.log(`📊 Total reservas en memoria: ${solicitudesPendientes.size}`);
-    
-    // Mostrar todas las reservas actuales para depuración
-    console.log('📋 Reservas actuales:');
-    for (const [clave, reserva] of solicitudesPendientes.entries()) {
-        console.log(`   - ${clave}: usuario=${reserva.usuarioId}, expira=${reserva.expira_en.toLocaleTimeString()}`);
+            // Agrega este estilo CSS para el mensaje de no horas disponibles
+const style = document.createElement('style');
+style.textContent = `
+    .no-horas-disponibles {
+        background: #2a2a2a;
+        border: 2px solid #d4af37;
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        margin-top: 20px;
+        animation: fadeIn 0.5s ease;
     }
+    
+    .no-horas-disponibles h3 {
+        color: #d4af37;
+        margin-bottom: 15px;
+        font-size: 20px;
+    }
+    
+    .no-horas-disponibles p {
+        color: #cccccc;
+        margin-bottom: 20px;
+    }
+    
+    .no-horas-disponibles ul {
+        text-align: left;
+        display: inline-block;
+        margin: 20px 0;
+    }
+    
+    .no-horas-disponibles ul li {
+        color: #cccccc;
+        margin-bottom: 10px;
+        font-size: 14px;
+        list-style-type: none;
+        padding-left: 20px;
+        position: relative;
+    }
+    
+    .no-horas-disponibles ul li:before {
+        content: "✓";
+        color: #d4af37;
+        position: absolute;
+        left: 0;
+        font-weight: bold;
+    }
+    
+    .recomendaciones-box {
+        background: #3c2f00;
+        border: 1px solid #d4af37;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 20px 0;
+        text-align: left;
+    }
+    
+    .recomendaciones-box h4 {
+        color: #d4af37;
+        margin-bottom: 10px;
+        font-size: 16px;
+    }
+`;
+document.head.appendChild(style);
+
+// Función para mostrar mensaje cuando no hay horas
+function mostrarMensajeNoHorasDisponibles(fechaFormateada) {
+    const horasGrid = document.getElementById('horasGrid');
+    if (!horasGrid) return;
+    
+    // Crear opciones para otras fechas (próximos 3 días)
+    const opcionesFechas = [];
+    for (let i = 1; i <= 3; i++) {
+        const nuevaFecha = new Date(selectedDate);
+        nuevaFecha.setDate(nuevaFecha.getDate() + i);
+        opcionesFechas.push({
+            fecha: formatDate(nuevaFecha),
+            texto: nuevaFecha.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
+        });
+    }
+    
+    horasGrid.innerHTML = `
+        <div class="no-horas-disponibles">
+            <h3>😕 ¡Todas las horas están ocupadas para esta fecha!</h3>
+            <p>Para <strong>${selectedDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}</strong> no quedan horarios disponibles.</p>
+            
+            <div class="recomendaciones-box">
+                <h4>💡 Te recomendamos:</h4>
+                <ul>
+                    <li>Intenta con otra fecha</li>
+                    <li>Revisa horarios de días menos concurridos (martes a jueves)</li>
+                    <li>Agenda con más anticipación</li>
+                    <li>Contacta al barbero para opciones especiales</li>
+                </ul>
+            </div>
+            
+            <h4 style="color: #d4af37; margin-top: 20px;">📅 Prueba con estas fechas:</h4>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 15px;">
+                ${opcionesFechas.map(opcion => `
+                    <button class="btn btn-secondary" onclick="app.seleccionarOtraFecha('${opcion.fecha}')" style="min-width: 150px;">
+                        ${opcion.texto}
+                    </button>
+                `).join('')}
+            </div>
+            
+            <button class="btn btn-primary" onclick="app.mostrarMasOpciones()" style="margin-top: 20px;">
+                📋 Ver todas las fechas disponibles
+            </button>
+        </div>
+    `;
+    
+    // Deshabilitar botón de agendar
+    const btnAgendar = document.getElementById('btnAgendarCita');
+    if (btnAgendar) {
+        btnAgendar.disabled = true;
+        btnAgendar.style.opacity = '0.6';
+        btnAgendar.style.cursor = 'not-allowed';
+        btnAgendar.title = 'No hay horas disponibles para agendar';
+    }
+}
+
+// Agrega estas funciones al objeto app
+window.app.seleccionarOtraFecha = async function(fechaStr) {
+    const fecha = new Date(fechaStr + 'T00:00:00');
+    selectDate(fecha);
+    
+    // Desplazar el calendario si es necesario
+    currentMonth = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+    generateCalendar(currentMonth);
+    
+    showAlert(`Mostrando disponibilidad para ${fecha.toLocaleDateString('es-MX')}`, 'info');
+};
+
+window.app.mostrarMasOpciones = function() {
+    // Ir al principio del calendario
+    currentMonth = new Date();
+    generateCalendar(currentMonth);
+    showAlert('Selecciona una fecha del calendario para ver disponibilidad', 'info');
+};
+
+// Modifica la función generateHoras
+async function generateHoras(selectedDateObj) {
+    console.log('=== GENERATE HORAS INICIADO ===');
     
     const horasGrid = document.getElementById('horasGrid');
-    if (!horasGrid) {
-        console.log('❌ horasGrid no encontrado');
-        return;
-    }
+    if (!horasGrid) return;
     
     horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
 
@@ -2082,14 +2209,14 @@ async function forzarDisponibilidadHora(fecha, hora) {
         const horaActual = now.getHours();
         const minutosActual = now.getMinutes();
         
-        console.log(`📅 Generando horas para: ${fechaFormateada}`);
-        console.log(`🕐 Es hoy? ${esHoy}, Hora actual: ${horaActual}:${minutosActual}`);
-        
         horasGrid.innerHTML = '';
         let horasDisponibles = 0;
+        let totalHoras = 0;
 
         horas.forEach(({ hora: h, minutos: m }) => {
             const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            totalHoras++;
+            
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'hora-btn';
@@ -2100,8 +2227,6 @@ async function forzarDisponibilidadHora(fecha, hora) {
             
             // Determinar estado de la hora
             const estado = determinarEstadoHora(fechaFormateada, horaStr, selectedDateObj, horaPasada);
-            
-            console.log(`⏰ Hora ${horaStr}: estado = ${estado}, horaPasada = ${horaPasada}`);
             
             switch (estado) {
                 case 'pasado':
@@ -2123,7 +2248,6 @@ async function forzarDisponibilidadHora(fecha, hora) {
                         const segundos = Math.ceil(tiempoRestante / 1000);
                         actualizarUIReservaActiva(btn, horaStr, segundos);
                     } else {
-                        // Mostrar como reserva existente (no activa en este momento)
                         btn.disabled = true;
                         btn.classList.add('mi-reserva-activa');
                         btn.innerHTML = `
@@ -2133,7 +2257,6 @@ async function forzarDisponibilidadHora(fecha, hora) {
                                 ⭐ Tu reserva
                             </small>
                         `;
-                        btn.title = 'Ya tienes esta hora reservada';
                     }
                     break;
                                 
@@ -2146,14 +2269,18 @@ async function forzarDisponibilidadHora(fecha, hora) {
             horasGrid.appendChild(btn);
         });
 
-        actualizarEstadoAgendamiento(horasDisponibles);
+        // VERIFICAR SI TODAS LAS HORAS ESTÁN OCUPADAS
+        if (horasDisponibles === 0 && totalHoras > 0) {
+            mostrarMensajeNoHorasDisponibles(fechaFormateada);
+        } else {
+            actualizarEstadoAgendamiento(horasDisponibles);
+        }
         
         // Depurar la UI generada
         debugUIHoras();
 
-        // Forzar verificación de reservas después de un pequeño delay
+        // Forzar verificación de reservas
         setTimeout(() => {
-            console.log('🎯 Verificando y mostrando reservas activas...');
             verificarYMostrarReservasActivas(fechaFormateada);
         }, 200);
         
