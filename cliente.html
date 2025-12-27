@@ -2296,32 +2296,162 @@ async function generateHoras(selectedDateObj) {
         if (horasOcupadasTotales === totalHoras && horasDisponibles === 0) {
             // Mostrar mensaje elegante en lugar de las horas
             horasGrid.innerHTML = `
-                <div class="no-horas-disponibles">
-                    <div class="no-horas-disponibles-icon">⏰</div>
-                    <h3>Todas las horas están ocupadas</h3>
-                    <p>Lo sentimos, todas las horas disponibles para esta fecha han sido reservadas. 
-                    Por favor, selecciona otra fecha o intenta de nuevo más tarde.</p>
-                    
-                    <div class="no-horas-sugerencias">
-                        <h4>💡 Sugerencias:</h4>
-                        <ul>
-                            <li>Intenta seleccionar una fecha diferente</li>
-                            <li>Prueba con horarios de lunes a jueves</li>
-                            <li>Consulta por la mañana temprano</li>
-                            <li>Algunas reservas pueden cancelarse, verifica más tarde</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="no-horas-disponibles-acciones">
-                        <button class="btn btn-primary" onclick="app.cambiarPestana('mis-citas')">
-                            📋 Ver mis citas
-                        </button>
-                        <button class="btn btn-secondary" onclick="location.reload()">
-                            🔄 Recargar horarios
-                        </button>
-                    </div>
-                </div>
-            `;
+    <div class="no-horas-disponibles" style="
+        width: 100%;
+        max-width: 600px;
+        margin: 40px auto;
+        text-align: center;
+        padding: 40px 30px;
+        background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+        border: 2px solid #d4af37;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(212, 175, 55, 0.15);
+        animation: fadeIn 0.5s ease;
+    ">
+        <div class="no-horas-disponibles-icon" style="
+            font-size: 48px;
+            color: #d4af37;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        ">⏰</div>
+        
+        <h3 style="
+            color: #d4af37;
+            font-size: 24px;
+            margin-bottom: 15px;
+            font-weight: 700;
+        ">Todas las horas están ocupadas</h3>
+        
+        <p style="
+            color: #cccccc;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        ">Lo sentimos, todas las horas disponibles para esta fecha han sido reservadas. 
+        Por favor, selecciona otra fecha o intenta de nuevo más tarde.</p>
+        
+        <div class="no-horas-sugerencias" style="
+            background: rgba(212, 175, 55, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 25px;
+            border-left: 4px solid #d4af37;
+        ">
+            <h4 style="
+                color: #d4af37;
+                margin-bottom: 15px;
+                font-size: 18px;
+            ">💡 Sugerencias:</h4>
+            
+            <ul style="
+                list-style: none;
+                padding: 0;
+                text-align: left;
+                max-width: 400px;
+                margin: 0 auto;
+            ">
+                <li style="
+                    color: #cccccc;
+                    margin-bottom: 12px;
+                    font-size: 15px;
+                    padding-left: 25px;
+                    position: relative;
+                "><span style="
+                    content: '✓';
+                    position: absolute;
+                    left: 0;
+                    color: #d4af37;
+                    font-weight: bold;
+                    font-size: 16px;
+                ">✓</span> Intenta seleccionar una fecha diferente</li>
+                
+                <li style="
+                    color: #cccccc;
+                    margin-bottom: 12px;
+                    font-size: 15px;
+                    padding-left: 25px;
+                    position: relative;
+                "><span style="
+                    content: '✓';
+                    position: absolute;
+                    left: 0;
+                    color: #d4af37;
+                    font-weight: bold;
+                    font-size: 16px;
+                ">✓</span> Prueba con horarios de lunes a jueves</li>
+                
+                <li style="
+                    color: #cccccc;
+                    margin-bottom: 12px;
+                    font-size: 15px;
+                    padding-left: 25px;
+                    position: relative;
+                "><span style="
+                    content: '✓';
+                    position: absolute;
+                    left: 0;
+                    color: #d4af37;
+                    font-weight: bold;
+                    font-size: 16px;
+                ">✓</span> Consulta por la mañana temprano</li>
+                
+                <li style="
+                    color: #cccccc;
+                    margin-bottom: 12px;
+                    font-size: 15px;
+                    padding-left: 25px;
+                    position: relative;
+                "><span style="
+                    content: '✓';
+                    position: absolute;
+                    left: 0;
+                    color: #d4af37;
+                    font-weight: bold;
+                    font-size: 16px;
+                ">✓</span> Algunas reservas pueden cancelarse, verifica más tarde</li>
+            </ul>
+        </div>
+        
+        <div class="no-horas-disponibles-acciones" style="
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 25px;
+        ">
+            <button class="btn btn-primary" onclick="app.cambiarPestana('mis-citas')" style="
+                padding: 12px 24px;
+                font-size: 15px;
+                font-weight: 600;
+                border-radius: 8px;
+                transition: all 0.3s ease;
+                background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+                color: #000000;
+                border: none;
+                cursor: pointer;
+            ">
+                📋 Ver mis citas
+            </button>
+            
+            <button class="btn btn-secondary" onclick="location.reload()" style="
+                padding: 12px 24px;
+                font-size: 15px;
+                font-weight: 600;
+                border-radius: 8px;
+                transition: all 0.3s ease;
+                background: #333;
+                color: #d4af37;
+                border: 2px solid #d4af37;
+                cursor: pointer;
+            ">
+                🔄 Recargar horarios
+            </button>
+        </div>
+    </div>
+`;
             
             // Ocultar contenedor de horas (ya está incluido en el mensaje)
             actualizarEstadoAgendamiento(0);
