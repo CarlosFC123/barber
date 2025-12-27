@@ -1302,7 +1302,17 @@ async function testSistemaReservas() {
     await generateHoras(selectedDate);
 }
 
+// Agrega un botón de prueba
+const testBtn2 = document.createElement('button');
+testBtn2.textContent = '🧪 Test Sistema';
+testBtn2.style.cssText = 'margin-left: 10px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;';
+testBtn2.onclick = testSistemaReservas;
 
+// Agregar al header
+const userInfo = document.querySelector('.user-info');
+if (userInfo) {
+    userInfo.appendChild(testBtn2);
+}
 function limpiarIntervalosInactivos() {
     // Limpiar intervalos de botones que ya no están en el DOM
     document.querySelectorAll('.hora-btn').forEach(btn => {
@@ -1438,6 +1448,16 @@ async function debugSolicitudesTemporales() {
     }
 }
 
+// Agrega un botón para debug
+const header = document.querySelector('.header .user-info');
+if (header) {
+    const debugBtn = document.createElement('button');
+    debugBtn.className = 'btn btn-secondary';
+    debugBtn.style.marginLeft = '10px';
+    debugBtn.textContent = '🐛 Debug';
+    debugBtn.onclick = debugSolicitudesTemporales;
+    header.appendChild(debugBtn);
+}
 
 function mostrarEstadoReservandoEnUI(fecha, hora) {
     try {
@@ -4442,7 +4462,26 @@ function getYucatanTimePlusHours(hours) {
 
             console.log('✅ Sistema de sincronización iniciado correctamente');
 
+            // Agrega esto al final de verificarAutenticacion()
+const resetBtn = document.createElement('button');
+resetBtn.textContent = '🔄 Reset UI';
+resetBtn.style.cssText = 'margin-left: 10px; padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;';
+resetBtn.onclick = async () => {
+    console.log('🔄 Reseteando UI completa...');
+    if (reservaActiva) {
+        await cancelarReservaAnterior();
+    }
+    if (selectedDate) {
+        const fecha = formatDate(selectedDate);
+        await resetearTodosLosBotones(fecha);
+        showAlert('UI reseteada', 'info');
+    }
+};
 
+const userInfo = document.querySelector('.user-info');
+if (userInfo) {
+    userInfo.appendChild(resetBtn);
+}
 
         } catch (error) {
             console.error('Error de autenticación:', error);
