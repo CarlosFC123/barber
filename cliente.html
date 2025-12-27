@@ -1871,15 +1871,14 @@ async function registrarSolicitudTemporal(fecha, hora) {
         cacheEstadosHoras.delete(`${fecha}_${hora}`);
         cacheEstadosHoras.delete(`${fecha}_${hora}:00`);
         
-        // 5. NO limpiar completamente - solo marcar como completada
+        // 5. NO limpiar reservaActiva aquí - se limpiará en cancelarReservaAnterior
+        // Solo verificar si es la misma reserva y limpiar timeoutId
         if (reservaActiva && reservaActiva.fecha === fecha && reservaActiva.hora === hora) {
-            console.log('✅ Reserva marcada como completada, no eliminando botón');
-            // Solo limpiar el timeout
             if (reservaActiva.timeoutId) {
                 clearTimeout(reservaActiva.timeoutId);
             }
-            // Mantener referencia pero marcar como completada
-            reservaActiva.completada = true;
+            // Guardamos referencia al botón pero marcamos como que ya fue liberada
+            reservaActiva.liberada = true;
         }
         
         console.log(`✅ Reserva liberada: ${fecha} ${hora}`);
@@ -1890,6 +1889,7 @@ async function registrarSolicitudTemporal(fecha, hora) {
         // 7. Forzar sincronización inmediata
         setTimeout(async () => {
             await obtenerSolicitudesPendientes(true);
+            await sincronizarEstadosHoras();
         }, 300);
         
     } catch (error) {
@@ -1909,12 +1909,16 @@ async function registrarSolicitudTemporal(fecha, hora) {
         // Liberar la reserva
         await liberarReserva(reservaActiva.fecha, reservaActiva.hora);
         
-        // NO resetear UI del botón - esto se hará en agendarCita()
-        console.log('✅ Reserva anterior cancelada (UI se manejará en agendarCita)');
+        // Resetear UI del botón si existe Y si no está ya liberado
+        if (reservaActiva.boton && reservaActiva.boton.isConnected && !reservaActiva.liberada) {
+            resetearUIReserva(reservaActiva.boton, reservaActiva.hora);
+        }
         
-        // Limpiar referencia
+        // Limpiar completamente la reserva activa
         reservaActiva = null;
         timeoutReserva = null;
+        
+        console.log('✅ Reserva anterior cancelada completamente');
     }
 }
 
@@ -3274,13 +3278,6 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
 async function agendarCita(e) {
     if (e) e.preventDefault();
     
-    // 1. DETENER EL POLLING TEMPORALMENTE
-    if (intervaloPolling) {
-        clearInterval(intervaloPolling);
-        intervaloPolling = null;
-        console.log('⏸️ Polling detenido temporalmente');
-    }
-    
     const servicioInput = document.getElementById('servicio');
     const horaInput = document.getElementById('hora');
     const notasInput = document.getElementById('notas');
@@ -3293,8 +3290,6 @@ async function agendarCita(e) {
 
     if (!servicioId || !selectedDate || !hora) {
         showAlert('Por favor, selecciona un servicio, fecha y hora', 'error');
-        // Reanudar polling
-        iniciarPollingInteligente();
         return;
     }
 
@@ -3304,8 +3299,6 @@ async function agendarCita(e) {
         // Verificar que tenemos una reserva activa para esta hora
         if (!reservaActiva || reservaActiva.fecha !== fechaFormateada || reservaActiva.hora !== hora) {
             showAlert('Por favor, selecciona una hora primero (haz clic en una hora disponible)', 'error');
-            // Reanudar polling
-            iniciarPollingInteligente();
             return;
         }
 
@@ -3318,8 +3311,6 @@ async function agendarCita(e) {
             showAlert('❌ Lo siento, esa hora ya fue agendada por otro usuario. Por favor, selecciona otra hora.', 'error');
             await cancelarReservaAnterior();
             await generateHoras(selectedDate);
-            // Reanudar polling
-            iniciarPollingInteligente();
             return;
         }
 
@@ -3337,8 +3328,6 @@ async function agendarCita(e) {
             showAlert('❌ Esta hora ya fue tomada por otro usuario. Por favor selecciona otra.', 'error');
             await cancelarReservaAnterior();
             await generateHoras(selectedDate);
-            // Reanudar polling
-            iniciarPollingInteligente();
             return;
         }
 
@@ -3370,18 +3359,15 @@ async function agendarCita(e) {
                 showAlert('❌ Esta hora ya fue tomada por otro usuario. Por favor selecciona otra.', 'error');
                 await cancelarReservaAnterior();
                 await generateHoras(selectedDate);
-            } else {
-                throw error;
+                return;
             }
             
-            // Reanudar polling
-            iniciarPollingInteligente();
-            return;
+            throw error;
         }
 
         console.log('✅ Cita agendada exitosamente:', data[0]);
         
-        // 1. Cancelar la reserva temporal (PERO NO limpiar completamente)
+        // 1. Cancelar la reserva temporal
         await cancelarReservaAnterior();
         
         // 2. Actualizar caché de citas futuras INMEDIATAMENTE
@@ -3394,27 +3380,10 @@ async function agendarCita(e) {
             cliente_id: usuarioActual.id
         });
         
-        // 3. ACTUALIZAR UI MANUALMENTE - IMPORTANTE: Deshabilitar el botón completamente
+        // 3. Actualizar la UI INMEDIATAMENTE a "ocupada"
         const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fechaFormateada}"][data-hora="${hora}"]`);
         if (horaBtn) {
-            // Limpiar TODOS los intervalos y eventos
-            if (horaBtn.dataset.intervaloContador) {
-                clearInterval(horaBtn.dataset.intervaloContador);
-                delete horaBtn.dataset.intervaloContador;
-            }
-            
-            // Configurar como ocupada permanentemente
-            horaBtn.disabled = true;
-            horaBtn.className = 'hora-btn ocupada';
-            horaBtn.innerHTML = `
-                ${hora}
-                <br>
-                <small style="font-size: 10px; color: #ff6b6b;">
-                    🔒 Ocupada
-                </small>
-            `;
-            horaBtn.title = 'Hora ocupada';
-            horaBtn.onclick = null; // Eliminar cualquier evento click
+            configurarBotonOcupada(horaBtn, hora);
         }
         
         // 4. Notificar a otros usuarios que esta hora ahora está OCUPADA
@@ -3448,7 +3417,7 @@ async function agendarCita(e) {
         currentMonth = new Date();
         generateCalendar(currentMonth);
         
-        // 9. Forzar recarga de citas futuras
+        // 9. Limpiar caché
         await precargarCitasFuturas();
         
         // 10. Recargar citas del usuario
@@ -3461,17 +3430,10 @@ async function agendarCita(e) {
             showAlert('✅ ¡Cita agendada exitosamente! (No se pudo enviar la confirmación por correo)', 'success');
         }
         
-        // 12. ESPERAR 1 SEGUNDO antes de redirigir
+        // 12. Redirigir a "mis-citas"
         setTimeout(() => {
-            // 13. Redirigir a "mis-citas"
             cambiarPestana('mis-citas');
-            
-            // 14. REANUDAR EL POLLING
-            setTimeout(() => {
-                iniciarPollingInteligente();
-                console.log('▶️ Polling reanudado');
-            }, 1000);
-        }, 1000);
+        }, 500);
         
     } catch (error) {
         console.error('❌ Error agendando cita:', error);
@@ -3482,9 +3444,6 @@ async function agendarCita(e) {
         }
         
         showAlert(`❌ Error al agendar la cita: ${error.message}`, 'error');
-        
-        // Reanudar polling en caso de error
-        iniciarPollingInteligente();
     }
 }
 
