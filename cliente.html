@@ -2214,6 +2214,10 @@ async function generateHoras(selectedDateObj) {
         return;
     }
     
+    // RESTAURAR EL ESTILO ORIGINAL DEL GRID SIEMPRE
+    horasGrid.style.display = 'grid';
+    horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
+    horasGrid.style.gap = '8px';
     horasGrid.innerHTML = '<div class="loading"><div class="spinner"></div><p>Cargando horas disponibles...</p></div>';
 
     // Generar lista de horas
@@ -2293,30 +2297,26 @@ async function generateHoras(selectedDateObj) {
         const totalHoras = horas.length;
         const horasOcupadasTotales = horasOcupadas + horasPasadas;
         
-        // En la función generateHoras, donde muestras el mensaje:
-if (horasOcupadasTotales === totalHoras && horasDisponibles === 0) {
-    // Limpiar completamente el grid primero
-    horasGrid.innerHTML = '';
-    
-    // Crear contenedor del mensaje que ocupará todo el ancho
-    const noHorasDiv = document.createElement('div');
-    noHorasDiv.className = 'no-horas-disponibles';
-    noHorasDiv.innerHTML = `
-        <div class="no-horas-disponibles-icon">⏰</div>
-        <h3>Todas las horas están ocupadas</h3>
-        <p>No hay horarios disponibles para esta fecha. Por favor, selecciona otra fecha.</p>
-    `;
-    
-    // Agregar al grid
-    horasGrid.appendChild(noHorasDiv);
-    
-    // Asegurarse de que el grid tenga solo este elemento
-    horasGrid.style.display = 'block';
-    horasGrid.style.gridTemplateColumns = '1fr';
-    
-    actualizarEstadoAgendamiento(0);
-    return;
-}
+        if (horasOcupadasTotales === totalHoras && horasDisponibles === 0) {
+            // Mostrar mensaje elegante en lugar de las horas
+            horasGrid.innerHTML = '';
+            
+            // Crear contenedor del mensaje
+            const noHorasDiv = document.createElement('div');
+            noHorasDiv.className = 'no-horas-disponibles';
+            noHorasDiv.innerHTML = `
+                <div class="no-horas-disponibles-icon">⏰</div>
+                <h3>Todas las horas están ocupadas</h3>
+                <p>No hay horarios disponibles para esta fecha. Por favor, selecciona otra fecha.</p>
+            `;
+            
+            // Cambiar temporalmente el diseño del grid para este mensaje
+            horasGrid.style.gridTemplateColumns = '1fr';
+            horasGrid.appendChild(noHorasDiv);
+            
+            actualizarEstadoAgendamiento(0);
+            return;
+        }
 
         actualizarEstadoAgendamiento(horasDisponibles);
         
@@ -2328,6 +2328,11 @@ if (horasOcupadasTotales === totalHoras && horasDisponibles === 0) {
         
     } catch (error) {
         console.error('❌ Error generando horas:', error);
+        
+        // Restaurar el grid layout incluso en caso de error
+        horasGrid.style.display = 'grid';
+        horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
+        
         horasGrid.innerHTML = `
             <div class="no-horas-disponibles">
                 <div class="no-horas-disponibles-icon">⚠️</div>
@@ -2346,6 +2351,10 @@ if (horasOcupadasTotales === totalHoras && horasDisponibles === 0) {
 function resetearEstadoHoras() {
     const horasGrid = document.getElementById('horasGrid');
     if (horasGrid) {
+        // RESTAURAR ESTILO ORIGINAL DEL GRID
+        horasGrid.style.display = 'grid';
+        horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
+        horasGrid.style.gap = '8px';
         horasGrid.innerHTML = '';
     }
     
@@ -3094,6 +3103,14 @@ async function resetearTodosLosBotones(fecha) {
     
     console.log(`📅 Fecha seleccionada: ${formatDate(selectedDate)}`);
     
+    // Asegurarse de que el grid tenga el estilo correcto
+    const horasGrid = document.getElementById('horasGrid');
+    if (horasGrid) {
+        horasGrid.style.display = 'grid';
+        horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
+        horasGrid.style.gap = '8px';
+    }
+    
     // Mostrar contenedor de horas primero
     const horasContainer = document.getElementById('horasContainer');
     if (horasContainer) {
@@ -3111,7 +3128,6 @@ async function resetearTodosLosBotones(fecha) {
     // Iniciar polling específico para esta fecha
     iniciarPollingInteligente();
 }
-
         async function precargarCitasFuturas() {
         try {
             if (!barberoFijo) return;
