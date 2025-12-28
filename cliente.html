@@ -1513,6 +1513,10 @@ async function sincronizarEstadosHoras() {
         
         // 5. Limpiar caché viejo
         limpiarCacheExpirado();
+
+        setTimeout(() => {
+    verificarYActualizarReservasActivasForzado();
+}, 300);
         
     } catch (error) {
         console.error('❌ Error sincronizando estados:', error);
@@ -1585,17 +1589,11 @@ if (debeActualizar) {
             configurarBotonOcupada(btn, horaStr);
             break;
         case 'reservando':
-            // Verificar que la reserva es de OTRO usuario
-            const clave = `${fechaStr}_${horaStr}`;
-            const reservaInfo = solicitudesPendientes.get(clave);
-            
-            if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
-                configurarBotonReservando(btn, horaStr, fechaStr);
-            } else {
-                // Si no es de otro usuario, mantener como disponible
-                configurarBotonDisponible(btn, horaStr, fechaStr, duracionServicio);
-            }
-            break;
+    // Siempre llamar a la función forzada para asegurar la actualización
+    setTimeout(() => {
+        forzarActualizacionReservando(fechaStr, horaStr);
+    }, 50);
+    break;
         case 'mi-reserva-activa':
             // Verificar si es la reserva activa actual
             if (reservaActiva && reservaActiva.fecha === fechaStr && reservaActiva.hora === horaStr) {
@@ -2701,6 +2699,12 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
             console.log('🎯 Verificando y mostrando reservas activas...');
             verificarYMostrarReservasActivas(fechaFormateada);
         }, 200);
+
+        // Después de crear todos los botones, verificar reservas activas FORZADAMENTE
+        setTimeout(() => {
+            console.log('🎯 Verificando reservas activas (FORZADO)...');
+            verificarYActualizarReservasActivasForzado();
+        }, 500);
         
     } catch (error) {
         console.error('❌ Error generando horas:', error);
@@ -2924,7 +2928,7 @@ function resetearEstadoHoras() {
 }
 
 
-            function verificarYMostrarReservasActivas(fecha) {
+          function verificarYMostrarReservasActivas(fecha) {
     console.log(`🔍 Verificando reservas activas para fecha: ${fecha}`);
     console.log(`📊 Total de reservas en memoria: ${solicitudesPendientes.size}`);
     
@@ -2932,55 +2936,26 @@ function resetearEstadoHoras() {
     
     for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
         const [reservaFecha, reservaHora] = clave.split('_');
-        if (reservaFecha === fecha && reservaInfo.usuarioId !== miUsuarioId) {
-            // FORZAR actualización inmediata
-            setTimeout(() => {
-                actualizarBotonReservandoEspecifico(fecha, reservaHora);
-            }, 100);
-        }
+        
         if (reservaFecha === fecha) {
             console.log(`📌 Encontrada reserva activa: ${clave}`);
             console.log(`   - Usuario: ${reservaInfo.usuarioId}`);
             console.log(`   - Es mi reserva? ${reservaInfo.usuarioId === miUsuarioId}`);
             
-            // Buscar el botón específico
-            const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${reservaHora}"]`);
-            
-            if (!horaBtn) {
-                console.log(`⚠️ Botón no encontrado para: ${reservaHora}`);
-                continue;
-            }
-            
-            if (reservaInfo.usuarioId === miUsuarioId) {
-                console.log(`✅ Es MI reserva - marcando como mi-reserva-activa`);
-                horaBtn.disabled = true;
-                horaBtn.classList.add('mi-reserva-activa');
-                horaBtn.classList.remove('reservando');
-                horaBtn.innerHTML = `
-                    ${reservaHora}
-                    <br>
-                    <small style="font-size: 10px; color: #90EE90;">
-                        ⭐ Tu reserva
-                    </small>
-                `;
-            } else {
-                console.log(`🔄 Mostrando como RESERVANDO POR OTRO USUARIO: ${reservaHora}`);
-                horaBtn.disabled = true;
-                horaBtn.classList.add('reservando');
-                horaBtn.classList.remove('mi-reserva-activa', 'selected');
-                horaBtn.innerHTML = `
-                    ${reservaHora}
-                    <br>
-                    <small style="font-size: 10px; color: #ffa500; background: rgba(139, 69, 19, 0.3); padding: 2px 6px; border-radius: 4px; margin-top: 3px; display: inline-block;">
-                        ⏳ Reservando por otro usuario
-                    </small>
-                `;
+            if (reservaInfo.usuarioId !== miUsuarioId) {
+                console.log(`🚨 ES RESERVA DE OTRO USUARIO - FORZANDO ACTUALIZACIÓN: ${reservaHora}`);
+                
+                // Forzar actualización inmediata
+                setTimeout(() => {
+                    forzarActualizacionReservando(fecha, reservaHora);
+                }, 300);
+                
                 reservasMostradas++;
             }
         }
     }
     
-    console.log(`✅ Mostradas ${reservasMostradas} reservas de otros usuarios`);
+    console.log(`✅ Forzadas ${reservasMostradas} actualizaciones de reservas de otros usuarios`);
 }
 
        function determinarEstadoHora(fecha, hora, fechaObj, horaPasada, duracionServicio = null) {
@@ -3099,6 +3074,90 @@ function iniciarLimpiezaPeriodica() {
             }
         }
     }, 4000);
+}
+
+// ============ SISTEMA DE ACTUALIZACIÓN FORZADA ============
+
+function forzarActualizacionReservando(fecha, hora) {
+    console.log(`🎯 FORZANDO ACTUALIZACIÓN: ${fecha} ${hora}`);
+    
+    // 1. Buscar el botón específico
+    const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+    if (!horaBtn) {
+        console.log(`⚠️ Botón no encontrado: ${fecha} ${hora}`);
+        return;
+    }
+    
+    // 2. Verificar si realmente es una reserva de OTRO usuario
+    const clave = `${fecha}_${hora}`;
+    const reservaInfo = solicitudesPendientes.get(clave);
+    
+    if (!reservaInfo) {
+        console.log(`⚠️ No hay reserva en memoria: ${clave}`);
+        return;
+    }
+    
+    if (reservaInfo.usuarioId === miUsuarioId) {
+        console.log(`✅ Es MI reserva, no mostrar como reservando`);
+        return;
+    }
+    
+    // 3. FORZAR la actualización visual INMEDIATAMENTE
+    console.log(`🔥 Configurando botón como RESERVANDO: ${hora} (usuario: ${reservaInfo.usuarioId})`);
+    
+    // Limpiar completamente el botón
+    horaBtn.className = 'hora-btn';
+    horaBtn.innerHTML = '';
+    
+    // Configurar como "reservando"
+    horaBtn.disabled = true;
+    horaBtn.classList.add('reservando');
+    
+    horaBtn.innerHTML = `
+        ${hora}
+        <br>
+        <small style="font-size: 10px; color: #ffa500; background: rgba(139, 69, 19, 0.3); padding: 2px 6px; border-radius: 4px; margin-top: 3px; display: inline-block;">
+            ⏳ Reservando por otro usuario
+        </small>
+    `;
+    
+    // 4. Actualizar caché
+    actualizarCacheLocal(fecha, hora, 'reservando', reservaInfo.usuarioId);
+    
+    console.log(`✅ Botón ${hora} actualizado visualmente como RESERVANDO`);
+}
+
+function verificarYActualizarReservasActivasForzado() {
+    if (!selectedDate) return;
+    
+    const fechaActual = formatDate(selectedDate);
+    console.log(`🔍 VERIFICANDO RESERVAS ACTIVAS (FORZADO): ${fechaActual}`);
+    
+    // Recorrer todas las reservas en memoria
+    for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
+        const [fecha, hora] = clave.split('_');
+        
+        if (fecha === fechaActual && reservaInfo.usuarioId !== miUsuarioId) {
+            console.log(`📌 Encontrada reserva de otro usuario: ${hora}`);
+            
+            // Forzar actualización inmediata
+            setTimeout(() => {
+                forzarActualizacionReservando(fecha, hora);
+            }, 100);
+        }
+    }
+}
+
+function iniciarVerificadorPeriodicoReservas() {
+    // Verificar reservas cada 2 segundos cuando estemos en la pestaña de agendar
+    setInterval(() => {
+        const estaEnAgendar = document.getElementById('agendar').classList.contains('active');
+        const hayFechaSeleccionada = selectedDate !== null;
+        
+        if (estaEnAgendar && hayFechaSeleccionada && !document.hidden) {
+            verificarYActualizarReservasActivasForzado();
+        }
+    }, 2000); // Cada 2 segundos
 }
 
 async function forzarLimpiezaReserva(fecha, hora) {
@@ -5418,6 +5477,8 @@ function getYucatanTimePlusHours(hours) {
             inicializarEmailJS();
             iniciarPollingInteligente();
             iniciarLimpiezaPeriodica();
+            iniciarVerificadorPeriodicoReservas();
+
 
             setInterval(() => {
     if (selectedDate) {
