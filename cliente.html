@@ -1143,6 +1143,10 @@ h2 {
             let calendarioHabilitado = false;
             let todasLasCitasFuturasCache = [];
             let intervalosContador = {};
+            let usuarioActivo = false;
+            let ultimaInteraccion = Date.now();
+            let intervaloInactividad = null;
+            const TIEMPO_INACTIVIDAD = 60000; // 1 minuto sin interacción = inactivo
 
             // Sistema de sincronización optimizado
             let ultimaSincronizacionHoras = 0;
@@ -1297,7 +1301,48 @@ h2 {
                 
                 return cache;
             }
+// ============ SISTEMA DE DETECCIÓN DE ACTIVIDAD ============
 
+function iniciarDeteccionActividad() {
+    console.log('👁️ Iniciando detección de actividad del usuario');
+    
+    // Eventos que indican actividad del usuario
+    const eventosActividad = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    
+    eventosActividad.forEach(evento => {
+        document.addEventListener(evento, () => {
+            ultimaInteraccion = Date.now();
+            
+            if (!usuarioActivo) {
+                usuarioActivo = true;
+                console.log('✅ Usuario activo - Reactivando sistema');
+                iniciarPollingInteligente();
+            }
+        }, { passive: true });
+    });
+    
+    // Verificar inactividad cada 30 segundos
+    intervaloInactividad = setInterval(() => {
+        const tiempoInactivo = Date.now() - ultimaInteraccion;
+        
+        if (usuarioActivo && tiempoInactivo > TIEMPO_INACTIVIDAD) {
+            usuarioActivo = false;
+            console.log('⏸️ Usuario inactivo - Pausando polling');
+            detenerPolling();
+        }
+    }, 30000);
+}
+
+function verificarUsuarioActivo() {
+    const tiempoInactivo = Date.now() - ultimaInteraccion;
+    const estaActivo = tiempoInactivo <= TIEMPO_INACTIVIDAD;
+    
+    // Verificar si está en la pestaña de agendar y con fecha seleccionada
+    const estaEnAgendar = document.getElementById('agendar').classList.contains('active');
+    const hayFechaSeleccionada = selectedDate !== null;
+    
+    return estaActivo && estaEnAgendar && hayFechaSeleccionada;
+}
             function limpiarCacheExpirado() {
                 const ahora = Date.now();
                 for (const [clave, cache] of cacheEstadosHoras.entries()) {
@@ -1317,35 +1362,95 @@ function iniciarPollingInteligente() {
         intervaloPolling = null;
     }
     
-    // Si ya está activo, no hacer nada
-    if (!pollingActivo) {
-        pollingActivo = true;
+    // Solo iniciar si el usuario está activo en la pestaña de agendar
+    if (!verificarUsuarioActivo()) {
+        console.log('⏸️ No iniciando polling - Usuario no activo en agendar');
+        return;
     }
     
-    // Sincronización cada 2 segundos - NUNCA se detiene
+    pollingActivo = true;
+    
+    // Polling adaptativo basado en actividad
     intervaloPolling = setInterval(async () => {
         try {
-            // Siempre limpiar reservas expiradas
-            await limpiarReservasExpiradasGlobalmente();
+            // Verificar si el usuario sigue activo
+            if (!verificarUsuarioActivo()) {
+                console.log('⏸️ Usuario inactivo - Pausando polling temporal');
+                detenerPolling();
+                return;
+            }
             
-            // IMPORTANTE: SIEMPRE sincronizar, incluso con reserva activa
+            // Verificar si la pestaña está visible
+            if (document.hidden) {
+                console.log('👻 Pestaña oculta - No ejecutar polling');
+                return;
+            }
+            
+            // Solo ejecutar operaciones si estamos en agendar con fecha seleccionada
             const estaEnAgendar = document.getElementById('agendar').classList.contains('active');
             const hayFechaSeleccionada = selectedDate !== null;
             
             if (estaEnAgendar && hayFechaSeleccionada) {
-                // Forzar sincronización completa
-                await obtenerSolicitudesPendientes(true);
+                console.log('🔄 Ejecutando polling inteligente (activo en agendar)');
+                
+                // Limpiar reservas expiradas globalmente
+                await limpiarReservasExpiradasGlobalmente();
+                
+                // Sincronizar estados de horas
                 await sincronizarEstadosHoras();
+                
+                // Actualizar contadores de reservas activas
+                actualizarContadoresReservasActivas();
+            } else {
+                // Si no está en agendar, pausar polling
+                console.log('⏸️ No en pestaña agendar - Pausando polling');
+                detenerPolling();
             }
             
         } catch (error) {
             console.error('Error en polling:', error);
         }
-    }, 2000); // Cada 2 segundos
+    }, 2000); // Ejecutar cada 2 segundos
     
-    console.log('🔄 Polling inteligente iniciado (2 segundos) - NUNCA se detiene');
+    console.log('🔄 Polling inteligente iniciado (5 segundos)');
 }
-
+function actualizarContadoresReservasActivas() {
+    if (!selectedDate) return;
+    
+    const fechaActual = formatDate(selectedDate);
+    const ahora = Date.now();
+    
+    // Buscar botones con contadores activos
+    document.querySelectorAll('.hora-btn.mi-reserva-activa').forEach(btn => {
+        const horaStr = btn.dataset.hora;
+        const fechaStr = btn.dataset.fecha;
+        
+        if (fechaStr === fechaActual) {
+            // Actualizar contador si es mi reserva
+            const clave = `${fechaStr}_${horaStr}`;
+            const reservaInfo = solicitudesPendientes.get(clave);
+            
+            if (reservaInfo && reservaInfo.usuarioId === miUsuarioId) {
+                const tiempoTranscurrido = ahora - reservaInfo.timestamp;
+                const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
+                const segundos = Math.ceil(tiempoRestante / 1000);
+                
+                if (segundos > 0 && segundos <= 30) {
+                    // Actualizar UI del contador
+                    btn.querySelector('small').textContent = `⭐ ${segundos}s`;
+                }
+            }
+        }
+    });
+}
+function detenerPolling() {
+    if (intervaloPolling) {
+        clearInterval(intervaloPolling);
+        intervaloPolling = null;
+        pollingActivo = false;
+        console.log('⏸️ Polling detenido');
+    }
+}
 async function sincronizarEstadosHoras() {
     // IMPORTANTE: SIEMPRE sincronizar, incluso con reserva activa
     
@@ -3187,7 +3292,8 @@ async function resetearTodosLosBotones(fecha) {
         showAlert('Por favor, selecciona un servicio primero', 'warning');
         return;
     }
-    
+    ultimaInteraccion = Date.now();
+    usuarioActivo = true;
     // Resetear estado anterior
     resetearEstadoHoras();
     
@@ -4601,29 +4707,79 @@ function getYucatanTimePlusHours(hours) {
                 }
                 
                 if (pestanaId === 'agendar' && selectedDate && calendarioHabilitado) {
+                    // Usuario activo en agendar - iniciar polling
+                    usuarioActivo = true;
+                    ultimaInteraccion = Date.now();
+                    iniciarPollingInteligente();
                     generateHoras(selectedDate);
+                } else {
+                    // Usuario no está en agendar - detener polling
+                    console.log(`⏸️ Cambiando a pestaña ${pestanaId} - Deteniendo polling`);
+                    detenerPolling();
                 }
             }
-
+function iniciarControlVisibilidad() {
+    // Detectar cuando la pestaña se oculta/muestra
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            console.log('👻 Pestaña oculta - Pausando polling');
+            detenerPolling();
+        } else {
+            console.log('👁️ Pestaña visible');
+            
+            // Solo reactivar si estamos en agendar con fecha seleccionada
+            const estaEnAgendar = document.getElementById('agendar').classList.contains('active');
+            const hayFechaSeleccionada = selectedDate !== null;
+            
+            if (estaEnAgendar && hayFechaSeleccionada) {
+                console.log('🔄 Reactivando polling (en agendar con fecha)');
+                usuarioActivo = true;
+                ultimaInteraccion = Date.now();
+                iniciarPollingInteligente();
+            }
+        }
+    });
+    
+    // Detectar cuando la ventana pierde/gana foco
+    window.addEventListener('blur', () => {
+        console.log('🔴 Ventana perdió foco');
+        // Podemos reducir la frecuencia pero no detener completamente
+    });
+    
+    window.addEventListener('focus', () => {
+        console.log('🟢 Ventana ganó foco');
+        ultimaInteraccion = Date.now();
+    });
+}
             async function cerrarSesion() {
-                try {
-                    if (reservaActiva) {
-                        await cancelarReservaAnterior();
-                    }
-                    
-                    if (intervaloPolling) {
-                        clearInterval(intervaloPolling);
-                    }
-                    
-                    const { error } = await supabase.auth.signOut();
-                    if (error) throw error;
-                    
-                    window.location.href = 'index.html';
-                } catch (error) {
-                    console.error('Error cerrando sesión:', error);
-                    showAlert('Error al cerrar sesión', 'error');
-                }
+    try {
+        // Detener todos los intervalos
+        detenerPolling();
+        
+        if (intervaloInactividad) {
+            clearInterval(intervaloInactividad);
+        }
+        
+        if (reservaActiva) {
+            await cancelarReservaAnterior();
+        }
+        
+        // Limpiar otros intervalos
+        for (const id in intervalosContador) {
+            if (intervalosContador[id]) {
+                clearInterval(intervalosContador[id]);
             }
+        }
+        
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+        
+        window.location.href = 'index.html';
+    } catch (error) {
+        console.error('Error cerrando sesión:', error);
+        showAlert('Error al cerrar sesión', 'error');
+    }
+}
 
             // ============ INICIALIZACIÓN ============
 
@@ -4665,14 +4821,19 @@ function getYucatanTimePlusHours(hours) {
             await verificarCitasPasadas();
             await cargarMisCitas();
             await precargarCitasFuturas();
+
+            iniciarDeteccionActividad();
+            iniciarControlVisibilidad();
             
             currentMonth = new Date();
+
             generateCalendar(currentMonth);
             habilitarCalendario();
 
             inicializarEmailJS();
             iniciarPollingInteligente();
             iniciarLimpiezaPeriodica();
+
 
             setInterval(() => {
     if (selectedDate) {
