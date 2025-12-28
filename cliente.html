@@ -1887,8 +1887,7 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             }
 
             // ============ SISTEMA DE RESERVAS ============
-
-        async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque = false) {
+async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque = false) {
     if (bloqueoLlamadaEnProgreso && !esParteDeBloque) {
         console.log('⏳ Ya hay una reserva en progreso...');
         return;
@@ -1898,11 +1897,14 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
         bloqueoLlamadaEnProgreso = true;
     }
     
+    // DECLARAR LA VARIABLE AL INICIO DE LA FUNCIÓN
+    let duracionServicio = 40; // Valor por defecto
+    
     try {
         console.log(`🔄 Intentando reservar: ${fechaStr} ${horaStr} ${esParteDeBloque ? '(parte de bloque)' : ''}`);
         
         // Obtener duración del servicio del botón
-        const duracionServicio = btn.dataset.duracion ? parseInt(btn.dataset.duracion) : 40;
+        duracionServicio = btn.dataset.duracion ? parseInt(btn.dataset.duracion) : 40;
         console.log(`⏱️ Duración del servicio: ${duracionServicio} minutos`);
         
         // 1. Si ya hay una reserva activa PARA LA MISMA HORA, no hacer nada
