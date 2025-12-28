@@ -2705,42 +2705,125 @@ async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaA
     }
     
     // Para servicios de más de 40 minutos, verificar bloques consecutivos
+    console.log('🔍 Analizando bloques para servicio largo...');
+    
+    // Primero, crear una copia de los estados para trabajar
+    const estadosFinal = [...estados];
+    
+    // Para cada hora, verificar si puede ser el inicio de un bloque válido
     for (let i = 0; i <= horas.length - slotsNecesarios; i++) {
         // Verificar si todos los slots necesarios están disponibles
         let bloqueDisponible = true;
         
+        // Verificar cada slot en el bloque
         for (let j = 0; j < slotsNecesarios; j++) {
             if (estados[i + j] !== 'disponible') {
                 bloqueDisponible = false;
+                console.log(`   ❌ Bloque ${i} no disponible: slot ${i+j} está ${estados[i+j]}`);
                 break;
             }
         }
         
-        // Si el bloque no está disponible, marcar todas las horas como "no-disponible"
-        // excepto la primera si es ocupada/reservando/etc
-        if (!bloqueDisponible) {
-            // Solo marcar como no-disponible si no está ya ocupada
+        // Si el bloque está disponible, marcar la primera hora como "disponible"
+        // y las siguientes como "parte-del-bloque" (pero no "no-disponible" aún)
+        if (bloqueDisponible) {
+            console.log(`   ✅ Bloque ${i} disponible para ${horas[i].hora}:${horas[i].minutos}`);
+            // La primera hora se mantiene como "disponible"
+            // Las siguientes se marcan temporalmente
+            for (let j = 1; j < slotsNecesarios; j++) {
+                if (estadosFinal[i + j] === 'disponible') {
+                    estadosFinal[i + j] = 'parte-del-bloque';
+                }
+            }
+        } else {
+            // Si el bloque no está disponible, verificar casos especiales
             if (estados[i] === 'disponible') {
-                estados[i] = 'no-disponible';
+                // Verificar si esta hora podría ser parte de un bloque anterior
+                let esParteDeBloqueAnterior = false;
+                if (i >= 1) {
+                    // Verificar si la hora anterior ya forma parte de un bloque
+                    for (let k = Math.max(0, i - slotsNecesarios + 1); k < i; k++) {
+                        if (estadosFinal[k] === 'disponible') {
+                            // Verificar si desde k se puede formar un bloque completo
+                            let bloqueDesdeKDisponible = true;
+                            for (let j = 0; j < slotsNecesarios; j++) {
+                                if (k + j >= horas.length || estados[k + j] !== 'disponible') {
+                                    bloqueDesdeKDisponible = false;
+                                    break;
+                                }
+                            }
+                            if (bloqueDesdeKDisponible && k + slotsNecesarios - 1 >= i) {
+                                esParteDeBloqueAnterior = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!esParteDeBloqueAnterior) {
+                    estadosFinal[i] = 'no-disponible';
+                    console.log(`   ❌ Hora ${i} marcada como no-disponible`);
+                }
+            }
+        }
+    }
+    
+    // Ahora, procesar las horas marcadas como "parte-del-bloque"
+    // Si una hora está marcada como "parte-del-bloque" pero NO es parte de un bloque disponible, marcarla como "no-disponible"
+    for (let i = 0; i < estadosFinal.length; i++) {
+        if (estadosFinal[i] === 'parte-del-bloque') {
+            // Verificar si realmente es parte de algún bloque disponible
+            let esParteDeBloqueValido = false;
+            
+            // Buscar hacia atrás para ver si hay un bloque que incluya esta hora
+            for (let k = Math.max(0, i - slotsNecesarios + 1); k <= i; k++) {
+                if (k + slotsNecesarios <= horas.length) {
+                    let bloqueValido = true;
+                    for (let j = 0; j < slotsNecesarios; j++) {
+                        const estadoSlot = estadosFinal[k + j];
+                        if (!(estadoSlot === 'disponible' || 
+                              (j > 0 && estadoSlot === 'parte-del-bloque') ||
+                              estados[k + j] === 'disponible')) {
+                            bloqueValido = false;
+                            break;
+                        }
+                    }
+                    if (bloqueValido) {
+                        esParteDeBloqueValido = true;
+                        break;
+                    }
+                }
             }
             
-            // Para las siguientes horas en el bloque, mantener su estado si ya está ocupada
-            for (let j = 1; j < slotsNecesarios; j++) {
-                if (estados[i + j] === 'disponible') {
-                    estados[i + j] = 'no-disponible';
-                }
+            if (!esParteDeBloqueValido) {
+                estadosFinal[i] = 'no-disponible';
             }
         }
     }
     
     // Marcar las últimas horas que no pueden formar un bloque completo
     for (let i = horas.length - slotsNecesarios + 1; i < horas.length; i++) {
-        if (estados[i] === 'disponible') {
-            estados[i] = 'no-disponible';
+        if (estadosFinal[i] === 'disponible' || estadosFinal[i] === 'parte-del-bloque') {
+            estadosFinal[i] = 'no-disponible';
         }
     }
     
-    return estados;
+    // Convertir todas las "parte-del-bloque" a "no-disponible" para la UI
+    for (let i = 0; i < estadosFinal.length; i++) {
+        if (estadosFinal[i] === 'parte-del-bloque') {
+            estadosFinal[i] = 'no-disponible';
+        }
+    }
+    
+    // Debug: mostrar estados finales
+    console.log('📋 Estados finales de horas:');
+    for (let i = 0; i < Math.min(10, horas.length); i++) {
+        const { hora: h, minutos: m } = horas[i];
+        const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        console.log(`   ${horaStr}: ${estadosFinal[i]} (original: ${estados[i]})`);
+    }
+    
+    return estadosFinal;
 }
 
 function resetearEstadoHoras() {
