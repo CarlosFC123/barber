@@ -2370,46 +2370,62 @@ async function forzarDisponibilidadHora(fecha, hora) {
 }
 
 function limpiarSeleccionesVisuales() {
-    console.log('🧹 Limpiando todas las selecciones visuales...');
+    console.log('🧹 Limpiando selecciones visuales...');
     
     const todosBotones = document.querySelectorAll('.hora-btn');
     todosBotones.forEach(boton => {
-        // Solo limpiar si NO es un botón de "reservando por otro usuario"
-        if (!boton.classList.contains('reservando')) {
-            // Limpiar clases de selección
-            boton.classList.remove('selected', 'mi-reserva-activa');
-            
-            // Limpiar intervalos de contador
-            if (boton.dataset.intervaloContador) {
-                clearInterval(boton.dataset.intervaloContador);
-                delete boton.dataset.intervaloContador;
-            }
-            
-            // Restaurar estilos SOLO si no es "reservando"
-            if (!boton.classList.contains('reservando')) {
-                boton.style.background = '';
-                boton.style.borderColor = '';
-                boton.style.color = '';
-                boton.style.boxShadow = '';
-                boton.style.fontWeight = '';
-                boton.style.transform = '';
-            }
-            
-            // Restaurar texto original SOLO si no es "reservando"
-            if (!boton.classList.contains('reservando')) {
-                const horaOriginal = boton.dataset.hora;
-                boton.textContent = horaOriginal;
-            }
-            
-            boton.title = boton.disabled ? 'Hora no disponible' : 'Hora disponible';
+        const horaOriginal = boton.dataset.hora;
+        const esReservando = boton.classList.contains('reservando');
+        const esOcupada = boton.classList.contains('ocupada');
+        const esMiReservaActiva = boton.classList.contains('mi-reserva-activa');
+        
+        // Caso 1: Botón "Reservando por otro usuario" - NO limpiar
+        if (esReservando) {
+            // Solo asegurarse de que no tenga clase "selected"
+            boton.classList.remove('selected');
+            return;
         }
+        
+        // Caso 2: Botón "Ocupada" - NO limpiar
+        if (esOcupada) {
+            boton.classList.remove('selected');
+            return;
+        }
+        
+        // Caso 3: Botón "Mi reserva activa" - NO limpiar completamente
+        if (esMiReservaActiva) {
+            // Solo quitar "selected" si existe
+            boton.classList.remove('selected');
+            return;
+        }
+        
+        // Caso 4: Botón normal - Limpiar completamente
+        boton.classList.remove('selected', 'mi-reserva-activa');
+        
+        // Limpiar intervalos
+        if (boton.dataset.intervaloContador) {
+            clearInterval(boton.dataset.intervaloContador);
+            delete boton.dataset.intervaloContador;
+        }
+        
+        // Restaurar estilos
+        boton.style.background = '';
+        boton.style.borderColor = '';
+        boton.style.color = '';
+        boton.style.boxShadow = '';
+        boton.style.fontWeight = '';
+        boton.style.transform = '';
+        
+        // Restaurar texto
+        boton.textContent = horaOriginal;
+        boton.title = 'Hora disponible';
     });
     
     // Limpiar el input de hora seleccionada
     const horaInput = document.getElementById('hora');
     if (horaInput) horaInput.value = '';
     
-    console.log('✅ Selecciones visuales limpiadas (excepto reservando)');
+    console.log('✅ Selecciones limpiadas correctamente');
 }
             // ============ GENERACIÓN DE HORAS MEJORADA ============
 
