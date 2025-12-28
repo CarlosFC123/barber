@@ -1746,8 +1746,15 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
     
     try {
         console.log(`🔄 Intentando reservar: ${fechaStr} ${horaStr}`);
-               
-        // 1. Cancelar reserva anterior si existe
+        
+        // 1. Si ya hay una reserva activa PARA LA MISMA HORA, no hacer nada
+        if (reservaActiva && reservaActiva.fecha === fechaStr && reservaActiva.hora === horaStr) {
+            console.log('⏭️ Ya tienes esta hora reservada');
+            bloqueoLlamadaEnProgreso = false;
+            return;
+        }
+        
+        // 2. Cancelar reserva anterior si existe (para OTRA hora)
         if (reservaActiva) {
             console.log('🔄 Cancelando reserva anterior...');
             await cancelarReservaAnterior();
@@ -1756,7 +1763,34 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             await new Promise(resolve => setTimeout(resolve, 300));
         }
         
-        // 2. Verificar disponibilidad
+        // 3. IMPORTANTE: Limpiar la selección visual de todas las horas
+        document.querySelectorAll('.hora-btn').forEach(b => {
+            if (b !== btn) {
+                // Limpiar solo si no es el botón actual
+                b.classList.remove('selected', 'mi-reserva-activa');
+                
+                // Si tiene contador activo, limpiarlo
+                if (b.dataset.intervaloContador) {
+                    clearInterval(b.dataset.intervaloContador);
+                    delete b.dataset.intervaloContador;
+                }
+                
+                // Restaurar estilo por defecto
+                b.style.background = '';
+                b.style.borderColor = '';
+                b.style.color = '';
+                b.style.boxShadow = '';
+                b.style.fontWeight = '';
+                b.style.transform = '';
+                
+                // Restaurar texto original
+                const horaOriginal = b.dataset.hora;
+                b.textContent = horaOriginal;
+                b.title = 'Hora disponible';
+            }
+        });
+        
+        // 4. Verificar disponibilidad
         const verificacion = await verificarDisponibilidadInstantanea(fechaStr, horaStr);
         
         if (!verificacion.disponible) {
@@ -1770,11 +1804,7 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             return;
         }
         
-        // 3. IMPORTANTE: NO desactivar el polling
-        // pollingActivo = false; // <-- QUITA ESTA LÍNEA
-        // El polling debe seguir funcionando
-        
-        // 4. Registrar nueva reserva
+        // 5. Registrar nueva reserva
         const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
         
         if (!resultado) {
@@ -1783,7 +1813,7 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             return;
         }
         
-        // 5. Configurar reserva activa
+        // 6. Configurar reserva activa
         reservaActiva = {
             fecha: fechaStr,
             hora: horaStr,
@@ -1795,25 +1825,24 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
         console.log(`🎯 reservaActiva establecida: ${fechaStr} ${horaStr}`);
         actualizarCacheLocal(fechaStr, horaStr, 'mi-reserva-activa', miUsuarioId);
 
-        // 6. Guardar selección
+        // 7. Guardar selección
         const horaInput = document.getElementById('hora');
         if (horaInput) horaInput.value = horaStr;
         
-        // 7. Actualizar UI INMEDIATAMENTE
+        // 8. Actualizar UI INMEDIATAMENTE
         actualizarUIReservaActiva(btn, horaStr, 30);
         
-        // 8. Notificar a otros usuarios
+        // 9. Notificar a otros usuarios
         console.log('📢 Enviando notificación a otros usuarios...');
         await notificarCambioCita(fechaStr, horaStr, 'reservando');
         
-        // 9. Configurar timeout de liberación (30 segundos)
+        // 10. Configurar timeout de liberación (30 segundos)
         timeoutReserva = setTimeout(async () => {
             console.log('⏰ Timeout de reserva alcanzado');
             await liberarReserva(fechaStr, horaStr);
             resetearUIReserva(btn, horaStr);
             showAlert('⏰ Reserva liberada automáticamente', 'info');
             reservaActiva = null;
-            // IMPORTANTE: El polling ya está activo, no necesitamos reactivarlo
         }, 30000);
         
         reservaActiva.timeoutId = timeoutReserva;
@@ -2063,7 +2092,7 @@ async function registrarSolicitudTemporal(fecha, hora) {
     }
 }
 
-        async function cancelarReservaAnterior() {
+       async function cancelarReservaAnterior() {
     if (reservaActiva) {
         console.log('🔄 CANCELANDO RESERVA ANTERIOR:', reservaActiva.fecha, reservaActiva.hora);
         
@@ -2072,13 +2101,16 @@ async function registrarSolicitudTemporal(fecha, hora) {
             clearTimeout(reservaActiva.timeoutId);
         }
         
-        // Liberar la reserva
+        // Liberar la reserva de la BD
         await liberarReserva(reservaActiva.fecha, reservaActiva.hora);
         
-        // Resetear UI del botón si existe Y si no está ya liberado
-        if (reservaActiva.boton && reservaActiva.boton.isConnected && !reservaActiva.liberada) {
-            resetearUIReserva(reservaActiva.boton, reservaActiva.hora);
-        }
+        // IMPORTANTE: Resetear UI de TODOS los botones que puedan tener estado "mi-reserva-activa"
+        const todosBotones = document.querySelectorAll('.hora-btn');
+        todosBotones.forEach(boton => {
+            if (boton.classList.contains('mi-reserva-activa')) {
+                resetearUIReserva(boton, boton.dataset.hora);
+            }
+        });
         
         // Limpiar completamente la reserva activa
         reservaActiva = null;
@@ -2136,32 +2168,51 @@ async function forzarDisponibilidadHora(fecha, hora) {
 }
             // ============ UI PARA RESERVAS ============
 
-            function actualizarUIReservaActiva(btn, horaStr, segundosRestantes) {
-        console.log(`🎨 Actualizando UI para reserva: ${horaStr}`);
-        
-        // Limpiar selección anterior
-        document.querySelectorAll('.hora-btn').forEach(b => {
+          function actualizarUIReservaActiva(btn, horaStr, segundosRestantes) {
+    console.log(`🎨 Actualizando UI para reserva: ${horaStr}`);
+    
+    // Asegurarse de que solo este botón tenga la clase
+    document.querySelectorAll('.hora-btn').forEach(b => {
+        if (b !== btn) {
             b.classList.remove('selected', 'mi-reserva-activa');
-            b.classList.remove('selected');
-        });
-        
-        // Aplicar estilo al botón seleccionado
-        btn.classList.add('selected', 'mi-reserva-activa');
-        
-        // Aplicar estilos directamente
-        btn.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
-        btn.style.borderColor = '#1e7e34';
-        btn.style.color = 'white';
-        btn.style.boxShadow = '0 0 20px rgba(40, 167, 69, 0.7)';
-        btn.style.fontWeight = 'bold';
-        btn.style.transform = 'scale(1.05)';
+        }
+    });
+    
+    // Aplicar estilo solo al botón seleccionado
+    btn.classList.add('selected', 'mi-reserva-activa');
+    
+    // Aplicar estilos directamente
+    btn.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+    btn.style.borderColor = '#1e7e34';
+    btn.style.color = 'white';
+    btn.style.boxShadow = '0 0 20px rgba(40, 167, 69, 0.7)';
+    btn.style.fontWeight = 'bold';
+    btn.style.transform = 'scale(1.05)';
+    
+    // Limpiar intervalo anterior si existe
+    if (btn.dataset.intervaloContador) {
+        clearInterval(btn.dataset.intervaloContador);
+    }
+    
+    // Crear nuevo contador
+    let contador = segundosRestantes;
+    
+    // Función para actualizar el contador
+    const actualizarContador = () => {
+        if (contador <= 0 || !btn.isConnected) {
+            if (btn.dataset.intervaloContador) {
+                clearInterval(btn.dataset.intervaloContador);
+                delete btn.dataset.intervaloContador;
+            }
+            return;
+        }
         
         btn.innerHTML = `
             ${horaStr}
             <br>
             <small style="
                 font-size: 11px; 
-                background: rgba(255, 255, 255, 0.3); 
+                background: ${contador <= 10 ? 'rgba(255, 0, 0, 0.3)' : contador <= 20 ? 'rgba(255, 165, 0, 0.3)' : 'rgba(255, 255, 255, 0.3)'}; 
                 padding: 2px 8px; 
                 border-radius: 10px; 
                 color: white;
@@ -2170,68 +2221,81 @@ async function forzarDisponibilidadHora(fecha, hora) {
                 margin-top: 5px;
                 border: 1px solid rgba(255, 255, 255, 0.5);
             ">
-                ⭐ ${segundosRestantes}s
+                ⭐ ${contador}s
             </small>
         `;
         
-        // Contador descendente
-        let contador = segundosRestantes;
-        
-        // Limpiar intervalo anterior si existe
-        if (btn.dataset.intervaloContador) {
-            clearInterval(btn.dataset.intervaloContador);
-        }
-        
-        const intervalo = setInterval(() => {
-            contador--;
-            if (contador <= 0) {
-                clearInterval(intervalo);
-                if (btn.querySelector('small')) {
-                    btn.querySelector('small').textContent = '⭐ 0s';
-                    btn.querySelector('small').style.background = 'rgba(255, 0, 0, 0.3)';
-                }
-            } else if (btn.querySelector('small')) {
-                btn.querySelector('small').textContent = `⭐ ${contador}s`;
-                
-                // Cambiar color cuando quedan pocos segundos
-                if (contador <= 10) {
-                    btn.querySelector('small').style.background = 'rgba(255, 0, 0, 0.3)';
-                    btn.querySelector('small').style.borderColor = 'rgba(255, 0, 0, 0.5)';
-                } else if (contador <= 20) {
-                    btn.querySelector('small').style.background = 'rgba(255, 165, 0, 0.3)';
-                    btn.querySelector('small').style.borderColor = 'rgba(255, 165, 0, 0.5)';
-                }
-            }
-        }, 1000);
-        
-        btn.dataset.intervaloContador = intervalo;
-        
-        console.log('✅ UI actualizada correctamente');
+        contador--;
+    };
+    
+    // Actualizar inmediatamente
+    actualizarContador();
+    
+    // Iniciar intervalo
+    const intervalo = setInterval(actualizarContador, 1000);
+    btn.dataset.intervaloContador = intervalo;
+    
+    console.log('✅ UI actualizada correctamente para un solo botón');
+}
+           function resetearUIReserva(btn, horaStr) {
+    console.log('🔄 Reseteando UI de reserva');
+    
+    btn.classList.remove('selected', 'mi-reserva-activa');
+    
+    // Restaurar estilos por defecto
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+    btn.style.boxShadow = '';
+    btn.style.fontWeight = '';
+    btn.style.transform = '';
+    
+    btn.textContent = horaStr;
+    btn.title = 'Hora disponible';
+    
+    // Si el botón tiene un contador, limpiarlo
+    if (btn.dataset.intervaloContador) {
+        clearInterval(btn.dataset.intervaloContador);
+        delete btn.dataset.intervaloContador;
     }
+    
+    console.log('✅ UI reseteada correctamente');
+}
 
-            function resetearUIReserva(btn, horaStr) {
-        console.log('🔄 Reseteando UI de reserva');
+function limpiarSeleccionesVisuales() {
+    console.log('🧹 Limpiando todas las selecciones visuales...');
+    
+    const todosBotones = document.querySelectorAll('.hora-btn');
+    todosBotones.forEach(boton => {
+        // Limpiar clases de selección
+        boton.classList.remove('selected', 'mi-reserva-activa');
         
-        btn.classList.remove('selected', 'mi-reserva-activa');
-        
-        // Restaurar estilos por defecto
-        btn.style.background = '';
-        btn.style.borderColor = '';
-        btn.style.color = '';
-        btn.style.boxShadow = '';
-        btn.style.fontWeight = '';
-        btn.style.transform = '';
-        
-        btn.textContent = horaStr;
-        btn.title = 'Hora disponible';
-        
-        if (btn.dataset.intervaloContador) {
-            clearInterval(btn.dataset.intervaloContador);
-            delete btn.dataset.intervaloContador;
+        // Limpiar intervalos de contador
+        if (boton.dataset.intervaloContador) {
+            clearInterval(boton.dataset.intervaloContador);
+            delete boton.dataset.intervaloContador;
         }
         
-        console.log('✅ UI reseteada correctamente');
-    }
+        // Restaurar estilos
+        boton.style.background = '';
+        boton.style.borderColor = '';
+        boton.style.color = '';
+        boton.style.boxShadow = '';
+        boton.style.fontWeight = '';
+        boton.style.transform = '';
+        
+        // Restaurar texto original
+        const horaOriginal = boton.dataset.hora;
+        boton.textContent = horaOriginal;
+        boton.title = boton.disabled ? 'Hora no disponible' : 'Hora disponible';
+    });
+    
+    // Limpiar el input de hora seleccionada
+    const horaInput = document.getElementById('hora');
+    if (horaInput) horaInput.value = '';
+    
+    console.log('✅ Todas las selecciones visuales limpiadas');
+}
 
             // ============ GENERACIÓN DE HORAS MEJORADA ============
 
@@ -2688,7 +2752,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.title = 'Hora siendo reservada por otro usuario';
 }
 
-            function configurarBotonDisponible(btn, horaStr, fecha) {
+          function configurarBotonDisponible(btn, horaStr, fecha) {
     const clave = `${fecha}_${horaStr}`;
     
     // Verificar si esta hora ya está reservada por mí
@@ -2713,11 +2777,16 @@ async function forzarLimpiezaReserva(fecha, hora) {
     // Configurar clic limpio
     btn.onclick = null; // Limpiar primero
     btn.onclick = async () => {
+        // Limpiar primero todas las selecciones visuales
+        limpiarSeleccionesVisuales();
+        
         // Verificar si hay una reserva activa en otra hora
         if (reservaActiva && reservaActiva.hora !== horaStr) {
             // Cancelar reserva anterior
             await cancelarReservaAnterior();
         }
+        
+        // Aplicar nuevo clic
         await reservarHoraTemporalmente(horaStr, fecha, btn);
     };
     
@@ -2726,6 +2795,8 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.title = 'Hora disponible';
     btn.textContent = horaStr;
 }
+
+
 async function resetearTodosLosBotones(fecha) {
     const horasGrid = document.getElementById('horasGrid');
     if (!horasGrid) return;
