@@ -2882,8 +2882,24 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.title = 'Hora siendo reservada por otro usuario';
 }
 
-          function configurarBotonDisponible(btn, horaStr, fecha) {
+        function configurarBotonDisponible(btn, horaStr, fecha) {
     const clave = `${fecha}_${horaStr}`;
+    
+    // Si ya es un botón "reservando", NO hacer nada
+    if (btn.classList.contains('reservando')) {
+        return;
+    }
+    
+    // Si ya es "ocupada", NO hacer nada
+    if (btn.classList.contains('ocupada')) {
+        return;
+    }
+    
+    // Si ya es "mi-reserva-activa", NO permitir clic
+    if (btn.classList.contains('mi-reserva-activa')) {
+        btn.disabled = true;
+        return;
+    }
     
     // Verificar si esta hora ya está reservada por mí
     if (solicitudesPendientes.has(clave)) {
@@ -2907,7 +2923,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
     // Configurar clic limpio
     btn.onclick = null; // Limpiar primero
     btn.onclick = async () => {
-        // Limpiar primero todas las selecciones visuales
+        // Limpiar solo selecciones normales, no botones especiales
         limpiarSeleccionesVisuales();
         
         // Verificar si hay una reserva activa en otra hora
@@ -2921,7 +2937,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
     };
     
     btn.disabled = false;
-    btn.classList.remove('ocupada', 'reservando', 'mi-reserva-activa', 'selected');
+    btn.classList.remove('selected'); // Solo quitar selected, no las otras clases
     btn.title = 'Hora disponible';
     btn.textContent = horaStr;
 }
