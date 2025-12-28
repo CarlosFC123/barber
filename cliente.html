@@ -2374,38 +2374,43 @@ function limpiarSeleccionesVisuales() {
     
     const todosBotones = document.querySelectorAll('.hora-btn');
     todosBotones.forEach(boton => {
-        // Limpiar clases de selección
-        boton.classList.remove('selected', 'mi-reserva-activa');
-        
-        // Limpiar intervalos de contador
-        if (boton.dataset.intervaloContador) {
-            clearInterval(boton.dataset.intervaloContador);
-            delete boton.dataset.intervaloContador;
+        // Solo limpiar si NO es un botón de "reservando por otro usuario"
+        if (!boton.classList.contains('reservando')) {
+            // Limpiar clases de selección
+            boton.classList.remove('selected', 'mi-reserva-activa');
+            
+            // Limpiar intervalos de contador
+            if (boton.dataset.intervaloContador) {
+                clearInterval(boton.dataset.intervaloContador);
+                delete boton.dataset.intervaloContador;
+            }
+            
+            // Restaurar estilos SOLO si no es "reservando"
+            if (!boton.classList.contains('reservando')) {
+                boton.style.background = '';
+                boton.style.borderColor = '';
+                boton.style.color = '';
+                boton.style.boxShadow = '';
+                boton.style.fontWeight = '';
+                boton.style.transform = '';
+            }
+            
+            // Restaurar texto original SOLO si no es "reservando"
+            if (!boton.classList.contains('reservando')) {
+                const horaOriginal = boton.dataset.hora;
+                boton.textContent = horaOriginal;
+            }
+            
+            boton.title = boton.disabled ? 'Hora no disponible' : 'Hora disponible';
         }
-        
-        // Restaurar estilos
-        boton.style.background = '';
-        boton.style.borderColor = '';
-        boton.style.color = '';
-        boton.style.boxShadow = '';
-        boton.style.fontWeight = '';
-        boton.style.transform = '';
-        
-        // Restaurar texto original
-        const horaOriginal = boton.dataset.hora;
-        if (!boton.classList.contains('reservando') && !boton.classList.contains('ocupada')) {
-    boton.innerHTML = horaOriginal;
-}
-        boton.title = boton.disabled ? 'Hora no disponible' : 'Hora disponible';
     });
     
     // Limpiar el input de hora seleccionada
     const horaInput = document.getElementById('hora');
     if (horaInput) horaInput.value = '';
     
-    console.log('✅ Todas las selecciones visuales limpiadas');
+    console.log('✅ Selecciones visuales limpiadas (excepto reservando)');
 }
-
             // ============ GENERACIÓN DE HORAS MEJORADA ============
 
 async function generateHoras(selectedDateObj) {
