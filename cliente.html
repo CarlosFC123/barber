@@ -1888,7 +1888,7 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
 
             // ============ SISTEMA DE RESERVAS ============
 
-          async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque = false) {
+        async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque = false) {
     if (bloqueoLlamadaEnProgreso && !esParteDeBloque) {
         console.log('⏳ Ya hay una reserva en progreso...');
         return;
@@ -1900,6 +1900,10 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
     
     try {
         console.log(`🔄 Intentando reservar: ${fechaStr} ${horaStr} ${esParteDeBloque ? '(parte de bloque)' : ''}`);
+        
+        // Obtener duración del servicio del botón
+        const duracionServicio = btn.dataset.duracion ? parseInt(btn.dataset.duracion) : 40;
+        console.log(`⏱️ Duración del servicio: ${duracionServicio} minutos`);
         
         // 1. Si ya hay una reserva activa PARA LA MISMA HORA, no hacer nada
         if (reservaActiva && reservaActiva.fecha === fechaStr && reservaActiva.hora === horaStr) {
@@ -1966,8 +1970,6 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
         }
         
         // 8. Actualizar UI INMEDIATAMENTE
-        const duracionServicio = btn.dataset.duracion ? parseInt(btn.dataset.duracion) : 40;
-        
         if (!esParteDeBloque) {
             actualizarUIReservaActiva(btn, horaStr, 30);
         } else {
@@ -3093,6 +3095,17 @@ async function forzarLimpiezaReserva(fecha, hora) {
     function configurarBotonDisponible(btn, horaStr, fecha, duracionServicio) {
     const clave = `${fecha}_${horaStr}`;
     const index = parseInt(btn.dataset.index);
+    // Verificar si duracionServicio está definido
+    if (!duracionServicio) {
+        // Obtener duración del input o del botón
+        const duracionInput = document.getElementById('servicioDuracion');
+        duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
+    }
+    
+    // Asegurar que btn tenga el dataset de duración
+    if (!btn.dataset.duracion) {
+        btn.dataset.duracion = duracionServicio.toString();
+    }
 
     // IMPORTANTE: Verificar si esta hora debería ser no-disponible
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
