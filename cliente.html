@@ -2393,7 +2393,9 @@ function limpiarSeleccionesVisuales() {
         
         // Restaurar texto original
         const horaOriginal = boton.dataset.hora;
-        boton.textContent = horaOriginal;
+        if (!boton.classList.contains('reservando') && !boton.classList.contains('ocupada')) {
+    boton.innerHTML = horaOriginal;
+}
         boton.title = boton.disabled ? 'Hora no disponible' : 'Hora disponible';
     });
     
