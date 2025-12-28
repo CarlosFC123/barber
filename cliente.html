@@ -1555,6 +1555,12 @@ async function actualizarEstadosHorasExistentes(fecha) {
         
         if (fechaStr !== fecha) continue;
         
+        // Verificar si esta hora es parte de un bloque ya reservado
+        if (esParteDeBloqueReservado(fechaStr, horaStr)) {
+            console.log(`🛡️ Protegiendo hora ${horaStr} - es parte de bloque reservado`);
+            continue; // No cambiar el estado de horas que son parte de un bloque
+        }
+        
         // Obtener el estado recalculado
         const estadoActual = btn.classList.contains('ocupada') ? 'ocupada' :
                             btn.classList.contains('reservando') ? 'reservando' :
@@ -1568,8 +1574,10 @@ async function actualizarEstadosHorasExistentes(fecha) {
         if (estadoActual !== estadoNuevo) {
             console.log(`🔄 Cambiando estado de ${horaStr}: ${estadoActual} -> ${estadoNuevo}`);
             
-            // Limpiar clases anteriores
-            btn.className = 'hora-btn';
+            // Limpiar clases anteriores (excepto si es parte de bloque)
+            if (!btn.classList.contains('parte-bloque')) {
+                btn.className = 'hora-btn';
+            }
             
             switch (estadoNuevo) {
                 case 'pasado':
@@ -1589,22 +1597,36 @@ async function actualizarEstadosHorasExistentes(fecha) {
                         const segundos = Math.ceil(tiempoRestante / 1000);
                         actualizarUIReservaActiva(btn, horaStr, segundos);
                     } else {
-                        btn.disabled = true;
-                        btn.classList.add('mi-reserva-activa');
-                        btn.innerHTML = `${horaStr}<br><small style="font-size: 10px; color: #90EE90;">⭐ Tu reserva</small>`;
+                        // Si es parte de bloque, mantener clases actuales
+                        if (!btn.classList.contains('parte-bloque')) {
+                            btn.disabled = true;
+                            btn.classList.add('mi-reserva-activa');
+                            btn.innerHTML = `
+                                ${horaStr}
+                                <br>
+                                <small style="font-size: 10px; color: #90EE90;">
+                                    ⭐ Tu reserva
+                                </small>
+                            `;
+                        }
                     }
                     break;
                 case 'no-disponible':
-                    configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+                    // No aplicar si es parte de bloque
+                    if (!btn.classList.contains('parte-bloque')) {
+                        configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+                    }
                     break;
                 case 'disponible':
-                    configurarBotonDisponible(btn, horaStr, fecha, duracionServicio);
+                    // No aplicar si es parte de bloque
+                    if (!btn.classList.contains('parte-bloque')) {
+                        configurarBotonDisponible(btn, horaStr, fecha, duracionServicio);
+                    }
                     break;
             }
         }
     }
 }
-
 // Agrega esta función para depuración
 async function testSistemaReservas() {
     console.log('🧪 === TEST SISTEMA DE RESERVAS ===');
@@ -2720,6 +2742,16 @@ async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaA
     
     // Primero, identificar horas que NO pueden ser inicio de bloque
     for (let i = 0; i <= horas.length - slotsNecesarios; i++) {
+        const horaStr = `${String(horas[i].hora).padStart(2, '0')}:${String(horas[i].minutos).padStart(2, '0')}`;
+        
+        // VERIFICAR SI ESTA HORA YA ES PARTE DE UN BLOQUE RESERVADO
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaStr}"]`);
+        if (horaBtn && horaBtn.classList.contains('parte-bloque') && horaBtn.classList.contains('mi-reserva-activa')) {
+            console.log(`🔒 Hora ${horaStr} es parte de bloque reservado - manteniendo como mi-reserva-activa`);
+            estadosFinal[i] = 'mi-reserva-activa';
+            continue;
+        }
+        
         // Verificar si esta hora ya es mi reserva activa
         if (estados[i] === 'mi-reserva-activa') {
             // Si ya es mi reserva activa, mantener como mi-reserva-activa
@@ -2749,9 +2781,18 @@ async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaA
         }
     }
     
-    // Las horas que están dentro de un bloque pero no son el inicio
-    // deben mantenerse como están (ocupadas, reservando, etc.)
-    // Solo las que son 'disponible' y no pueden ser inicio se cambian a 'no-disponible'
+    // Para horas que son parte de bloques pero no son el inicio
+    for (let i = 1; i < horas.length; i++) {
+        const horaStr = `${String(horas[i].hora).padStart(2, '0')}:${String(horas[i].minutos).padStart(2, '0')}`;
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaStr}"]`);
+        
+        // Si el botón ya está marcado como parte de bloque y mi-reserva-activa
+        if (horaBtn && horaBtn.classList.contains('parte-bloque') && horaBtn.classList.contains('mi-reserva-activa')) {
+            console.log(`🛡️ Hora ${horaStr} (parte de bloque) - forzando mi-reserva-activa`);
+            estadosFinal[i] = 'mi-reserva-activa';
+            continue;
+        }
+    }
     
     // Marcar las últimas horas que no pueden formar bloque completo
     for (let i = horas.length - slotsNecesarios + 1; i < horas.length; i++) {
@@ -2761,6 +2802,14 @@ async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaA
     }
     
     return estadosFinal;
+}
+
+function esParteDeBloqueReservado(fecha, horaStr) {
+    const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaStr}"]`);
+    if (!horaBtn) return false;
+    
+    // Verificar si tiene ambas clases
+    return horaBtn.classList.contains('parte-bloque') && horaBtn.classList.contains('mi-reserva-activa');
 }
 
 // Nueva función auxiliar para determinar estado básico
@@ -2789,10 +2838,8 @@ function determinarEstadoHoraBasico(fecha, hora) {
         // Verificar si es una reserva activa que pertenece a un bloque
         // Primero verificar si soy yo
         if (reservaInfo.usuarioId === miUsuarioId) {
-            // Verificar si esta reserva es parte de un bloque
-            // Buscar en el DOM si el botón tiene clase 'parte-bloque'
-            const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaSinSegundos}"]`);
-            if (horaBtn && horaBtn.classList.contains('parte-bloque')) {
+            // Verificar si esta hora es parte de un bloque ya reservado en el UI
+            if (esParteDeBloqueReservado(fecha, horaSinSegundos)) {
                 return 'mi-reserva-activa'; // Es parte de un bloque que ya reservé
             }
             
@@ -3378,6 +3425,12 @@ async function resetearTodosLosBotones(fecha) {
 }
 
 function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
+    // VERIFICAR SI ESTA HORA ES PARTE DE UN BLOQUE QUE YA RESERVÉ
+    if (btn.classList.contains('parte-bloque') && btn.classList.contains('mi-reserva-activa')) {
+        console.log(`⚠️ Hora ${horaStr} es parte de un bloque reservado - NO marcando como no-disponible`);
+        return; // No hacer nada, mantener el estado actual
+    }
+    
     btn.disabled = true;
     btn.classList.add('no-disponible');
     btn.innerHTML = `
