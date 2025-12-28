@@ -1586,9 +1586,9 @@ async function actualizarEstadosHorasExistentes(fecha) {
                 case 'ocupada':
                     configurarBotonOcupada(btn, horaStr);
                     break;
-                case 'reservando':
-                    mostrarEstadoReservando(btn, horaStr, fecha);
-                    break;
+                // case 'reservando':
+                //     mostrarEstadoReservando(btn, horaStr, fecha);
+                //     break;
                 case 'mi-reserva-activa':
                     // Verificar si es la reserva activa actual
                     if (reservaActiva && reservaActiva.fecha === fecha && reservaActiva.hora === horaStr) {
@@ -1609,6 +1609,19 @@ async function actualizarEstadosHorasExistentes(fecha) {
                                 </small>
                             `;
                         }
+                    }
+                    break;
+                    case 'reservando':
+                    // Verificar que la reserva es de OTRO usuario (no la mía)
+                    const clave = `${fechaStr}_${horaStr}`;
+                    const reservaInfo = solicitudesPendientes.get(clave);
+                    
+                    if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
+                        // Es de OTRO usuario - mostrar "Reservando"
+                        configurarBotonReservando(btn, horaStr, fechaStr);
+                    } else {
+                        // No debería pasar, pero por seguridad configurar como disponible
+                        configurarBotonDisponible(btn, horaStr, fechaStr, duracionServicio);
                     }
                     break;
                 case 'no-disponible':
@@ -2831,27 +2844,46 @@ function determinarEstadoHoraBasico(fecha, hora) {
     if (reservaInfo) {
         const ahora = new Date();
         if (reservaInfo.expira_en <= ahora) {
-            // Reserva expirada
             return 'disponible';
         }
         
-        // Verificar si es una reserva activa que pertenece a un bloque
-        // Primero verificar si soy yo
-        if (reservaInfo.usuarioId === miUsuarioId) {
-            // Verificar si esta hora es parte de un bloque ya reservado en el UI
-            if (esParteDeBloqueReservado(fecha, horaSinSegundos)) {
-                return 'mi-reserva-activa'; // Es parte de un bloque que ya reservé
-            }
-            
-            // Si no es parte de bloque, es una reserva individual
+        // Asegurarse que SIEMPRE retorne 'reservando' si es de otro usuario
+        if (reservaInfo.usuarioId !== miUsuarioId) {
+            // FORZAR el estado como 'reservando'
+            console.log(`⏳ DETERMINADO: ${hora} está RESERVANDO por otro usuario`);
+            return 'reservando';
+        } else {
             return 'mi-reserva-activa';
         }
-        
-        // Es de otro usuario
-        return 'reservando';
     }
     
     return 'disponible';
+}
+
+async function actualizarBotonReservandoEspecifico(fecha, hora) {
+    try {
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+        if (!horaBtn) return;
+        
+        const clave = `${fecha}_${hora}`;
+        const reservaInfo = solicitudesPendientes.get(clave);
+        
+        if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
+            horaBtn.disabled = true;
+            horaBtn.classList.add('reservando');
+            horaBtn.classList.remove('mi-reserva-activa', 'selected', 'no-disponible');
+            horaBtn.innerHTML = `
+                ${hora}
+                <br>
+                <small style="font-size: 10px; color: #ffa500; background: rgba(139, 69, 19, 0.3); padding: 2px 6px; border-radius: 4px; margin-top: 3px; display: inline-block;">
+                    ⏳ Reservando por otro usuario
+                </small>
+            `;
+            console.log(`✅ Botón ${hora} actualizado como RESERVANDO`);
+        }
+    } catch (error) {
+        console.error('Error actualizando botón:', error);
+    }
 }
 
 function resetearEstadoHoras() {
@@ -2884,7 +2916,12 @@ function resetearEstadoHoras() {
     
     for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
         const [reservaFecha, reservaHora] = clave.split('_');
-        
+        if (reservaFecha === fecha && reservaInfo.usuarioId !== miUsuarioId) {
+            // FORZAR actualización inmediata
+            setTimeout(() => {
+                actualizarBotonReservandoEspecifico(fecha, reservaHora);
+            }, 100);
+        }
         if (reservaFecha === fecha) {
             console.log(`📌 Encontrada reserva activa: ${clave}`);
             console.log(`   - Usuario: ${reservaInfo.usuarioId}`);
