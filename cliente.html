@@ -1870,32 +1870,39 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             await new Promise(resolve => setTimeout(resolve, 300));
         }
         
-        // 3. IMPORTANTE: Limpiar la selección visual de todas las horas
-        document.querySelectorAll('.hora-btn').forEach(b => {
-            if (b !== btn) {
-                // Limpiar solo si no es el botón actual
-                b.classList.remove('selected', 'mi-reserva-activa');
-                
-                // Si tiene contador activo, limpiarlo
-                if (b.dataset.intervaloContador) {
-                    clearInterval(b.dataset.intervaloContador);
-                    delete b.dataset.intervaloContador;
-                }
-                
-                // Restaurar estilo por defecto
-                b.style.background = '';
-                b.style.borderColor = '';
-                b.style.color = '';
-                b.style.boxShadow = '';
-                b.style.fontWeight = '';
-                b.style.transform = '';
-                
-                // Restaurar texto original
-                const horaOriginal = b.dataset.hora;
-                b.textContent = horaOriginal;
-                b.title = 'Hora disponible';
-            }
-        });
+        // 3. IMPORTANTE: Limpiar la selección visual de horas NORMALES solamente
+document.querySelectorAll('.hora-btn').forEach(b => {
+    if (b !== btn) {
+        // NO limpiar botones en estados especiales
+        if (b.classList.contains('ocupada') || b.classList.contains('reservando') || b.classList.contains('mi-reserva-activa')) {
+            // Solo quitar 'selected' pero mantener el contenido
+            b.classList.remove('selected');
+            return;
+        }
+        
+        // Limpiar solo botones normales
+        b.classList.remove('selected', 'mi-reserva-activa');
+        
+        // Si tiene contador activo, limpiarlo
+        if (b.dataset.intervaloContador) {
+            clearInterval(b.dataset.intervaloContador);
+            delete b.dataset.intervaloContador;
+        }
+        
+        // Restaurar estilo por defecto
+        b.style.background = '';
+        b.style.borderColor = '';
+        b.style.color = '';
+        b.style.boxShadow = '';
+        b.style.fontWeight = '';
+        b.style.transform = '';
+        
+        // Restaurar texto original
+        const horaOriginal = b.dataset.hora;
+        b.textContent = horaOriginal;
+        b.title = 'Hora disponible';
+    }
+});
         
         // 4. Verificar disponibilidad
         const verificacion = await verificarDisponibilidadInstantanea(fechaStr, horaStr);
@@ -2379,24 +2386,24 @@ function limpiarSeleccionesVisuales() {
         const esOcupada = boton.classList.contains('ocupada');
         const esMiReservaActiva = boton.classList.contains('mi-reserva-activa');
         
-        // Caso 1: Botón "Reservando por otro usuario" - NO limpiar
+        // Caso 1: Botón "Reservando por otro usuario" - NO limpiar contenido
         if (esReservando) {
             // Solo asegurarse de que no tenga clase "selected"
             boton.classList.remove('selected');
-            return;
+            return; // IMPORTANTE: Salir temprano, no modificar contenido
         }
         
-        // Caso 2: Botón "Ocupada" - NO limpiar
+        // Caso 2: Botón "Ocupada" - NO limpiar contenido
         if (esOcupada) {
             boton.classList.remove('selected');
-            return;
+            return; // IMPORTANTE: Salir temprano, no modificar contenido
         }
         
         // Caso 3: Botón "Mi reserva activa" - NO limpiar completamente
         if (esMiReservaActiva) {
             // Solo quitar "selected" si existe
             boton.classList.remove('selected');
-            return;
+            return; // IMPORTANTE: Salir temprano, no modificar contenido
         }
         
         // Caso 4: Botón normal - Limpiar completamente
@@ -2416,7 +2423,7 @@ function limpiarSeleccionesVisuales() {
         boton.style.fontWeight = '';
         boton.style.transform = '';
         
-        // Restaurar texto
+        // Restaurar texto SOLO para botones normales
         boton.textContent = horaOriginal;
         boton.title = 'Hora disponible';
     });
@@ -2425,7 +2432,7 @@ function limpiarSeleccionesVisuales() {
     const horaInput = document.getElementById('hora');
     if (horaInput) horaInput.value = '';
     
-    console.log('✅ Selecciones limpiadas correctamente');
+    console.log('✅ Selecciones limpiadas correctamente (solo botones normales)');
 }
             // ============ GENERACIÓN DE HORAS MEJORADA ============
 
@@ -2882,21 +2889,24 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.title = 'Hora siendo reservada por otro usuario';
 }
 
-        function configurarBotonDisponible(btn, horaStr, fecha) {
+    function configurarBotonDisponible(btn, horaStr, fecha) {
     const clave = `${fecha}_${horaStr}`;
     
     // Si ya es un botón "reservando", NO hacer nada
     if (btn.classList.contains('reservando')) {
+        console.log(`⚠️ No configurar disponible para ${horaStr} - ya está reservando`);
         return;
     }
     
     // Si ya es "ocupada", NO hacer nada
     if (btn.classList.contains('ocupada')) {
+        console.log(`⚠️ No configurar disponible para ${horaStr} - ya está ocupada`);
         return;
     }
     
     // Si ya es "mi-reserva-activa", NO permitir clic
     if (btn.classList.contains('mi-reserva-activa')) {
+        console.log(`⚠️ No configurar disponible para ${horaStr} - ya es tu reserva`);
         btn.disabled = true;
         return;
     }
@@ -2941,7 +2951,6 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.title = 'Hora disponible';
     btn.textContent = horaStr;
 }
-
 
 async function resetearTodosLosBotones(fecha) {
     const horasGrid = document.getElementById('horasGrid');
