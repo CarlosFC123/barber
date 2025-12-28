@@ -1485,15 +1485,12 @@ function detenerPolling() {
     }
 }
 async function sincronizarEstadosHoras() {
-    // IMPORTANTE: SIEMPRE sincronizar, incluso con reserva activa
-    
     try {
         if (!selectedDate || !barberoFijo) return;
         
         const fechaFormateada = formatDate(selectedDate);
         const ahora = Date.now();
         
-        // Solo sincronizar si han pasado al menos 1 segundo
         if (ahora - ultimaSincronizacionHoras < 1000) {
             return;
         }
@@ -1511,7 +1508,7 @@ async function sincronizarEstadosHoras() {
         // 3. Verificar notificaciones
         await verificarNotificacionesCambios();
         
-        // 4. Actualizar estados existentes
+        // 4. Actualizar estados existentes CON DURACIÓN ACTUAL
         await actualizarEstadosHorasExistentes(fechaFormateada);
         
         // 5. Limpiar caché viejo
@@ -1522,7 +1519,6 @@ async function sincronizarEstadosHoras() {
     }
 }
 
-
 async function actualizarEstadosHorasExistentes(fecha) {
     const horasGrid = document.getElementById('horasGrid');
     if (!horasGrid) return;
@@ -1530,28 +1526,43 @@ async function actualizarEstadosHorasExistentes(fecha) {
     const botones = horasGrid.querySelectorAll('.hora-btn');
     console.log(`🔄 Actualizando ${botones.length} botones existentes`);
     
+    // Obtener duración actual del servicio
+    const duracionInput = document.getElementById('servicioDuracion');
+    const duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
+    
+    // Recalcular estados con la duración actual
+    const ahora = new Date();
+    const esHoy = selectedDate && selectedDate.toDateString() === ahora.toDateString();
+    const horaActual = ahora.getHours();
+    const minutosActual = ahora.getMinutes();
+    
+    // Obtener lista de horas actuales
+    const horas = [];
+    botones.forEach(btn => {
+        const horaStr = btn.dataset.hora;
+        const [h, m] = horaStr.split(':').map(Number);
+        const index = parseInt(btn.dataset.index || '0');
+        horas.push({ hora: h, minutos: m, index });
+    });
+    
+    // Recalcular estados con la duración actual
+    const estadosReales = await calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaActual, minutosActual);
+    
     for (const btn of botones) {
         const horaStr = btn.dataset.hora;
         const fechaStr = btn.dataset.fecha;
+        const index = parseInt(btn.dataset.index || '0');
         
         if (fechaStr !== fecha) continue;
         
-        const ahora = new Date();
-        const esHoy = selectedDate && selectedDate.toDateString() === ahora.toDateString();
-        const horaActual = ahora.getHours();
-        const minutosActual = ahora.getMinutes();
-        
-        const [h, m] = horaStr.split(':').map(Number);
-        const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
-        
-        // Determinar estado actual del botón
+        // Obtener el estado recalculado
         const estadoActual = btn.classList.contains('ocupada') ? 'ocupada' :
                             btn.classList.contains('reservando') ? 'reservando' :
                             btn.classList.contains('mi-reserva-activa') ? 'mi-reserva-activa' :
+                            btn.classList.contains('no-disponible') ? 'no-disponible' :
                             btn.disabled ? 'pasado' : 'disponible';
         
-        // Determinar nuevo estado
-        const estadoNuevo = determinarEstadoHora(fecha, horaStr, selectedDate, horaPasada);
+        const estadoNuevo = estadosReales[index];
         
         // Si el estado cambió, actualizar
         if (estadoActual !== estadoNuevo) {
@@ -1583,8 +1594,11 @@ async function actualizarEstadosHorasExistentes(fecha) {
                         btn.innerHTML = `${horaStr}<br><small style="font-size: 10px; color: #90EE90;">⭐ Tu reserva</small>`;
                     }
                     break;
+                case 'no-disponible':
+                    configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+                    break;
                 case 'disponible':
-                    configurarBotonDisponible(btn, horaStr, fecha);
+                    configurarBotonDisponible(btn, horaStr, fecha, duracionServicio);
                     break;
             }
         }
@@ -2672,158 +2686,100 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
 
 async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaActual, minutosActual) {
     const estados = [];
-    const slotsNecesarios = Math.ceil(duracionServicio / 40); // 40 minutos por slot
+    const slotsNecesarios = Math.ceil(duracionServicio / 40);
     
     console.log(`📊 Calculando estados: ${slotsNecesarios} slots necesarios para ${duracionServicio} minutos`);
     
-    // Primero, verificar todas las horas individualmente
+    // 1. Calcular estados individuales sin considerar duración
     for (let i = 0; i < horas.length; i++) {
         const { hora: h, minutos: m } = horas[i];
         const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
         
-        // Verificar si la hora ya pasó
-        const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
-        
-        if (horaPasada) {
+        // Hora pasada
+        if (esHoy && (h < horaActual || (h === horaActual && m <= minutosActual))) {
             estados[i] = 'pasado';
             continue;
         }
         
-        // Verificar estado individual de la hora
-        const estadoIndividual = determinarEstadoHora(fecha, horaStr, null, false);
-        
-        if (estadoIndividual === 'ocupada' || estadoIndividual === 'reservando' || estadoIndividual === 'mi-reserva-activa') {
-            estados[i] = estadoIndividual;
-        } else {
-            estados[i] = 'disponible';
-        }
+        // Estado individual sin considerar duración
+        const estadoIndividual = determinarEstadoHoraBasico(fecha, horaStr);
+        estados[i] = estadoIndividual;
     }
     
-    // Para servicios de 40 minutos, ya tenemos todos los estados
+    // Para servicios de 40 minutos, devolver estados individuales
     if (slotsNecesarios === 1) {
         return estados;
     }
     
-    // Para servicios de más de 40 minutos, verificar bloques consecutivos
-    console.log('🔍 Analizando bloques para servicio largo...');
-    
-    // Primero, crear una copia de los estados para trabajar
+    // Para servicios largos, verificar bloques
     const estadosFinal = [...estados];
     
-    // Para cada hora, verificar si puede ser el inicio de un bloque válido
+    // Primero, identificar horas que NO pueden ser inicio de bloque
     for (let i = 0; i <= horas.length - slotsNecesarios; i++) {
-        // Verificar si todos los slots necesarios están disponibles
-        let bloqueDisponible = true;
+        // Solo considerar horas que están disponibles individualmente
+        if (estados[i] !== 'disponible') {
+            continue;
+        }
         
-        // Verificar cada slot en el bloque
+        // Verificar si hay bloques completos disponibles
+        let bloqueCompleto = true;
         for (let j = 0; j < slotsNecesarios; j++) {
             if (estados[i + j] !== 'disponible') {
-                bloqueDisponible = false;
-                console.log(`   ❌ Bloque ${i} no disponible: slot ${i+j} está ${estados[i+j]}`);
+                bloqueCompleto = false;
                 break;
             }
         }
         
-        // Si el bloque está disponible, marcar la primera hora como "disponible"
-        // y las siguientes como "parte-del-bloque" (pero no "no-disponible" aún)
-        if (bloqueDisponible) {
-            console.log(`   ✅ Bloque ${i} disponible para ${horas[i].hora}:${horas[i].minutos}`);
-            // La primera hora se mantiene como "disponible"
-            // Las siguientes se marcan temporalmente
-            for (let j = 1; j < slotsNecesarios; j++) {
-                if (estadosFinal[i + j] === 'disponible') {
-                    estadosFinal[i + j] = 'parte-del-bloque';
-                }
-            }
-        } else {
-            // Si el bloque no está disponible, verificar casos especiales
-            if (estados[i] === 'disponible') {
-                // Verificar si esta hora podría ser parte de un bloque anterior
-                let esParteDeBloqueAnterior = false;
-                if (i >= 1) {
-                    // Verificar si la hora anterior ya forma parte de un bloque
-                    for (let k = Math.max(0, i - slotsNecesarios + 1); k < i; k++) {
-                        if (estadosFinal[k] === 'disponible') {
-                            // Verificar si desde k se puede formar un bloque completo
-                            let bloqueDesdeKDisponible = true;
-                            for (let j = 0; j < slotsNecesarios; j++) {
-                                if (k + j >= horas.length || estados[k + j] !== 'disponible') {
-                                    bloqueDesdeKDisponible = false;
-                                    break;
-                                }
-                            }
-                            if (bloqueDesdeKDisponible && k + slotsNecesarios - 1 >= i) {
-                                esParteDeBloqueAnterior = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                
-                if (!esParteDeBloqueAnterior) {
-                    estadosFinal[i] = 'no-disponible';
-                    console.log(`   ❌ Hora ${i} marcada como no-disponible`);
-                }
-            }
+        // Si no hay bloque completo, esta hora no puede ser seleccionada
+        if (!bloqueCompleto) {
+            estadosFinal[i] = 'no-disponible';
         }
     }
     
-    // Ahora, procesar las horas marcadas como "parte-del-bloque"
-    // Si una hora está marcada como "parte-del-bloque" pero NO es parte de un bloque disponible, marcarla como "no-disponible"
-    for (let i = 0; i < estadosFinal.length; i++) {
-        if (estadosFinal[i] === 'parte-del-bloque') {
-            // Verificar si realmente es parte de algún bloque disponible
-            let esParteDeBloqueValido = false;
-            
-            // Buscar hacia atrás para ver si hay un bloque que incluya esta hora
-            for (let k = Math.max(0, i - slotsNecesarios + 1); k <= i; k++) {
-                if (k + slotsNecesarios <= horas.length) {
-                    let bloqueValido = true;
-                    for (let j = 0; j < slotsNecesarios; j++) {
-                        const estadoSlot = estadosFinal[k + j];
-                        if (!(estadoSlot === 'disponible' || 
-                              (j > 0 && estadoSlot === 'parte-del-bloque') ||
-                              estados[k + j] === 'disponible')) {
-                            bloqueValido = false;
-                            break;
-                        }
-                    }
-                    if (bloqueValido) {
-                        esParteDeBloqueValido = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (!esParteDeBloqueValido) {
-                estadosFinal[i] = 'no-disponible';
-            }
-        }
-    }
+    // Las horas que están dentro de un bloque pero no son el inicio
+    // deben mantenerse como están (ocupadas, reservando, etc.)
+    // Solo las que son 'disponible' y no pueden ser inicio se cambian a 'no-disponible'
     
-    // Marcar las últimas horas que no pueden formar un bloque completo
+    // Marcar las últimas horas que no pueden formar bloque completo
     for (let i = horas.length - slotsNecesarios + 1; i < horas.length; i++) {
-        if (estadosFinal[i] === 'disponible' || estadosFinal[i] === 'parte-del-bloque') {
+        if (estadosFinal[i] === 'disponible') {
             estadosFinal[i] = 'no-disponible';
         }
-    }
-    
-    // Convertir todas las "parte-del-bloque" a "no-disponible" para la UI
-    for (let i = 0; i < estadosFinal.length; i++) {
-        if (estadosFinal[i] === 'parte-del-bloque') {
-            estadosFinal[i] = 'no-disponible';
-        }
-    }
-    
-    // Debug: mostrar estados finales
-    console.log('📋 Estados finales de horas:');
-    for (let i = 0; i < Math.min(10, horas.length); i++) {
-        const { hora: h, minutos: m } = horas[i];
-        const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        console.log(`   ${horaStr}: ${estadosFinal[i]} (original: ${estados[i]})`);
     }
     
     return estadosFinal;
+}
+
+// Nueva función auxiliar para determinar estado básico
+function determinarEstadoHoraBasico(fecha, hora) {
+    // Verificar en citas futuras
+    const citaExistente = todasLasCitasFuturasCache.some(c => 
+        c.fecha === fecha && c.hora === hora
+    );
+    
+    if (citaExistente) {
+        return 'ocupada';
+    }
+    
+    // Verificar en reservas temporales
+    const horaSinSegundos = hora.includes(':') ? hora.split(':').slice(0, 2).join(':') : hora;
+    const clave = `${fecha}_${horaSinSegundos}`;
+    const reservaInfo = solicitudesPendientes.get(clave);
+    
+    if (reservaInfo) {
+        const ahora = new Date();
+        if (reservaInfo.expira_en <= ahora) {
+            return 'disponible';
+        }
+        
+        if (reservaInfo.usuarioId === miUsuarioId) {
+            return 'mi-reserva-activa';
+        }
+        
+        return 'reservando';
+    }
+    
+    return 'disponible';
 }
 
 function resetearEstadoHoras() {
@@ -2902,12 +2858,20 @@ function resetearEstadoHoras() {
     console.log(`✅ Mostradas ${reservasMostradas} reservas de otros usuarios`);
 }
 
-        function determinarEstadoHora(fecha, hora, fechaObj, horaPasada) {
+       function determinarEstadoHora(fecha, hora, fechaObj, horaPasada, duracionServicio = null) {
     if (horaPasada) {
         return 'pasado';
     }
     
-    // Primero verificar en citas futuras (ocupada) - ESTO ES LO MÁS IMPORTANTE
+    // Obtener duración del servicio si no se proporciona
+    if (!duracionServicio) {
+        const duracionInput = document.getElementById('servicioDuracion');
+        duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
+    }
+    
+    const slotsNecesarios = Math.ceil(duracionServicio / 40);
+    
+    // Primero verificar en citas futuras (ocupada)
     const citaExistente = todasLasCitasFuturasCache.some(c => 
         c.fecha === fecha && c.hora === hora
     );
@@ -2921,17 +2885,13 @@ function resetearEstadoHoras() {
     const horaSinSegundos = hora.includes(':') ? hora.split(':').slice(0, 2).join(':') : hora;
     const clave = `${fecha}_${horaSinSegundos}`;
     
-    console.log(`🔍 Verificando reserva para ${clave}`);
-    
     // Verificar si la reserva existe y no ha expirado
     const reservaInfo = solicitudesPendientes.get(clave);
     
-    // Si no encuentra con ese formato, buscar alternativas
+    // Buscar reserva con diferentes formatos
     let reservaAlternativa = null;
     if (!reservaInfo) {
-        // Buscar con formato con segundos
         reservaAlternativa = solicitudesPendientes.get(`${fecha}_${horaSinSegundos}:00`);
-        // Buscar cualquier clave que empiece con la fecha+hora
         if (!reservaAlternativa) {
             for (const [claveMap, info] of solicitudesPendientes.entries()) {
                 if (claveMap.startsWith(`${fecha}_${horaSinSegundos}`)) {
@@ -2947,18 +2907,10 @@ function resetearEstadoHoras() {
     if (reservaFinal) {
         const ahora = new Date();
         
-        console.log(`   ✓ Reserva encontrada para ${hora}`);
-        console.log(`     - Usuario: ${reservaFinal.usuarioId}`);
-        console.log(`     - Mi usuario: ${miUsuarioId}`);
-        console.log(`     - Expira en: ${reservaFinal.expira_en.toLocaleTimeString()}`);
-        console.log(`     - Ya expiró? ${reservaFinal.expira_en <= ahora}`);
-        
         // Verificar si ha expirado
         if (reservaFinal.expira_en <= ahora) {
             console.log(`🗑️ Reserva expirada eliminada: ${hora}`);
-            // Eliminar de memoria local
             solicitudesPendientes.delete(clave);
-            // Intentar eliminar de BD en segundo plano
             setTimeout(() => forzarDisponibilidadHora(fecha, horaSinSegundos), 100);
             return 'disponible';
         }
@@ -2972,6 +2924,11 @@ function resetearEstadoHoras() {
         // Si es de OTRO usuario
         console.log(`⏳ Hora ${hora} está siendo reservada por otro usuario`);
         return 'reservando';
+    }
+    
+    // Si es servicio largo, necesitamos verificar bloques adicionalmente
+    if (slotsNecesarios > 1) {
+        return 'pendiente_verificacion'; // La verificación de bloques se hará después
     }
     
     console.log(`✅ Hora ${hora} está disponible`);
@@ -3136,6 +3093,20 @@ async function forzarLimpiezaReserva(fecha, hora) {
     function configurarBotonDisponible(btn, horaStr, fecha, duracionServicio) {
     const clave = `${fecha}_${horaStr}`;
     const index = parseInt(btn.dataset.index);
+
+    // IMPORTANTE: Verificar si esta hora debería ser no-disponible
+    const slotsNecesarios = Math.ceil(duracionServicio / 40);
+    
+    if (slotsNecesarios > 1) {
+        // Verificar si esta hora puede ser inicio de un bloque completo
+        const puedeSerInicio = verificarPuedeSerInicioBloque(index, fecha, duracionServicio);
+        
+        if (!puedeSerInicio) {
+            console.log(`🚫 Hora ${horaStr} no puede ser inicio de bloque - configurando como no-disponible`);
+            configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+            return;
+        }
+    }
     
     // Si ya es un botón "no-disponible", NO hacer nada
     if (btn.classList.contains('no-disponible')) {
@@ -3254,6 +3225,34 @@ async function forzarLimpiezaReserva(fecha, hora) {
     }
 }
 
+function verificarPuedeSerInicioBloque(index, fecha, duracionServicio) {
+    const slotsNecesarios = Math.ceil(duracionServicio / 40);
+    
+    // Obtener todos los botones de horas
+    const horasGrid = document.getElementById('horasGrid');
+    if (!horasGrid) return false;
+    
+    // Verificar slots consecutivos
+    for (let i = 0; i < slotsNecesarios; i++) {
+        const siguienteIndex = index + i;
+        const siguienteBtn = document.querySelector(`.hora-btn[data-index="${siguienteIndex}"]`);
+        
+        if (!siguienteBtn) {
+            return false; // No hay suficientes horas
+        }
+        
+        // Verificar estado del slot
+        const estaOcupada = siguienteBtn.classList.contains('ocupada');
+        const estaReservando = siguienteBtn.classList.contains('reservando');
+        const esMiReserva = siguienteBtn.classList.contains('mi-reserva-activa');
+        
+        if (estaOcupada || estaReservando || esMiReserva) {
+            return false; // Slot no disponible
+        }
+    }
+    
+    return true;
+}
 async function resetearTodosLosBotones(fecha) {
     const horasGrid = document.getElementById('horasGrid');
     if (!horasGrid) return;
