@@ -2705,6 +2705,10 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
             console.log('🎯 Verificando reservas activas (FORZADO)...');
             verificarYActualizarReservasActivasForzado();
         }, 500);
+
+        setTimeout(() => {
+            debugHorasGeneradas();
+        }, 500);
         
     } catch (error) {
         console.error('❌ Error generando horas:', error);
@@ -3081,10 +3085,35 @@ function iniciarLimpiezaPeriodica() {
 function forzarActualizacionReservando(fecha, hora) {
     console.log(`🎯 FORZANDO ACTUALIZACIÓN: ${fecha} ${hora}`);
     
-    // 1. Buscar el botón específico
-    const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+    // Limpiar la hora para buscar sin segundos
+    const horaLimpia = hora.split(':').slice(0, 2).join(':');
+    
+    // Buscar el botón de diferentes formas
+    let horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaLimpia}"]`);
+    
     if (!horaBtn) {
-        console.log(`⚠️ Botón no encontrado: ${fecha} ${hora}`);
+        // Intentar buscar sin formato específico
+        const todosBotones = document.querySelectorAll('.hora-btn');
+        for (const btn of todosBotones) {
+            if (btn.dataset.fecha === fecha) {
+                const btnHora = btn.dataset.hora.split(':').slice(0, 2).join(':');
+                if (btnHora === horaLimpia) {
+                    horaBtn = btn;
+                    break;
+                }
+            }
+        }
+    }
+    
+    if (!horaBtn) {
+        console.log(`⚠️ Botón no encontrado después de búsqueda intensiva: ${fecha} ${horaLimpia}`);
+        
+        // Verificar qué horas SÍ están en el DOM
+        const horasEnDOM = Array.from(document.querySelectorAll('.hora-btn'))
+            .map(btn => `${btn.dataset.fecha} ${btn.dataset.hora}`)
+            .join(', ');
+        console.log(`📋 Horas en DOM: ${horasEnDOM || 'Ninguna'}`);
+        
         return;
     }
     
@@ -3126,7 +3155,32 @@ function forzarActualizacionReservando(fecha, hora) {
     
     console.log(`✅ Botón ${hora} actualizado visualmente como RESERVANDO`);
 }
-
+function debugHorasGeneradas() {
+    console.log('=== DEBUG HORAS GENERADAS ===');
+    const horasGrid = document.getElementById('horasGrid');
+    if (!horasGrid) {
+        console.log('❌ horasGrid no encontrado');
+        return;
+    }
+    
+    const botones = horasGrid.querySelectorAll('.hora-btn');
+    console.log(`📊 Total botones generados: ${botones.length}`);
+    
+    // Listar todas las horas generadas
+    const horasList = [];
+    botones.forEach((btn, index) => {
+        horasList.push(`${btn.dataset.hora}`);
+    });
+    
+    console.log(`📋 Horas en UI: ${horasList.join(', ')}`);
+    
+    // Verificar si incluye la hora problemática (19:20)
+    const horaProblematica = '19:20';
+    const tieneHoraProblematica = horasList.includes(horaProblematica);
+    console.log(`🔍 ¿Incluye ${horaProblematica}? ${tieneHoraProblematica ? '✅ SÍ' : '❌ NO'}`);
+    
+    return tieneHoraProblematica;
+}
 function verificarYActualizarReservasActivasForzado() {
     if (!selectedDate) return;
     
@@ -3489,44 +3543,41 @@ async function resetearTodosLosBotones(fecha) {
     await actualizarEstadosHorasExistentes(fecha);
 }
 
-            function generarHorasDisponibles(duracionServicio = 40) {
+        function generarHorasDisponibles(duracionServicio = 40) {
     const horas = [];
     const intervalo = 40; // Intervalo base en minutos
-    
-    // Turno mañana: 9:00 - 12:20
-    let hora = 9;
-    let minutos = 0;
     let index = 0;
     
-    while (!(hora === 13 && minutos === 0)) {
-        horas.push({ hora, minutos, index });
-        index++;
-        minutos += intervalo;
-        if (minutos >= 60) {
-            minutos -= 60;
-            hora += 1;
+    // Turno mañana: 9:00 - 12:20
+    for (let hora = 9; hora <= 12; hora++) {
+        for (let minutos = 0; minutos < 60; minutos += intervalo) {
+            // Evitar generar horas fuera del rango
+            if (hora === 12 && minutos > 20) break;
+            horas.push({ hora, minutos, index });
+            index++;
         }
     }
-
-    // Turno tarde: 14:40 - 19:20
-    hora = 14;
-    minutos = 40;
     
-    while (hora <= 19) {
-        horas.push({ hora, minutos, index });
-        index++;
+    // Turno tarde: 14:40 - 19:20  
+    for (let hora = 14; hora <= 19; hora++) {
+        // Para las 14:00, empezar en 40 minutos
+        let startMinutos = (hora === 14) ? 40 : 0;
         
-        minutos += intervalo;
-        if (minutos >= 60) {
-            minutos -= 60;
-            hora += 1;
-        }
-        
-        if (hora > 19 || (hora === 19 && minutos > 20)) {
-            break;
+        for (let minutos = startMinutos; minutos < 60; minutos += intervalo) {
+            // Evitar generar horas fuera del rango
+            if (hora === 19 && minutos > 20) break;
+            if (hora === 14 && minutos < 40) continue;
+            
+            horas.push({ hora, minutos, index });
+            index++;
         }
     }
-
+    
+    console.log(`📊 Total horas generadas: ${horas.length}`);
+    horas.forEach((h, i) => {
+        console.log(`${i}: ${String(h.hora).padStart(2, '0')}:${String(h.minutos).padStart(2, '0')}`);
+    });
+    
     return horas;
 }
 
