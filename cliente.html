@@ -1452,6 +1452,8 @@ function iniciarPollingInteligente() {
                 await new Promise(resolve => setTimeout(resolve, 100));
                 estabilizarBotonesReservando();
 
+                limpiarEstadosSeguros();
+
                 repararBotonesReservando();
                 await new Promise(resolve => setTimeout(resolve, 100));
                 
@@ -1535,19 +1537,65 @@ async function sincronizarEstadosHoras() {
         
         // 3. Verificar notificaciones
         await verificarNotificacionesCambios();
+
+        limpiarEstadosSeguros();
         
         // 4. Actualizar estados existentes CON DURACIÓN ACTUAL
+        // PERO respetando estados especiales
         await actualizarEstadosHorasExistentes(fechaFormateada);
         
         // 5. Limpiar caché viejo
         limpiarCacheExpirado();
 
+        // 6. Verificar reservas activas forzadamente (pero no sobrescribir estados especiales)
         setTimeout(() => {
-    verificarYActualizarReservasActivasForzado();
-}, 300);
+            verificarYActualizarReservasActivasForzadoPreservandoEstados();
+        }, 300);
         
     } catch (error) {
         console.error('❌ Error sincronizando estados:', error);
+    }
+}
+
+function verificarYActualizarReservasActivasForzadoPreservandoEstados() {
+    if (!selectedDate) return;
+    
+    const fechaActual = formatDate(selectedDate);
+    console.log(`🔍 VERIFICANDO RESERVAS ACTIVAS (PRESERVANDO ESTADOS): ${fechaActual}`);
+    
+    const ahora = new Date();
+    
+    // Recorrer todas las reservas en memoria
+    for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
+        const [fecha, hora] = clave.split('_');
+        
+        if (fecha === fechaActual && reservaInfo.usuarioId !== miUsuarioId) {
+            console.log(`📌 Encontrada reserva de otro usuario: ${hora}`);
+            
+            // Verificar si la reserva ya expiró
+            if (reservaInfo.expira_en <= ahora) {
+                console.log(`🗑️ Reserva expirada para ${hora}, ignorando`);
+                continue;
+            }
+            
+            // Buscar el botón
+            const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+            if (!horaBtn) continue;
+            
+            // Verificar si YA está configurado como "Reservando por otro usuario"
+            const yaConfigurado = horaBtn.classList.contains('reservando') && 
+                                horaBtn.innerHTML.includes('Reservando por otro usuario');
+            
+            if (!yaConfigurado) {
+                // Solo forzar actualización si no está ya configurado
+                console.log(`🎯 Forzando actualización para ${hora} (no estaba configurado)`);
+                setTimeout(() => {
+                    forzarActualizacionReservando(fecha, hora);
+                }, 100);
+            } else {
+                console.log(`✅ ${hora} ya está configurado correctamente`);
+            }
+        }
     }
 }
 
@@ -1586,51 +1634,37 @@ async function actualizarEstadosHorasExistentes(fecha) {
         
         if (fechaStr !== fecha) continue;
         
-        // **NUEVO: NO TOCAR BOTONES EN PROCESO DE SELECCIÓN**
-        if (btn.classList.contains('selected') || btn.classList.contains('mi-reserva-activa')) {
-            console.log(`🛡️ Botón ${horaStr} está seleccionado - NO TOCAR`);
-            continue;
-        }
+        // **NUEVA LÓGICA: NO TOCAR botones en estados especiales**
+        const esReservandoOtroUsuario = btn.classList.contains('reservando') && 
+                                      btn.innerHTML.includes('Reservando por otro usuario');
+        const esMiReservaActiva = btn.classList.contains('mi-reserva-activa');
+        const esOcupada = btn.classList.contains('ocupada');
         
         // REGLA 1: Si es "Reservando por otro usuario" - NO TOCARLO
-        if (btn.dataset.estadoBloqueado === 'reservando' || 
-            (btn.classList.contains('reservando') && btn.innerHTML.includes('Reservando por otro usuario'))) {
-            console.log(`🛡️ Botón ${horaStr} está bloqueado como reservando - NO TOCAR`);
+        if (esReservandoOtroUsuario) {
+            console.log(`🛡️ Botón ${horaStr} está como "Reservando por otro usuario" - PRESERVAR ESTADO`);
             continue;
         }
         
-        // REGLA 2: Si ya está marcado como OCUPADA, NO TOCARLO
-        if (btn.classList.contains('ocupada')) {
+        // REGLA 2: Si es mi reserva activa - NO TOCARLO
+        if (esMiReservaActiva) {
+            console.log(`🛡️ Botón ${horaStr} es mi reserva activa - PRESERVAR ESTADO`);
             continue;
         }
         
-        // REGLA 3: Verificar si es una reserva activa de otro usuario
-        const clave = `${fechaStr}_${horaStr}`;
-        const reservaInfo = solicitudesPendientes.get(clave);
-        
-        if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
-            // Verificar expiración con margen de error (5 segundos)
-            const margenError = 5000; // 5 segundos
-            const tiempoRestante = reservaInfo.expira_en.getTime() - ahora.getTime();
-            
-            if (tiempoRestante > margenError) {
-                // La reserva sigue activa, NO TOCAR
-                console.log(`🛡️ Reserva activa para ${horaStr} (${Math.floor(tiempoRestante/1000)}s restantes)`);
-                
-                // Si no está ya marcado como reservando, forzar actualización
-                if (!btn.classList.contains('reservando')) {
-                    setTimeout(() => {
-                        forzarActualizacionReservando(fechaStr, horaStr);
-                    }, 100);
-                }
-                continue;
-            } else {
-                // La reserva expiró (con margen de error)
-                console.log(`🗑️ Reserva expirada para ${horaStr}, permitiendo actualización`);
-            }
+        // REGLA 3: Si está ocupada - NO TOCARLO
+        if (esOcupada) {
+            console.log(`🛡️ Botón ${horaStr} está ocupada - PRESERVAR ESTADO`);
+            continue;
         }
         
-        // Obtener el estado recalculado
+        // REGLA 4: Si está seleccionado - NO TOCARLO
+        if (btn.classList.contains('selected') && !esReservandoOtroUsuario) {
+            console.log(`🛡️ Botón ${horaStr} está seleccionado - PRESERVAR ESTADO`);
+            continue;
+        }
+        
+        // Solo actualizar botones que están en estado "normal" (disponible o no-disponible)
         const estadoActual = determinarEstadoBotonActual(btn);
         const estadoNuevo = estadosReales[index];
         
@@ -1655,10 +1689,12 @@ async function actualizarEstadosHorasExistentes(fecha) {
                     configurarBotonOcupada(btn, horaStr);
                     break;
                 case 'reservando':
-                    // Usar la función mejorada con delay
-                    setTimeout(() => {
-                        forzarActualizacionReservando(fechaStr, horaStr);
-                    }, 150);
+                    // Solo configurar como reservando si es reserva de OTRO usuario
+                    const clave = `${fechaStr}_${horaStr}`;
+                    const reservaInfo = solicitudesPendientes.get(clave);
+                    if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
+                        mostrarEstadoReservando(btn, horaStr, fechaStr);
+                    }
                     break;
                 case 'mi-reserva-activa':
                     // Verificar si es la reserva activa actual
@@ -1667,16 +1703,6 @@ async function actualizarEstadosHorasExistentes(fecha) {
                         const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
                         const segundos = Math.ceil(tiempoRestante / 1000);
                         actualizarUIReservaActiva(btn, horaStr, segundos);
-                    } else {
-                        btn.disabled = true;
-                        btn.classList.add('mi-reserva-activa');
-                        btn.innerHTML = `
-                            ${horaStr}
-                            <br>
-                            <small style="font-size: 10px; color: #90EE90;">
-                                ⭐ Tu reserva
-                            </small>
-                        `;
                     }
                     break;
                 case 'no-disponible':
@@ -1717,7 +1743,9 @@ function repararBotonesReservando() {
 
 function determinarEstadoBotonActual(btn) {
     if (btn.classList.contains('ocupada')) return 'ocupada';
-    if (btn.classList.contains('reservando')) return 'reservando';
+    if (btn.classList.contains('reservando') && btn.innerHTML.includes('Reservando por otro usuario')) {
+        return 'reservando';
+    }
     if (btn.classList.contains('mi-reserva-activa')) return 'mi-reserva-activa';
     if (btn.classList.contains('no-disponible')) return 'no-disponible';
     if (btn.disabled && !btn.classList.contains('ocupada') && 
@@ -1726,7 +1754,6 @@ function determinarEstadoBotonActual(btn) {
     }
     return 'disponible';
 }
-
 // Agrega esta función para depuración
 async function testSistemaReservas() {
     console.log('🧪 === TEST SISTEMA DE RESERVAS ===');
@@ -3271,6 +3298,10 @@ function forzarActualizacionReservando(fecha, hora) {
 } 
 
 function manejarClicHoraInmediato(btn, horaStr, fecha) {
+
+    limpiarEstadosSeguros();
+    manejarClicHoraInmediato(btn, horaStr, fecha);
+
     // 1. Feedback visual INMEDIATO con clase que bloquea actualizaciones
     btn.classList.add('selected', 'click-in-progress');
     btn.style.cssText = `
@@ -3526,6 +3557,29 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.dataset.intervaloContador = intervalo;
     btn.title = 'Hora siendo reservada por otro usuario';
 }
+function limpiarEstadosSeguros() {
+    console.log('🧹 Limpiando solo estados seguros...');
+    const horasGrid = document.getElementById('horasGrid');
+    if (!horasGrid) return;
+    
+    const botones = horasGrid.querySelectorAll('.hora-btn');
+    botones.forEach(btn => {
+        // Solo limpiar botones que NO están en estados especiales
+        const esReservandoOtroUsuario = btn.classList.contains('reservando') && 
+                                      btn.innerHTML.includes('Reservando por otro usuario');
+        const esMiReservaActiva = btn.classList.contains('mi-reserva-activa');
+        const esOcupada = btn.classList.contains('ocupada');
+        
+        if (!esReservandoOtroUsuario && !esMiReservaActiva && !esOcupada) {
+            // Solo limpiar botones normales
+            if (btn.classList.contains('selected')) {
+                btn.classList.remove('selected');
+            }
+            btn.style.transform = '';
+            btn.style.boxShadow = '';
+        }
+    });
+}
 
   function configurarBotonDisponible(btn, horaStr, fecha, duracionServicio) {
     const clave = `${fecha}_${horaStr}`;
@@ -3535,13 +3589,26 @@ async function forzarLimpiezaReserva(fecha, hora) {
         const duracionInput = document.getElementById('servicioDuracion');
         duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
     }
-    
-    // 1. Verificar si NO es un botón "Reservando por otro usuario"
-    if (btn.dataset.estadoBloqueado === 'reservando' || 
-        (btn.classList.contains('reservando') && btn.innerHTML.includes('Reservando por otro usuario'))) {
-        console.log(`⚠️ Botón ${horaStr} está bloqueado como reservando - NO configurar como disponible`);
+    if (btn.classList.contains('reservando') && btn.innerHTML.includes('Reservando por otro usuario')) {
+        console.log(`🛡️ Botón ${horaStr} ya está como "Reservando por otro usuario" - NO cambiar`);
         return;
     }
+    
+    if (btn.classList.contains('mi-reserva-activa')) {
+        console.log(`🛡️ Botón ${horaStr} ya es mi reserva activa - NO cambiar`);
+        return;
+    }
+    
+    if (btn.classList.contains('ocupada')) {
+        console.log(`🛡️ Botón ${horaStr} ya está ocupada - NO cambiar`);
+        return;
+    }
+    // // 1. Verificar si NO es un botón "Reservando por otro usuario"
+    // if (btn.dataset.estadoBloqueado === 'reservando' || 
+    //     (btn.classList.contains('reservando') && btn.innerHTML.includes('Reservando por otro usuario'))) {
+    //     console.log(`⚠️ Botón ${horaStr} está bloqueado como reservando - NO configurar como disponible`);
+    //     return;
+    // }
     
     // 2. Si el botón fue clickeado recientemente (en los últimos 2 segundos), no cambiar
     const lastClickTime = parseInt(btn.dataset.lastClickTime || '0');
@@ -3575,7 +3642,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
         btn.classList.add('click-in-progress');
         
         // 1. Limpiar TODAS las horas INMEDIATAMENTE
-        limpiarSeleccionesVisuales();
+        limpiarEstadosSeguros();
         
         // 2. Feedback visual INMEDIATO
         manejarClicHoraInmediato(btn, horaStr, fecha);
@@ -4111,6 +4178,7 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     
     // Resetear estado anterior
     resetearEstadoHoras();
+    limpiarEstadosSeguros();
     
     selectedDate = new Date(date);
     selectedDate.setHours(0, 0, 0, 0);
