@@ -1842,7 +1842,17 @@ function limpiarReservasExpiradas() {
                 const expiraEn = new Date(sol.expira_en);
                 const ahora = new Date();
                 
-                const clave = `${sol.fecha}_${sol.hora}`;
+                // NORMALIZAR HORA - quitar segundos si existen
+                let horaNormalizada = sol.hora;
+                if (horaNormalizada.includes(':')) {
+                    const partes = horaNormalizada.split(':');
+                    if (partes.length > 2) {
+                        horaNormalizada = partes.slice(0, 2).join(':');
+                        console.log(`🔄 Normalizando hora BD: ${sol.hora} -> ${horaNormalizada}`);
+                    }
+                }
+                
+                const clave = `${sol.fecha}_${horaNormalizada}`;
                 
                 // Solo agregar si no ha expirado
                 if (expiraEn > ahora) {
@@ -3170,30 +3180,42 @@ function forzarActualizacionReservando(fecha, hora) {
         console.log(`🔍 FORZANDO ACTUALIZACIÓN INMEDIATA: ${fecha} ${hora}`);
         
         // Formatear hora sin segundos
-        const horaLimpia = hora.split(':').slice(0, 2).join(':');
+         let horaLimpia = hora;
+        if (hora.includes(':')) {
+            const partes = hora.split(':');
+            if (partes.length > 2) {
+                // Si tiene segundos (16:00:00), quitar los segundos
+                horaLimpia = partes.slice(0, 2).join(':');
+                console.log(`🔄 Normalizando hora: ${hora} -> ${horaLimpia}`);
+            }
+        }
         
         // Buscar botón usando dataset específico
-        let horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaLimpia}"]`);
-        
-        if (!horaBtn) {
+        let horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaLimpia}"]`);        
+         if (!horaBtn) {
             // Buscar botones que coincidan
             const todosBotones = document.querySelectorAll('.hora-btn');
             for (const btn of todosBotones) {
-                if (btn.dataset.fecha === fecha && btn.dataset.hora === horaLimpia) {
-                    horaBtn = btn;
-                    break;
+                if (btn.dataset.fecha === fecha) {
+                    const btnHora = btn.dataset.hora;
+                    // Comparar horas normalizadas
+                    const btnHoraLimpia = btnHora.split(':').slice(0, 2).join(':');
+                    if (btnHoraLimpia === horaLimpia) {
+                        horaBtn = btn;
+                        break;
+                    }
                 }
             }
         }
         
         if (!horaBtn) {
-            console.log(`⚠️ Botón no encontrado: ${fecha} ${hora}`);
+            console.log(`⚠️ Botón no encontrado: ${fecha} ${horaLimpia} (formato original: ${hora})`);
             return;
         }
         
         // Verificar si es MI reserva activa actualmente
         if (horaBtn.classList.contains('mi-reserva-activa') || horaBtn.classList.contains('selected')) {
-            console.log(`⚠️ Botón ${hora} es MI reserva activa - NO cambiar a reservando`);
+            console.log(`⚠️ Botón ${horaLimpia} es MI reserva activa - NO cambiar a reservando`);
             return;
         }
         
@@ -3955,14 +3977,14 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     }
 }
 
+
             async function actualizarHoraEspecifica(fecha, hora, tipoNotificacion = null) {
     try {
-        const horaSinSegundos = hora.includes(':') ? hora.split(':').slice(0, 2).join(':') : hora;
+        const horaNormalizada = normalizarHora(hora);
+        console.log(`🔄 ACTUALIZANDO HORA: ${fecha} ${horaNormalizada} (original: ${hora}) - Tipo: ${tipoNotificacion}`);        
         
-        console.log(`🔄 ACTUALIZANDO HORA: ${fecha} ${horaSinSegundos} - Tipo: ${tipoNotificacion}`);        
-        
-        // 1. Verificar si la reserva sigue existente en BD
-        const clave = `${fecha}_${horaSinSegundos}`;
+        // Usar hora normalizada en todo el proceso
+        const clave = `${fecha}_${horaNormalizada}`;
         const ahora = new Date();
         
         // Si es una notificación de expiración, verificar inmediatamente
@@ -4068,6 +4090,18 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     } catch (error) {
         console.error('❌ Error actualizando hora específica:', error);
     }
+}
+
+function normalizarHora(horaStr) {
+    if (!horaStr || typeof horaStr !== 'string') return horaStr;
+    
+    if (horaStr.includes(':')) {
+        const partes = horaStr.split(':');
+        if (partes.length >= 2) {
+            return `${partes[0].padStart(2, '0')}:${partes[1].padStart(2, '0')}`;
+        }
+    }
+    return horaStr;
 }
             // ============ FUNCIONES EXISTENTES (MANTENIDAS) ============
 
