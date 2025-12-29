@@ -4008,12 +4008,12 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
         await obtenerSolicitudesPendientes(true);
         
         // 3. Buscar el botón
-        let horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaSinSegundos}"]`);
+        let horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaNormalizada}"]`);
         if (!horaBtn) {
             // Intentar buscar con formato diferente
             const todosBotones = document.querySelectorAll('.hora-btn');
             for (const btn of todosBotones) {
-                if (btn.dataset.fecha === fecha && btn.dataset.hora === horaSinSegundos) {
+                if (btn.dataset.fecha === fecha && normalizarHora(btn.dataset.hora) === horaNormalizada) {
                     horaBtn = btn;
                     break;
                 }
@@ -4023,14 +4023,14 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
         
         // 4. Determinar estado actual
         const esHoy = fecha === formatDate(new Date());
-        const [h, m] = horaSinSegundos.split(':').map(Number);
+        const [h, m] = horaNormalizada.split(':').map(Number);
         const horaActual = ahora.getHours();
         const minutosActual = ahora.getMinutes();
         const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
         
-        const estado = determinarEstadoHora(fecha, horaSinSegundos, selectedDate, horaPasada);
+        const estado = determinarEstadoHora(fecha, horaNormalizada, selectedDate, horaPasada);
         
-        console.log(`📊 Estado determinado para ${horaSinSegundos}: ${estado}`);
+        console.log(`📊 Estado determinado para ${horaNormalizada}: ${estado}`);
         
         // 5. Si la reserva expiró pero sigue en memoria, forzar limpieza
         if (estado === 'reservando') {
@@ -4039,7 +4039,7 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
                 console.log(`🗑️ Reserva expirada detectada: ${clave}`);
                 solicitudesPendientes.delete(clave);
                 // Intentar forzar disponibilidad en BD
-                await forzarDisponibilidadHora(fecha, horaSinSegundos);
+                await forzarDisponibilidadHora(fecha, horaNormalizada);
                 return;
             }
         }
@@ -4050,30 +4050,30 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
         
         switch (estado) {
             case 'pasado':
-                configurarBotonPasado(horaBtn, horaSinSegundos);
+                configurarBotonPasado(horaBtn, horaNormalizada);
                 break;
                 
             case 'ocupada':
-                configurarBotonOcupada(horaBtn, horaSinSegundos);
+                configurarBotonOcupada(horaBtn, horaNormalizada);
                 break;
                 
             case 'reservando':
-                configurarBotonReservando(horaBtn, horaSinSegundos, fecha);
+                configurarBotonReservando(horaBtn, horaNormalizada, fecha);
                 break;
                 
             case 'mi-reserva-activa':
                 // Verificar si es la reserva activa actual
-                if (reservaActiva && reservaActiva.fecha === fecha && reservaActiva.hora === horaSinSegundos) {
+                if (reservaActiva && reservaActiva.fecha === fecha && reservaActiva.hora === horaNormalizada) {
                     const tiempoTranscurrido = Date.now() - reservaActiva.inicio;
                     const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
                     const segundos = Math.ceil(tiempoRestante / 1000);
-                    actualizarUIReservaActiva(horaBtn, horaSinSegundos, segundos);
+                    actualizarUIReservaActiva(horaBtn, horaNormalizada, segundos);
                 } else {
                     // Es una reserva mía pero no la activa actual
                     horaBtn.disabled = true;
                     horaBtn.classList.add('mi-reserva-activa');
                     horaBtn.innerHTML = `
-                        ${horaSinSegundos}
+                        ${horaNormalizada}
                         <br>
                         <small style="font-size: 10px; color: #90EE90;">
                             ⭐ Tu reserva
@@ -4083,7 +4083,7 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
                 break;
                 
             case 'disponible':
-                configurarBotonDisponible(horaBtn, horaSinSegundos, fecha);
+                configurarBotonDisponible(horaBtn, horaNormalizada, fecha);
                 break;
         }
         
@@ -5408,36 +5408,92 @@ async function agendarCita(e) {
             console.error('Error limpiando reservas globales:', error);
         }
         
-        // Limpiar mapa local
+        // Limpiar mapa local y ACTUALIZAR UI
         const clavesExpiradas = [];
         for (const [clave, reserva] of solicitudesPendientes.entries()) {
             if (reserva.expira_en < ahora) {
                 clavesExpiradas.push(clave);
+                
+                // Actualizar UI inmediatamente si estamos viendo esa fecha
+                const [fecha, hora] = clave.split('_');
+                const horaNormalizada = normalizarHora(hora);
+                
+                if (selectedDate) {
+                    const fechaActual = formatDate(selectedDate);
+                    if (fecha === fechaActual) {
+                        // Buscar el botón y actualizarlo
+                        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaNormalizada}"]`);
+                        if (horaBtn) {
+                            console.log(`🔄 Actualizando botón expirado: ${horaNormalizada}`);
+                            
+                            // Si estaba como "reservando", cambiarlo a disponible
+                            if (horaBtn.classList.contains('reservando') && 
+                                horaBtn.innerHTML.includes('Reservando por otro usuario')) {
+                                configurarBotonDisponible(horaBtn, horaNormalizada, fecha);
+                            }
+                        }
+                    }
+                }
             }
         }
         
+        // Eliminar de memoria después de actualizar UI
         clavesExpiradas.forEach(clave => {
             solicitudesPendientes.delete(clave);
         });
         
         if (clavesExpiradas.length > 0) {
             console.log(`🧹 Limpiadas ${clavesExpiradas.length} reservas expiradas globalmente`);
-            
-            // Si hay una fecha seleccionada, actualizar UI
-            if (selectedDate) {
-                const fechaActual = formatDate(selectedDate);
-                for (const clave of clavesExpiradas) {
-                    const [fecha, hora] = clave.split('_');
-                    if (fecha === fechaActual) {
-                        await actualizarHoraEspecifica(fecha, hora, 'reserva_expirada');
-                    }
-                }
-            }
         }
         
     } catch (error) {
         console.error('Error en limpieza global:', error);
     }
+}
+function iniciarLimpiezaAutomaticaBotones() {
+    // Verificar botones "reservando" cada 5 segundos
+    setInterval(() => {
+        if (!selectedDate) return;
+        
+        const fechaActual = formatDate(selectedDate);
+        const ahora = new Date();
+        
+        const botonesReservando = document.querySelectorAll('.hora-btn.reservando');
+        botonesReservando.forEach(btn => {
+            const hora = btn.dataset.hora;
+            const fecha = btn.dataset.fecha;
+            
+            if (fecha === fechaActual && btn.innerHTML.includes('Reservando por otro usuario')) {
+                const clave = `${fecha}_${hora}`;
+                const reservaInfo = solicitudesPendientes.get(clave);
+                
+                // Si la reserva ya expiró o no existe en memoria
+                if (!reservaInfo || reservaInfo.expira_en < ahora) {
+                    console.log(`🔄 Limpiando botón reservando expirado: ${hora}`);
+                    
+                    // Si es MI reserva activa actual, no limpiar
+                    if (reservaActiva && reservaActiva.fecha === fecha && reservaActiva.hora === hora) {
+                        return;
+                    }
+                    
+                    // Limpiar y configurar como disponible
+                    btn.classList.remove('reservando');
+                    btn.style.cssText = '';
+                    
+                    // Verificar si realmente está disponible (no está ocupada)
+                    const citaExistente = todasLasCitasFuturasCache.some(c => 
+                        c.fecha === fecha && c.hora === hora
+                    );
+                    
+                    if (!citaExistente) {
+                        configurarBotonDisponible(btn, hora, fecha);
+                    } else {
+                        configurarBotonOcupada(btn, hora);
+                    }
+                }
+            }
+        });
+    }, 1000); // Cada 1 segundo
 }
     function refrescarContadores() {
         try {
@@ -5884,7 +5940,7 @@ function getYucatanTimePlusHours(hours) {
             iniciarPollingInteligente();
             iniciarLimpiezaPeriodica();
             iniciarVerificadorPeriodicoReservas();
-
+            iniciarLimpiezaAutomaticaBotones();
 
             setInterval(() => {
     if (selectedDate) {
