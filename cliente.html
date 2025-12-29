@@ -3994,7 +3994,7 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
                 .from('solicitudes_temporales')
                 .select('*')
                 .eq('fecha', fecha)
-                .eq('hora', horaSinSegundos)
+                .eq('hora', horaNormalizada)
                 .maybeSingle();
                 
             if (!reservaActual || error) {
