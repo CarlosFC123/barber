@@ -3285,10 +3285,8 @@ function forzarActualizacionReservando(fecha, hora) {
 } 
 
 function manejarClicHoraInmediato(btn, horaStr, fecha) {
-
-    limpiarEstadosSeguros();
-    manejarClicHoraInmediato(btn, horaStr, fecha);
-
+    console.log(`⚡ CLIC INMEDIATO en ${horaStr}`);
+    
     // 1. Feedback visual INMEDIATO con clase que bloquea actualizaciones
     btn.classList.add('selected', 'click-in-progress');
     btn.style.cssText = `
