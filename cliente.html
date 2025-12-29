@@ -775,16 +775,6 @@ h2 {
     cursor: not-allowed !important;
     opacity: 0.9 !important;
     pointer-events: none !important;
-    animation: none !important;
-    transition: all 0.3s ease !important;
-    min-height: 60px; /* Aumentar altura mínima */
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    align-items: center !important;
-    padding: 8px 4px !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
 }
 .hora-btn.mi-reserva-activa.selected {
     background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
@@ -1540,17 +1530,14 @@ async function sincronizarEstadosHoras() {
 
         limpiarEstadosSeguros();
         
-        // 4. Actualizar estados existentes CON DURACIÓN ACTUAL
-        // PERO respetando estados especiales
+        // 4. Forzar actualización UI de reservas PRIMERO
+        forzarActualizacionUIReservas(fechaFormateada);
+        
+        // 5. Actualizar estados existentes CON DURACIÓN ACTUAL
         await actualizarEstadosHorasExistentes(fechaFormateada);
         
-        // 5. Limpiar caché viejo
+        // 6. Limpiar caché viejo
         limpiarCacheExpirado();
-
-        // 6. Verificar reservas activas forzadamente (pero no sobrescribir estados especiales)
-        setTimeout(() => {
-            verificarYActualizarReservasActivasForzadoPreservandoEstados();
-        }, 300);
         
     } catch (error) {
         console.error('❌ Error sincronizando estados:', error);
@@ -3417,23 +3404,21 @@ function verificarYActualizarReservasActivasForzado() {
     
     const ahora = new Date();
     
-    // Recorrer todas las reservas en memoria
+    // Primero, llamar a la función que forzará la UI
+    forzarActualizacionUIReservas(fechaActual);
+    
+    // Luego, el código existente para verificar expiración
     for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
         const [fecha, hora] = clave.split('_');
         
         if (fecha === fechaActual && reservaInfo.usuarioId !== miUsuarioId) {
-            console.log(`📌 Encontrada reserva de otro usuario: ${hora}`);
-            
             // Verificar si la reserva ya expiró
             if (reservaInfo.expira_en <= ahora) {
                 console.log(`🗑️ Reserva expirada para ${hora}, ignorando`);
                 continue;
             }
             
-            // Forzar actualización inmediata
-            setTimeout(() => {
-                forzarActualizacionReservando(fecha, hora);
-            }, 100);
+            console.log(`📌 Reserva activa de otro usuario: ${hora}`);
         }
     }
 }
@@ -3508,7 +3493,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
                 btn.title = 'Hora ocupada';
             }
 
-            function configurarBotonReservando(btn, horaStr, fecha) {
+           function configurarBotonReservando(btn, horaStr, fecha) {
     const horaSinSegundos = horaStr.includes(':') ? horaStr.split(':').slice(0, 2).join(':') : horaStr;
     const clave = `${fecha}_${horaStr}`;
     const reservaInfo = solicitudesPendientes.get(clave);
@@ -3519,44 +3504,55 @@ async function forzarLimpiezaReserva(fecha, hora) {
         return;
     }
     
+    console.log(`🎯 CONFIGURANDO RESERVANDO: ${horaStr} para usuario ${reservaInfo.usuarioId}`);
+    
     // Configurar el botón como "reservando"
     btn.disabled = true;
-    btn.classList.add('reservando');
-    btn.classList.remove('selected', 'mi-reserva-activa', 'disponible');
+    btn.className = 'hora-btn reservando'; // Limpiar todas las clases y agregar solo estas
     
     btn.innerHTML = `
         ${horaSinSegundos}
         <br>
-        <small style="font-size: 10px; color: #ffa500; background: rgba(139, 69, 19, 0.3); padding: 2px 6px; border-radius: 4px; margin-top: 3px; display: inline-block;">
+        <small style="
+            font-size: 9px;
+            color: #ffa500;
+            background: rgba(139, 69, 19, 0.3);
+            padding: 2px 4px;
+            border-radius: 4px;
+            margin-top: 3px;
+            display: block;
+            text-align: center;
+            white-space: normal;
+            max-width: 100%;
+            word-break: break-word;
+            animation: subtle-pulse 3s infinite;
+        ">
             ⏳ Reservando por otro usuario
         </small>
     `;
     
-    // Limpiar intervalo anterior
-    if (btn.dataset.intervaloContador) {
-        clearInterval(btn.dataset.intervaloContador);
-    }
+    // Aplicar estilos CSS directamente
+    btn.style.cssText = `
+        background: linear-gradient(135deg, #f1a269 0%, #D2691E 100%) !important;
+        border-color: #A0522D !important;
+        color: white !important;
+        cursor: not-allowed !important;
+        opacity: 0.9 !important;
+        pointer-events: none !important;
+        min-height: 60px;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 8px 4px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        transition: none !important;
+    `;
     
-    // Verificar expiración periódicamente
-    const intervalo = setInterval(() => {
-        if (!btn.isConnected) {
-            clearInterval(intervalo);
-            return;
-        }
-        
-        const ahora = new Date();
-        if (reservaInfo.expira_en <= ahora) {
-            clearInterval(intervalo);
-            // Forzar actualización
-            setTimeout(() => {
-                sincronizarEstadosHoras();
-            }, 500);
-        }
-    }, 5000);
-    
-    btn.dataset.intervaloContador = intervalo;
     btn.title = 'Hora siendo reservada por otro usuario';
 }
+
 function limpiarEstadosSeguros() {
     console.log('🧹 Limpiando solo estados seguros...');
     const horasGrid = document.getElementById('horasGrid');
@@ -4220,6 +4216,90 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     
     // Iniciar polling específico para esta fecha
     iniciarPollingInteligente();
+}
+
+function forzarActualizacionUIReservas(fecha) {
+    if (!selectedDate) return;
+    
+    const fechaActual = formatDate(selectedDate);
+    if (fecha !== fechaActual) return;
+    
+    console.log(`🎯 FORZANDO ACTUALIZACIÓN UI RESERVAS: ${fecha}`);
+    
+    // Recorrer todas las reservas en memoria
+    for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
+        const [reservaFecha, reservaHora] = clave.split('_');
+        
+        if (reservaFecha === fecha && reservaInfo.usuarioId !== miUsuarioId) {
+            console.log(`🔍 Forzando UI para: ${reservaHora}`);
+            
+            // Buscar el botón específico
+            const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${reservaHora}"]`);
+            
+            if (!horaBtn) {
+                console.log(`⚠️ Botón no encontrado: ${reservaHora}`);
+                continue;
+            }
+            
+            // Verificar si YA está configurado correctamente
+            const yaConfigurado = horaBtn.classList.contains('reservando') && 
+                                horaBtn.innerHTML.includes('Reservando por otro usuario');
+            
+            if (!yaConfigurado) {
+                console.log(`🔄 Configurando ${reservaHora} como reservando`);
+                
+                // Limpiar completamente
+                horaBtn.className = 'hora-btn';
+                
+                // Aplicar clase reservando y estilos
+                horaBtn.disabled = true;
+                horaBtn.classList.add('reservando');
+                horaBtn.classList.remove('selected', 'mi-reserva-activa', 'disponible');
+                
+                // Aplicar estilos INMEDIATOS
+                horaBtn.style.cssText = `
+                    background: linear-gradient(135deg, #f1a269 0%, #D2691E 100%) !important;
+                    border-color: #A0522D !important;
+                    color: white !important;
+                    cursor: not-allowed !important;
+                    opacity: 0.9 !important;
+                    pointer-events: none !important;
+                    min-height: 60px;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    justify-content: center !important;
+                    align-items: center !important;
+                    padding: 8px 4px !important;
+                    font-size: 13px !important;
+                    font-weight: 600 !important;
+                `;
+                
+                // Actualizar contenido
+                horaBtn.innerHTML = `
+                    ${reservaHora}
+                    <br>
+                    <small style="
+                        font-size: 9px;
+                        color: #ffa500;
+                        background: rgba(139, 69, 19, 0.3);
+                        padding: 2px 4px;
+                        border-radius: 4px;
+                        margin-top: 3px;
+                        display: block;
+                        text-align: center;
+                        white-space: normal;
+                        max-width: 100%;
+                        word-break: break-word;
+                        animation: subtle-pulse 3s infinite;
+                    ">
+                        ⏳ Reservando por otro usuario
+                    </small>
+                `;
+                
+                console.log(`✅ ${reservaHora} configurado como "Reservando por otro usuario"`);
+            }
+        }
+    }
 }
         async function precargarCitasFuturas() {
         try {
