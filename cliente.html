@@ -1415,7 +1415,7 @@ function iniciarPollingInteligente() {
     
     // Polling más inteligente y menos agresivo
     let ultimaEjecucion = 0;
-    const intervaloBase = 2000; // 2 segundos base
+    const intervaloBase = 4000; // 2 segundos base
     
     intervaloPolling = setInterval(async () => {
         try {
@@ -1585,6 +1585,12 @@ async function actualizarEstadosHorasExistentes(fecha) {
         const index = parseInt(btn.dataset.index || '0');
         
         if (fechaStr !== fecha) continue;
+        
+        // **NUEVO: NO TOCAR BOTONES EN PROCESO DE SELECCIÓN**
+        if (btn.classList.contains('selected') || btn.classList.contains('mi-reserva-activa')) {
+            console.log(`🛡️ Botón ${horaStr} está seleccionado - NO TOCAR`);
+            continue;
+        }
         
         // REGLA 1: Si es "Reservando por otro usuario" - NO TOCARLO
         if (btn.dataset.estadoBloqueado === 'reservando' || 
@@ -3265,23 +3271,24 @@ function forzarActualizacionReservando(fecha, hora) {
 } 
 
 function manejarClicHoraInmediato(btn, horaStr, fecha) {
-    // 1. Feedback visual INMEDIATO
-    btn.classList.add('selected');
+    // 1. Feedback visual INMEDIATO con clase que bloquea actualizaciones
+    btn.classList.add('selected', 'click-in-progress');
     btn.style.cssText = `
-        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-        border-color: #2e7d32;
-        color: white;
-        box-shadow: 0 0 15px rgba(76, 175, 80, 0.7);
-        font-weight: bold;
-        transform: scale(1.05);
-        transition: all 0.1s ease;
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%) !important;
+        border-color: #2e7d32 !important;
+        color: white !important;
+        box-shadow: 0 0 15px rgba(76, 175, 80, 0.7) !important;
+        font-weight: bold !important;
+        transform: scale(1.05) !important;
+        transition: none !important;
+        pointer-events: none !important;
     `;
     
-    // 2. Deseleccionar otras horas
-    const otrosBotones = document.querySelectorAll('.hora-btn:not(.reservando):not(.ocupada)');
+    // 2. Deseleccionar otras horas MÁS RÁPIDO
+    const otrosBotones = document.querySelectorAll('.hora-btn:not(.reservando):not(.ocupada):not(.mi-reserva-activa)');
     otrosBotones.forEach(otroBtn => {
-        if (otroBtn !== btn && !otroBtn.classList.contains('mi-reserva-activa')) {
-            otroBtn.classList.remove('selected');
+        if (otroBtn !== btn) {
+            otroBtn.classList.remove('selected', 'click-in-progress');
             otroBtn.style.cssText = '';
         }
     });
@@ -3290,8 +3297,12 @@ function manejarClicHoraInmediato(btn, horaStr, fecha) {
     const horaInput = document.getElementById('hora');
     if (horaInput) horaInput.value = horaStr;
     
-    return true; // Indicar que el clic fue procesado inmediatamente
+    // 4. Marcar como procesado para evitar actualizaciones del polling
+    btn.dataset.lastClickTime = Date.now();
+    
+    return true;
 }
+
 function estabilizarBotonesReservando() {
     console.log('⚖️ Estabilizando botones reservando...');
     
@@ -3526,57 +3537,56 @@ async function forzarLimpiezaReserva(fecha, hora) {
     }
     
     // 1. Verificar si NO es un botón "Reservando por otro usuario"
-    // Si ya está marcado como reservando, NO hacer nada
     if (btn.dataset.estadoBloqueado === 'reservando' || 
         (btn.classList.contains('reservando') && btn.innerHTML.includes('Reservando por otro usuario'))) {
         console.log(`⚠️ Botón ${horaStr} está bloqueado como reservando - NO configurar como disponible`);
         return;
     }
     
-    // 2. Configurar eventos de hover
+    // 2. Si el botón fue clickeado recientemente (en los últimos 2 segundos), no cambiar
+    const lastClickTime = parseInt(btn.dataset.lastClickTime || '0');
+    if (Date.now() - lastClickTime < 2000) {
+        console.log(`🛡️ Botón ${horaStr} clickeado recientemente - mantener estado actual`);
+        return;
+    }
+    
+    // 3. Configurar eventos de hover
     btn.onmouseenter = function() {
-        if (!btn.disabled && !btn.classList.contains('selected')) {
+        if (!btn.disabled && !btn.classList.contains('selected') && !btn.classList.contains('click-in-progress')) {
             btn.style.transform = 'scale(1.05)';
             btn.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
         }
     };
     
     btn.onmouseleave = function() {
-        if (!btn.classList.contains('selected')) {
+        if (!btn.classList.contains('selected') && !btn.classList.contains('click-in-progress')) {
             btn.style.transform = '';
             btn.style.boxShadow = '';
         }
     };
     
-    // 3. Configurar clic INMEDIATO
+    // 4. Configurar clic INMEDIATO
     btn.onclick = null; // Limpiar primero
     
     btn.onclick = async function() {
         console.log(`⚡ CLIC INMEDIATO en ${horaStr}`);
         
+        // Marcar que está siendo procesado
+        btn.classList.add('click-in-progress');
+        
         // 1. Limpiar TODAS las horas INMEDIATAMENTE
         limpiarSeleccionesVisuales();
         
-        // 2. Verificar si hay una reserva activa y cancelarla ANTES de seleccionar nueva
+        // 2. Feedback visual INMEDIATO
+        manejarClicHoraInmediato(btn, horaStr, fecha);
+        
+        // 3. Verificar si hay una reserva activa y cancelarla ANTES de seleccionar nueva
         if (reservaActiva) {
             console.log(`🔄 Cancelando reserva anterior en ${reservaActiva.hora}`);
             await cancelarReservaAnterior();
         }
         
-        // 3. SELECCIONAR ESTA HORA INMEDIATAMENTE (feedback visual)
-        btn.classList.add('selected');
-        btn.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
-        btn.style.borderColor = '#2e7d32';
-        btn.style.color = 'white';
-        btn.style.boxShadow = '0 0 15px rgba(76, 175, 80, 0.7)';
-        btn.style.fontWeight = 'bold';
-        btn.style.transform = 'scale(1.05)';
-        
-        // 4. Guardar hora seleccionada en input
-        const horaInput = document.getElementById('hora');
-        if (horaInput) horaInput.value = horaStr;
-        
-        // 5. Para servicios largos, reservar múltiples horas
+        // 4. Para servicios largos, reservar múltiples horas
         const slotsNecesarios = Math.ceil(duracionServicio / 40);
         
         if (slotsNecesarios > 1) {
@@ -3593,7 +3603,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
                     
                     if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
                         // Revertir selección visual
-                        btn.classList.remove('selected');
+                        btn.classList.remove('selected', 'click-in-progress');
                         btn.style.cssText = '';
                         
                         showAlert('❌ Una de las horas necesarias ya está siendo reservada', 'error');
@@ -3615,11 +3625,16 @@ async function forzarLimpiezaReserva(fecha, hora) {
             // Para servicios de 40 minutos
             await reservarHoraTemporalmente(horaStr, fecha, btn);
         }
+        
+        // Quitar la marca de procesamiento después de completar
+        setTimeout(() => {
+            btn.classList.remove('click-in-progress');
+        }, 500);
     };
     
-    // 4. Configuración visual del botón
+    // 5. Configuración visual del botón
     btn.disabled = false;
-    btn.classList.remove('selected', 'ocupada', 'reservando', 'mi-reserva-activa', 'no-disponible');
+    btn.classList.remove('selected', 'ocupada', 'reservando', 'mi-reserva-activa', 'no-disponible', 'click-in-progress');
     btn.title = `Hora disponible para servicio de ${duracionServicio} minutos`;
     
     // Restaurar estilo por defecto
