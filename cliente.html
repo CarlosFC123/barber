@@ -1401,7 +1401,10 @@ function iniciarPollingInteligente() {
     
     pollingActivo = true;
     
-    // Polling adaptativo basado en actividad
+    // Polling más inteligente y menos agresivo
+    let ultimaEjecucion = 0;
+    const intervaloBase = 2000; // 2 segundos base
+    
     intervaloPolling = setInterval(async () => {
         try {
             // Verificar si el usuario sigue activo
@@ -1422,16 +1425,25 @@ function iniciarPollingInteligente() {
             const hayFechaSeleccionada = selectedDate !== null;
             
             if (estaEnAgendar && hayFechaSeleccionada) {
+                const ahora = Date.now();
+                
+                // Evitar ejecuciones demasiado seguidas
+                if (ahora - ultimaEjecucion < 2000) {
+                    return;
+                }
+                
+                ultimaEjecucion = ahora;
                 console.log('🔄 Ejecutando polling inteligente (activo en agendar)');
                 
-                // Limpiar reservas expiradas globalmente
+                // Ejecutar en orden y con delays
                 await limpiarReservasExpiradasGlobalmente();
+                await new Promise(resolve => setTimeout(resolve, 100));
                 
-                // Sincronizar estados de horas
                 await sincronizarEstadosHoras();
+                await new Promise(resolve => setTimeout(resolve, 100));
                 
-                // Actualizar contadores de reservas activas
                 actualizarContadoresReservasActivas();
+                
             } else {
                 // Si no está en agendar, pausar polling
                 console.log('⏸️ No en pestaña agendar - Pausando polling');
@@ -1441,9 +1453,9 @@ function iniciarPollingInteligente() {
         } catch (error) {
             console.error('Error en polling:', error);
         }
-    }, 1000); 
+    }, intervaloBase); 
     
-    console.log('🔄 Polling inteligente iniciado (5 segundos)');
+    console.log('🔄 Polling inteligente iniciado (3 segundos)');
 }
 
 function actualizarContadoresReservasActivas() {
@@ -1559,72 +1571,91 @@ async function actualizarEstadosHorasExistentes(fecha) {
         
         if (fechaStr !== fecha) continue;
         
-        // Verificar si esta hora es parte de un bloque ya reservado
+        // REGLA CRÍTICA: Si ya está marcado como OCUPADA, NO TOCARLO
+        if (btn.classList.contains('ocupada')) {
+            console.log(`🛡️ Protegiendo hora OCUPADA: ${horaStr}`);
+            continue; // No cambiar nada
+        }
+        
+        // REGLA CRÍTICA: Si es parte de un bloque reservado, NO TOCARLO
         if (esParteDeBloqueReservado(fechaStr, horaStr)) {
             console.log(`🛡️ Protegiendo hora ${horaStr} - es parte de bloque reservado`);
             continue; // No cambiar el estado de horas que son parte de un bloque
         }
         
+        // REGLA CRÍTICA: Si es "Reservando por otro usuario", verificar si sigue siendo válido
+        if (btn.classList.contains('reservando')) {
+            const clave = `${fechaStr}_${horaStr}`;
+            const reservaInfo = solicitudesPendientes.get(clave);
+            
+            // Si la reserva ya expiró, permitir actualización
+            if (!reservaInfo || reservaInfo.expira_en <= ahora) {
+                console.log(`🔄 Reserva expirada para ${horaStr}, permitiendo actualización`);
+            } else {
+                console.log(`🛡️ Protegiendo hora RESERVANDO: ${horaStr}`);
+                continue; // No cambiar mientras siga reservando
+            }
+        }
+        
         // Obtener el estado recalculado
         const estadoActual = determinarEstadoBotonActual(btn);
-const estadoNuevo = estadosReales[index];
-
-// Solo actualizar si el estado realmente cambió Y no es un caso especial
-const debeActualizar = (estadoActual !== estadoNuevo) && 
-                      !(estadoActual === 'reservando' && estadoNuevo === 'disponible');
-
-if (debeActualizar) {
-    console.log(`🔄 Cambiando estado de ${horaStr}: ${estadoActual} -> ${estadoNuevo}`);
-    
-    // Limpiar clases anteriores (excepto si es parte de bloque)
-    if (!btn.classList.contains('parte-bloque')) {
-        btn.className = 'hora-btn';
-    }
-    
-    switch (estadoNuevo) {
-        case 'pasado':
-            configurarBotonPasado(btn, horaStr);
-            break;
-        case 'ocupada':
-            configurarBotonOcupada(btn, horaStr);
-            break;
-        case 'reservando':
-    // Siempre llamar a la función forzada para asegurar la actualización
-    setTimeout(() => {
-        forzarActualizacionReservando(fechaStr, horaStr);
-    }, 50);
-    break;
-        case 'mi-reserva-activa':
-            // Verificar si es la reserva activa actual
-            if (reservaActiva && reservaActiva.fecha === fechaStr && reservaActiva.hora === horaStr) {
-                const tiempoTranscurrido = Date.now() - reservaActiva.inicio;
-                const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
-                const segundos = Math.ceil(tiempoRestante / 1000);
-                actualizarUIReservaActiva(btn, horaStr, segundos);
-            } else {
-                btn.disabled = true;
-                btn.classList.add('mi-reserva-activa');
-                btn.innerHTML = `
-                    ${horaStr}
-                    <br>
-                    <small style="font-size: 10px; color: #90EE90;">
-                        ⭐ Tu reserva
-                    </small>
-                `;
-            }
-            break;
-        case 'no-disponible':
+        const estadoNuevo = estadosReales[index];
+        
+        // Solo actualizar si el estado realmente cambió Y no es un caso especial
+        const debeActualizar = (estadoActual !== estadoNuevo);
+        
+        if (debeActualizar) {
+            console.log(`🔄 Cambiando estado de ${horaStr}: ${estadoActual} -> ${estadoNuevo}`);
+            
+            // Limpiar clases anteriores (excepto si es parte de bloque)
             if (!btn.classList.contains('parte-bloque')) {
-                configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+                btn.className = 'hora-btn';
             }
-            break;
-        case 'disponible':
-            if (!btn.classList.contains('parte-bloque')) {
-                configurarBotonDisponible(btn, horaStr, fechaStr, duracionServicio);
+            
+            switch (estadoNuevo) {
+                case 'pasado':
+                    configurarBotonPasado(btn, horaStr);
+                    break;
+                case 'ocupada':
+                    configurarBotonOcupada(btn, horaStr);
+                    break;
+                case 'reservando':
+                    // Siempre llamar a la función forzada para asegurar la actualización
+                    setTimeout(() => {
+                        forzarActualizacionReservando(fechaStr, horaStr);
+                    }, 50);
+                    break;
+                case 'mi-reserva-activa':
+                    // Verificar si es la reserva activa actual
+                    if (reservaActiva && reservaActiva.fecha === fechaStr && reservaActiva.hora === horaStr) {
+                        const tiempoTranscurrido = Date.now() - reservaActiva.inicio;
+                        const tiempoRestante = Math.max(0, 30000 - tiempoTranscurrido);
+                        const segundos = Math.ceil(tiempoRestante / 1000);
+                        actualizarUIReservaActiva(btn, horaStr, segundos);
+                    } else {
+                        btn.disabled = true;
+                        btn.classList.add('mi-reserva-activa');
+                        btn.innerHTML = `
+                            ${horaStr}
+                            <br>
+                            <small style="font-size: 10px; color: #90EE90;">
+                                ⭐ Tu reserva
+                            </small>
+                        `;
+                    }
+                    break;
+                case 'no-disponible':
+                    if (!btn.classList.contains('parte-bloque')) {
+                        configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+                    }
+                    break;
+                case 'disponible':
+                    if (!btn.classList.contains('parte-bloque')) {
+                        configurarBotonDisponible(btn, horaStr, fechaStr, duracionServicio);
+                    }
+                    break;
             }
-            break;
-    }
-}
+        }
     }
 }
 
@@ -1639,6 +1670,7 @@ function determinarEstadoBotonActual(btn) {
     }
     return 'disponible';
 }
+
 // Agrega esta función para depuración
 async function testSistemaReservas() {
     console.log('🧪 === TEST SISTEMA DE RESERVAS ===');
@@ -3181,11 +3213,14 @@ function debugHorasGeneradas() {
     
     return tieneHoraProblematica;
 }
+
 function verificarYActualizarReservasActivasForzado() {
     if (!selectedDate) return;
     
     const fechaActual = formatDate(selectedDate);
     console.log(`🔍 VERIFICANDO RESERVAS ACTIVAS (FORZADO): ${fechaActual}`);
+    
+    const ahora = new Date();
     
     // Recorrer todas las reservas en memoria
     for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
@@ -3193,6 +3228,12 @@ function verificarYActualizarReservasActivasForzado() {
         
         if (fecha === fechaActual && reservaInfo.usuarioId !== miUsuarioId) {
             console.log(`📌 Encontrada reserva de otro usuario: ${hora}`);
+            
+            // Verificar si la reserva ya expiró
+            if (reservaInfo.expira_en <= ahora) {
+                console.log(`🗑️ Reserva expirada para ${hora}, ignorando`);
+                continue;
+            }
             
             // Forzar actualización inmediata
             setTimeout(() => {
