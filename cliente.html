@@ -1950,10 +1950,67 @@ function limpiarReservasExpiradas() {
         }
         
         console.log(`✅ Solicitudes en memoria: ${solicitudesPendientes.size}`);
+        await verificarYPropagarBloquesActivos();
         
     } catch (error) {
         console.error('❌ Error obteniendo solicitudes:', error);
     }
+}
+
+async function verificarYPropagarBloquesActivos() {
+    console.log('🔍 Verificando y propagando bloques activos...');
+    
+    // Buscar todas las reservas activas que sean bloques
+    const bloquesActivos = [];
+    
+    for (const [clave, reserva] of solicitudesPendientes.entries()) {
+        if (!reserva.esBloque && reserva.duracionServicio > 40) {
+            const [fecha, hora] = clave.split('_');
+            bloquesActivos.push({
+                fecha,
+                hora,
+                duracionServicio: reserva.duracionServicio,
+                usuarioId: reserva.usuarioId
+            });
+        }
+    }
+    
+    // Para cada bloque activo, propagar sus horas
+    bloquesActivos.forEach(bloque => {
+        if (bloque.usuarioId !== miUsuarioId) {
+            console.log(`📦 Propagando bloque de usuario ${bloque.usuarioId}: ${bloque.fecha} ${bloque.hora} (${bloque.duracionServicio} minutos)`);
+            
+            const slotsNecesarios = Math.ceil(bloque.duracionServicio / 40);
+            const horaPrincipalIndex = obtenerIndexHora(bloque.hora);
+            
+            if (!isNaN(horaPrincipalIndex)) {
+                for (let i = 1; i < slotsNecesarios; i++) {
+                    const horaIndex = horaPrincipalIndex + i;
+                    const horaBtn = document.querySelector(`.hora-btn[data-fecha="${bloque.fecha}"][data-index="${horaIndex}"]`);
+                    
+                    if (horaBtn) {
+                        const horaStr = horaBtn.dataset.hora;
+                        const claveBloque = `${bloque.fecha}_${horaStr}`;
+                        
+                        // Agregar a memoria local si no existe
+                        if (!solicitudesPendientes.has(claveBloque)) {
+                            solicitudesPendientes.set(claveBloque, {
+                                usuarioId: bloque.usuarioId,
+                                timestamp: new Date(),
+                                expira_en: new Date(Date.now() + 30000),
+                                esBloque: true,
+                                horaPrincipal: bloque.hora,
+                                duracionServicio: bloque.duracionServicio,
+                                esMiReserva: false
+                            });
+                            
+                            console.log(`   - Agregado: ${horaStr} como parte del bloque`);
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 async function debugSolicitudesTemporales() {
     try {
@@ -2147,7 +2204,7 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
                     if (verificacion.razon === 'ocupada') {
                         showAlert('❌ Una de las horas necesarias acaba de ser ocupada por otro usuario', 'error');
                         await sincronizarEstadosHoras();
-                    } else {
+                    } else if (verificacion.razon === 'reservando') {
                         showAlert('⏳ Una de las horas necesarias está siendo reservada por otro usuario', 'warning');
                     }
                     if (!esParteDeBloque) bloqueoLlamadaEnProgreso = false;
@@ -2165,33 +2222,44 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
             return;
         }
         
-        // 4. **IMPORTANTE: Guardar las horas del bloque en memoria local para que otros usuarios las vean**
+        // 4. **IMPORTANTE: Guardar las horas del bloque en memoria local**
         const ahora = new Date();
         const expiraEn = new Date(ahora.getTime() + 30000);
         
-        for (let i = 1; i < slotsNecesarios; i++) {
+        // **NUEVO: Crear un array para guardar TODAS las horas del bloque**
+        const horasDelBloque = [];
+        
+        for (let i = 0; i < slotsNecesarios; i++) {
             const siguienteIndex = horaIndex + i;
             const siguienteBtn = document.querySelector(`.hora-btn[data-index="${siguienteIndex}"]`);
             
             if (siguienteBtn) {
                 const siguienteHoraStr = siguienteBtn.dataset.hora;
+                horasDelBloque.push(siguienteHoraStr);
+                
+                if (i === 0) {
+                    // La hora principal ya está en BD
+                    continue;
+                }
+                
+                // Para horas adicionales, guardar en memoria local
                 const claveBloque = `${fechaStr}_${siguienteHoraStr}`;
                 
-                // Guardar en memoria local como "reservando-bloque"
                 solicitudesPendientes.set(claveBloque, {
                     usuarioId: miUsuarioId,
                     timestamp: ahora,
                     expira_en: expiraEn,
                     esBloque: true,
                     horaPrincipal: horaStr,
-                    esMiReserva: true
+                    esMiReserva: true,
+                    duracionServicio: duracionServicio
                 });
                 
                 console.log(`   - Bloque en memoria: ${siguienteHoraStr}`);
             }
         }
         
-        // 5. Configurar reserva activa
+        // 5. Configurar reserva activa con TODAS las horas
         if (!esParteDeBloque) {
             reservaActiva = {
                 fecha: fechaStr,
@@ -2202,10 +2270,12 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
                 duracion: duracionServicio,
                 slots: slotsNecesarios,
                 indices: Array.from({length: slotsNecesarios}, (_, i) => horaIndex + i),
-                esBloque: slotsNecesarios > 1
+                esBloque: slotsNecesarios > 1,
+                horasDelBloque: horasDelBloque // Guardar todas las horas del bloque
             };
 
             console.log(`🎯 reservaActiva establecida: ${fechaStr} ${horaStr} (${duracionServicio} minutos, ${slotsNecesarios} slots)`);
+            console.log(`   - Horas del bloque: ${horasDelBloque.join(', ')}`);
         }
         
         // 6. Actualizar UI para TODAS las horas del bloque
@@ -2234,7 +2304,23 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
             }
         }
         
-        // 7. Configurar timeout de liberación
+        // 7. Notificar a otros usuarios sobre el bloque completo
+        if (slotsNecesarios > 1 && !esParteDeBloque) {
+            propagarBloquesAOtrosUsuarios(fechaStr, horaStr, duracionServicio);
+
+            for (let i = 1; i < slotsNecesarios; i++) {
+                const siguienteIndex = horaIndex + i;
+                const siguienteBtn = document.querySelector(`.hora-btn[data-index="${siguienteIndex}"]`);
+                
+                if (siguienteBtn) {
+                    const siguienteHoraStr = siguienteBtn.dataset.hora;
+                    // Enviar notificación para cada hora del bloque
+                    await notificarCambioCita(fechaStr, siguienteHoraStr, 'reservando_bloque');
+                }
+            }
+        }
+        
+        // 8. Configurar timeout de liberación
         if (!esParteDeBloque) {
             timeoutReserva = setTimeout(async () => {
                 console.log('⏰ Timeout de reserva alcanzado');
@@ -3189,26 +3275,109 @@ function determinarEstadoHoraBasico(fecha, hora) {
         console.log(`⏳ DETERMINADO: ${hora} está siendo reservada por otro usuario`);
         
         // **NUEVO: Si es parte de un bloque de otro usuario**
-        if (reservaInfo.esBloque) {
+        if (reservaInfo.esBloque && reservaInfo.duracionServicio > 40) {
             return 'reservando-bloque';
         }
         return 'reservando';
     }
     
-    // **NUEVO: Verificar si esta hora es parte de un bloque donde otra hora es la principal**
-    // Buscar en todas las reservas si alguna tiene esta hora como bloque
+    // **NUEVO MEJORADO: Verificar si esta hora es parte de un bloque buscando en TODAS las reservas**
+    // Buscar si alguna reserva tiene esta hora como hora principal y tiene duración > 40
     for (const [claveMap, reserva] of solicitudesPendientes.entries()) {
-        if (reserva.esBloque && reserva.horaPrincipal === hora) {
+        if (!reserva.esBloque && reserva.duracionServicio > 40) {
             const [reservaFecha, reservaHora] = claveMap.split('_');
+            
+            // Esta es una hora principal de un bloque largo
             if (reservaFecha === fecha) {
-                console.log(`🔗 ${hora} es hora principal del bloque que incluye ${reservaHora}`);
-                return 'reservando';
+                const horaPrincipalIndex = obtenerIndexHora(reservaHora);
+                const horaActualIndex = obtenerIndexHora(hora);
+                
+                if (!isNaN(horaPrincipalIndex) && !isNaN(horaActualIndex)) {
+                    const slotsNecesarios = Math.ceil(reserva.duracionServicio / 40);
+                    
+                    // Verificar si esta hora está dentro del rango del bloque
+                    if (horaActualIndex >= horaPrincipalIndex && 
+                        horaActualIndex < horaPrincipalIndex + slotsNecesarios) {
+                        
+                        console.log(`🔗 ${hora} está dentro del bloque que comienza en ${reservaHora} (${reserva.duracionServicio} minutos)`);
+                        
+                        if (reserva.usuarioId !== miUsuarioId) {
+                            return 'reservando-bloque';
+                        } else {
+                            return 'mi-reserva-activa-bloque';
+                        }
+                    }
+                }
             }
         }
     }
     
     return 'disponible';
 }
+function propagarBloquesAOtrosUsuarios(fecha, horaPrincipal, duracionServicio) {
+    console.log(`📢 Propagando bloque: ${fecha} ${horaPrincipal} (${duracionServicio} minutos)`);
+    
+    const slotsNecesarios = Math.ceil(duracionServicio / 40);
+    const horaPrincipalIndex = obtenerIndexHora(horaPrincipal);
+    
+    if (isNaN(horaPrincipalIndex)) {
+        console.error('❌ No se pudo obtener índice de la hora principal');
+        return;
+    }
+    
+    const ahora = new Date();
+    const expiraEn = new Date(ahora.getTime() + 30000);
+    
+    // Para cada hora del bloque (excepto la principal)
+    for (let i = 1; i < slotsNecesarios; i++) {
+        const horaIndex = horaPrincipalIndex + i;
+        
+        // Obtener la hora string por índice
+        const horaBtn = document.querySelector(`.hora-btn[data-index="${horaIndex}"]`);
+        if (horaBtn) {
+            const horaStr = horaBtn.dataset.hora;
+            const clave = `${fecha}_${horaStr}`;
+            
+            // **IMPORTANTE: Guardar en memoria local para que otros usuarios lo vean**
+            solicitudesPendientes.set(clave, {
+                usuarioId: miUsuarioId,
+                timestamp: ahora,
+                expira_en: expiraEn,
+                esBloque: true,
+                horaPrincipal: horaPrincipal,
+                duracionServicio: duracionServicio,
+                esMiReserva: true
+            });
+            
+            console.log(`   - Propagado: ${horaStr} como parte del bloque`);
+            
+            // Actualizar caché
+            actualizarCacheLocal(fecha, horaStr, 'reservando-bloque', miUsuarioId);
+        }
+    }
+}
+// Función auxiliar para obtener el índice de una hora
+function obtenerIndexHora(horaStr) {
+    const btn = document.querySelector(`.hora-btn[data-hora="${horaStr}"]`);
+    if (btn && btn.dataset.index) {
+        return parseInt(btn.dataset.index);
+    }
+    
+    // Si no existe en el DOM, calcularlo
+    const [h, m] = horaStr.split(':').map(Number);
+    
+    // Calcular índice basado en las horas disponibles
+    if (h >= 9 && h <= 12) {
+        const minutosDesde900 = (h - 9) * 60 + m;
+        return Math.floor(minutosDesde900 / 40);
+    } else if (h >= 14 && h <= 19) {
+        const minutosDesde1440 = (h - 14) * 60 + m - 40;
+        return Math.floor(minutosDesde1440 / 40) + 7; // +7 porque hay 7 slots en la mañana
+    }
+    
+    return -1;
+}
+
 async function actualizarBotonReservandoEspecifico(fecha, hora) {
     try {
         console.log(`🎯 FORZANDO actualización de botón: ${fecha} ${hora}`);
