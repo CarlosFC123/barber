@@ -1451,7 +1451,7 @@ function iniciarPollingInteligente() {
                 await new Promise(resolve => setTimeout(resolve, 100));
                 
                 actualizarContadoresReservasActivas();
-                
+                verificarYActualizarReservasActivasForzadoPreservandoEstados();
             } else {
                 // Si no está en agendar, pausar polling
                 console.log('⏸️ No en pestaña agendar - Pausando polling');
@@ -1548,22 +1548,24 @@ function verificarYActualizarReservasActivasForzadoPreservandoEstados() {
     if (!selectedDate) return;
     
     const fechaActual = formatDate(selectedDate);
-    console.log(`🔍 VERIFICANDO RESERVAS ACTIVAS (PRESERVANDO ESTADOS): ${fechaActual}`);
+    console.log(`🔍 VERIFICANDO RESERVAS ACTIVAS (BLOQUES): ${fechaActual}`);
     
     const ahora = new Date();
+    const duracionInput = document.getElementById('servicioDuracion');
+    const duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
     
     // Recorrer todas las reservas en memoria
     for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
         const [fecha, hora] = clave.split('_');
         
         if (fecha === fechaActual && reservaInfo.usuarioId !== miUsuarioId) {
-            console.log(`📌 Encontrada reserva de otro usuario: ${hora}`);
-            
             // Verificar si la reserva ya expiró
             if (reservaInfo.expira_en <= ahora) {
                 console.log(`🗑️ Reserva expirada para ${hora}, ignorando`);
                 continue;
             }
+            
+            console.log(`📌 Encontrada reserva de otro usuario: ${hora}`);
             
             // Buscar el botón
             const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
@@ -1574,10 +1576,10 @@ function verificarYActualizarReservasActivasForzadoPreservandoEstados() {
                                 horaBtn.innerHTML.includes('Reservando por otro usuario');
             
             if (!yaConfigurado) {
-                // Solo forzar actualización si no está ya configurado
-                console.log(`🎯 Forzando actualización para ${hora} (no estaba configurado)`);
+                // Forzar actualización de TODO el bloque
+                console.log(`🎯 Forzando actualización de BLOQUE para ${hora}`);
                 setTimeout(() => {
-                    forzarActualizacionReservando(fecha, hora);
+                    forzarActualizacionReservando(fecha, hora, duracionServicio);
                 }, 100);
             } else {
                 console.log(`✅ ${hora} ya está configurado correctamente`);
@@ -3166,7 +3168,7 @@ function iniciarLimpiezaPeriodica() {
 
 let bloqueoActualizacion = new Set(); // Para evitar actualizaciones simultáneas
 
-function forzarActualizacionReservando(fecha, hora) {
+function forzarActualizacionReservando(fecha, hora, duracionServicio = null) {
     const claveBloqueo = `${fecha}_${hora}`;
     
     // Evitar múltiples ejecuciones simultáneas
@@ -3177,28 +3179,34 @@ function forzarActualizacionReservando(fecha, hora) {
     bloqueoActualizacion.add(claveBloqueo);
     
     try {
-        console.log(`🔍 FORZANDO ACTUALIZACIÓN INMEDIATA: ${fecha} ${hora}`);
+        console.log(`🔍 FORZANDO ACTUALIZACIÓN INMEDIATA (BLOQUE): ${fecha} ${hora}`);
+        
+        // Obtener duración del servicio si no se proporciona
+        if (!duracionServicio) {
+            const duracionInput = document.getElementById('servicioDuracion');
+            duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
+        }
+        
+        const slotsNecesarios = Math.ceil(duracionServicio / 40);
+        console.log(`📦 Slots necesarios para ${duracionServicio}min: ${slotsNecesarios}`);
         
         // Formatear hora sin segundos
-         let horaLimpia = hora;
+        let horaLimpia = hora;
         if (hora.includes(':')) {
             const partes = hora.split(':');
             if (partes.length > 2) {
-                // Si tiene segundos (16:00:00), quitar los segundos
                 horaLimpia = partes.slice(0, 2).join(':');
-                console.log(`🔄 Normalizando hora: ${hora} -> ${horaLimpia}`);
             }
         }
         
-        // Buscar botón usando dataset específico
+        // Buscar botón de la hora principal
         let horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaLimpia}"]`);        
-         if (!horaBtn) {
+        if (!horaBtn) {
             // Buscar botones que coincidan
             const todosBotones = document.querySelectorAll('.hora-btn');
             for (const btn of todosBotones) {
                 if (btn.dataset.fecha === fecha) {
                     const btnHora = btn.dataset.hora;
-                    // Comparar horas normalizadas
                     const btnHoraLimpia = btnHora.split(':').slice(0, 2).join(':');
                     if (btnHoraLimpia === horaLimpia) {
                         horaBtn = btn;
@@ -3209,102 +3217,125 @@ function forzarActualizacionReservando(fecha, hora) {
         }
         
         if (!horaBtn) {
-            console.log(`⚠️ Botón no encontrado: ${fecha} ${horaLimpia} (formato original: ${hora})`);
+            console.log(`⚠️ Botón principal no encontrado: ${fecha} ${horaLimpia}`);
             return;
         }
         
-        // Verificar si es MI reserva activa actualmente
+        // Obtener índice de la hora principal
+        const indexPrincipal = parseInt(horaBtn.dataset.index);
+        if (isNaN(indexPrincipal)) {
+            console.log('⚠️ No se pudo obtener índice de la hora principal');
+            return;
+        }
+        
+        console.log(`📍 Hora principal: ${horaLimpia}, índice: ${indexPrincipal}, slots: ${slotsNecesarios}`);
+        
+        // Verificar si ES MI RESERVA activa actualmente
         if (horaBtn.classList.contains('mi-reserva-activa') || horaBtn.classList.contains('selected')) {
             console.log(`⚠️ Botón ${horaLimpia} es MI reserva activa - NO cambiar a reservando`);
             return;
         }
         
-        // Verificar si es reserva de OTRO usuario
+        // Verificar si es reserva de OTRO usuario en la hora principal
         const clave = `${fecha}_${horaLimpia}`;
         const reservaInfo = solicitudesPendientes.get(clave);
         
-        if (!reservaInfo || reservaInfo.usuarioId === miUsuarioId) {
-            return;
+        let esReservaOtroUsuario = false;
+        if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
+            esReservaOtroUsuario = true;
+            console.log(`✅ Hora principal ${horaLimpia} es reserva de otro usuario (${reservaInfo.usuarioId})`);
         }
         
-        // Verificar expiración
-        const ahora = new Date();
-        const tiempoRestante = reservaInfo.expira_en.getTime() - ahora.getTime();
-        
-        if (tiempoRestante <= 0) {
-            console.log(`⏰ Reserva expirada: ${hora}`);
-            return;
+        // Verificar también las horas siguientes del bloque
+        for (let i = 0; i < slotsNecesarios; i++) {
+            const indexActual = indexPrincipal + i;
+            const siguienteBtn = document.querySelector(`.hora-btn[data-index="${indexActual}"]`);
+            
+            if (!siguienteBtn) {
+                console.log(`⚠️ Botón de índice ${indexActual} no encontrado`);
+                continue;
+            }
+            
+            const siguienteHora = siguienteBtn.dataset.hora;
+            const siguienteHoraLimpia = siguienteHora.split(':').slice(0, 2).join(':');
+            const claveSiguiente = `${fecha}_${siguienteHoraLimpia}`;
+            
+            // Verificar si esta hora también está reservada por el MISMO usuario
+            const reservaSiguiente = solicitudesPendientes.get(claveSiguiente);
+            const esMismaReserva = reservaSiguiente && 
+                                  reservaInfo && 
+                                  reservaSiguiente.usuarioId === reservaInfo.usuarioId;
+            
+            if (esReservaOtroUsuario || esMismaReserva) {
+                console.log(`🎯 Configurando ${siguienteHora} como "Reservando por otro usuario" (parte de bloque)`);
+                
+                // Verificar si YA está correctamente configurado
+                const yaConfigurado = siguienteBtn.classList.contains('reservando') && 
+                                     siguienteBtn.innerHTML.includes('Reservando por otro usuario');
+                
+                if (yaConfigurado) {
+                    console.log(`✅ Botón ${siguienteHora} ya está configurado como reservando`);
+                    continue;
+                }
+                
+                // Guardar referencia al estado actual
+                const estadoAnterior = determinarEstadoBotonActual(siguienteBtn);
+                
+                // Aplicar cambios de UNA VEZ
+                siguienteBtn.disabled = true;
+                siguienteBtn.classList.remove('selected', 'mi-reserva-activa', 'disponible');
+                siguienteBtn.classList.add('reservando');
+                
+                // Aplicar estilos DIRECTAMENTE sin transiciones
+                siguienteBtn.style.cssText = `
+                    background-color: rgba(139, 69, 19, 0.2) !important;
+                    border: 2px solid #8B4513 !important;
+                    color: #8B4513 !important;
+                    font-weight: bold !important;
+                    cursor: not-allowed !important;
+                    opacity: 0.9 !important;
+                    pointer-events: none !important;
+                    transition: none !important;
+                `;
+                
+                // Actualizar contenido
+                siguienteBtn.innerHTML = `
+                    ${siguienteHoraLimpia}
+                    <br>
+                    <small style="
+                        font-size: 10px; 
+                        color: #ff9800; 
+                        background: rgba(139, 69, 19, 0.3); 
+                        padding: 3px 8px; 
+                        border-radius: 4px; 
+                        margin-top: 3px; 
+                        display: inline-block;
+                        font-weight: bold;
+                    ">
+                        ⏳ Reservando por otro usuario
+                    </small>
+                `;
+                
+                // Prevenir que el polling lo vuelva a cambiar
+                siguienteBtn.dataset.estadoBloqueado = 'reservando';
+                siguienteBtn.dataset.usuarioReserva = (reservaInfo || reservaSiguiente).usuarioId;
+                siguienteBtn.dataset.expiraReserva = (reservaInfo || reservaSiguiente).expira_en.toISOString();
+                
+                console.log(`✅ ${siguienteHora} marcado permanentemente como "Reservando por otro usuario"`);
+            } else {
+                console.log(`⚠️ Hora ${siguienteHora} no es parte del mismo bloque reservado`);
+            }
         }
-        
-        // 1. Verificar si YA está correctamente configurado
-        const yaConfigurado = horaBtn.classList.contains('reservando') && 
-                             horaBtn.innerHTML.includes('Reservando por otro usuario');
-        
-        if (yaConfigurado) {
-            console.log(`✅ Botón ${hora} ya está configurado como reservando`);
-            return;
-        }
-        
-        console.log(`🎯 Configurando ${hora} como "Reservando por otro usuario"`);
-        
-        // 2. Guardar referencia al estado actual antes de cambiar
-        const estadoAnterior = determinarEstadoBotonActual(horaBtn);
-        
-        // 3. Configurar visualmente como "Reservando por otro usuario" - SIN FLICKER
-        // Usar una transacción atómica
-        const nuevoHTML = `
-            ${horaLimpia}
-            <br>
-            <small style="
-                font-size: 10px; 
-                color: #ff9800; 
-                background: rgba(139, 69, 19, 0.3); 
-                padding: 3px 8px; 
-                border-radius: 4px; 
-                margin-top: 3px; 
-                display: inline-block;
-                font-weight: bold;
-            ">
-                ⏳ Reservando por otro usuario
-            </small>
-        `;
-        
-        // 4. Aplicar TODOS los cambios de UNA VEZ
-        horaBtn.disabled = true;
-        horaBtn.classList.remove('selected', 'mi-reserva-activa', 'disponible');
-        horaBtn.classList.add('reservando');
-        
-        // Aplicar estilos DIRECTAMENTE sin transiciones
-        horaBtn.style.cssText = `
-            background-color: rgba(139, 69, 19, 0.2) !important;
-            border: 2px solid #8B4513 !important;
-            color: #8B4513 !important;
-            font-weight: bold !important;
-            cursor: not-allowed !important;
-            opacity: 0.9 !important;
-            pointer-events: none !important;
-            transition: none !important;
-        `;
-        
-        // Actualizar contenido de UNA VEZ
-        horaBtn.innerHTML = nuevoHTML;
-        
-        // 5. Prevenir que el polling lo vuelva a cambiar
-        horaBtn.dataset.estadoBloqueado = 'reservando';
-        horaBtn.dataset.usuarioReserva = reservaInfo.usuarioId;
-        horaBtn.dataset.expiraReserva = reservaInfo.expira_en.toISOString();
-        
-        console.log(`✅ ${hora} marcado permanentemente como "Reservando por otro usuario"`);
         
     } catch (error) {
-        console.error('❌ Error forzando actualización:', error);
+        console.error('❌ Error forzando actualización de bloque:', error);
     } finally {
         // Liberar bloqueo después de un tiempo
         setTimeout(() => {
             bloqueoActualizacion.delete(claveBloqueo);
-        }, 500);
+        }, 1000);
     }
-} 
+}
 
 function manejarClicHoraInmediato(btn, horaStr, fecha) {
     console.log(`⚡ CLIC INMEDIATO en ${horaStr}`);
@@ -3885,7 +3916,132 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
 
             // ============ SISTEMA DE NOTIFICACIONES ============
 
-           async function notificarCambioCita(fecha, hora, tipo = 'cita_agendada') {
+async function notificarCambioCita(fecha, hora, tipo = 'cita_agendada') {
+    try {
+        // Obtener duración del servicio actual
+        const duracionInput = document.getElementById('servicioDuracion');
+        const duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
+        const slotsNecesarios = Math.ceil(duracionServicio / 40);
+        
+        // Si es un bloque y es tipo reserva, notificar todas las horas
+        if (slotsNecesarios > 1 && (tipo === 'reservando' || tipo === 'reserva_liberada')) {
+            // Buscar la hora principal
+            const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${hora}"]`);
+            if (horaBtn) {
+                const indexPrincipal = parseInt(horaBtn.dataset.index);
+                
+                // Notificar todas las horas del bloque
+                for (let i = 0; i < slotsNecesarios; i++) {
+                    const siguienteBtn = document.querySelector(`.hora-btn[data-index="${indexPrincipal + i}"]`);
+                    if (siguienteBtn) {
+                        const siguienteHora = siguienteBtn.dataset.hora;
+                        
+                        // Insertar notificación en BD para cada hora del bloque
+                        const { data, error } = await supabase
+                            .from('notificaciones_cambios')
+                            .insert([{
+                                tipo: tipo,
+                                fecha: fecha,
+                                hora: siguienteHora,
+                                usuario_id: miUsuarioId,
+                                creado_en: new Date().toISOString()
+                            }])
+                            .select();
+                            
+                        if (error) {
+                            console.error('Error enviando notificación para hora', siguienteHora, ':', error);
+                            continue;
+                        }
+                        
+                        console.log(`📢 Notificación enviada (bloque ${i+1}/${slotsNecesarios}): ${fecha} ${siguienteHora} - ${tipo}`);
+                    }
+                }
+                
+                // Enviar broadcast para todas las horas del bloque
+                if (tipo === 'reservando' || tipo === 'reserva_liberada') {
+                    try {
+                        // Usar el método recomendado
+                        const channel = supabase.channel('reservas');
+                        await channel.subscribe();
+                        
+                        // Enviar broadcast para cada hora del bloque
+                        for (let i = 0; i < slotsNecesarios; i++) {
+                            const siguienteBtn = document.querySelector(`.hora-btn[data-index="${indexPrincipal + i}"]`);
+                            if (siguienteBtn) {
+                                const siguienteHora = siguienteBtn.dataset.hora;
+                                
+                                channel.send({
+                                    type: 'broadcast',
+                                    event: 'cambio-cita',
+                                    payload: { 
+                                        fecha, 
+                                        hora: siguienteHora, 
+                                        tipo,
+                                        usuarioId: miUsuarioId,
+                                        timestamp: new Date().toISOString(),
+                                        esBloque: true,
+                                        horaPrincipal: hora,
+                                        slotsTotales: slotsNecesarios,
+                                        slotActual: i + 1
+                                    }
+                                });
+                            }
+                        }
+                        
+                        console.log(`📡 Broadcast enviado para bloque completo de ${slotsNecesarios} horas`);
+                        
+                    } catch (broadcastError) {
+                        console.log('⚠️ No se pudo enviar broadcast, usando REST', broadcastError);
+                        
+                        // Fallback: enviar notificaciones REST individuales
+                        for (let i = 0; i < slotsNecesarios; i++) {
+                            const siguienteBtn = document.querySelector(`.hora-btn[data-index="${indexPrincipal + i}"]`);
+                            if (siguienteBtn) {
+                                const siguienteHora = siguienteBtn.dataset.hora;
+                                
+                                // Enviar notificación individual adicional
+                                await supabase
+                                    .from('notificaciones_cambios')
+                                    .insert([{
+                                        tipo: tipo + '_broadcast_fallback',
+                                        fecha: fecha,
+                                        hora: siguienteHora,
+                                        usuario_id: miUsuarioId,
+                                        creado_en: new Date().toISOString(),
+                                        metadata: JSON.stringify({
+                                            esBloque: true,
+                                            horaPrincipal: hora,
+                                            slotsTotales: slotsNecesarios,
+                                            slotActual: i + 1
+                                        })
+                                    }])
+                                    .select();
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Si no se encuentra el botón, notificar solo la hora principal (fallback)
+                await notificarHoraIndividual(fecha, hora, tipo);
+            }
+        } else {
+            // Notificación individual (servicios de 40 minutos o tipos que no son reserva)
+            await notificarHoraIndividual(fecha, hora, tipo);
+        }
+        
+    } catch (error) {
+        console.error('Error enviando notificación:', error);
+        // Fallback: intentar notificar al menos la hora principal
+        try {
+            await notificarHoraIndividual(fecha, hora, tipo);
+        } catch (fallbackError) {
+            console.error('Error en fallback de notificación:', fallbackError);
+        }
+    }
+}
+
+// Función auxiliar para notificar una hora individual
+async function notificarHoraIndividual(fecha, hora, tipo) {
     try {
         // Usar httpSend() en lugar de send() para evitar la advertencia
         const { data, error } = await supabase
@@ -3900,11 +4056,11 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
             .select();
             
         if (error) {
-            console.error('Error enviando notificación:', error);
+            console.error('Error enviando notificación individual:', error);
             return;
         }
             
-        console.log(`📢 Notificación enviada: ${fecha} ${hora} - ${tipo}`);
+        console.log(`📢 Notificación individual enviada: ${fecha} ${hora} - ${tipo}`);
         
         // Opcionalmente, usar broadcast para notificaciones en tiempo real
         if (tipo === 'reservando' || tipo === 'reserva_liberada') {
@@ -3922,19 +4078,45 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
                         hora, 
                         tipo,
                         usuarioId: miUsuarioId,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        esBloque: false
                     }
                 });
             } catch (broadcastError) {
-                console.log('⚠️ No se pudo enviar broadcast, usando REST', broadcastError);
+                console.log('⚠️ No se pudo enviar broadcast individual, usando REST', broadcastError);
             }
         }
     } catch (error) {
-        console.error('Error enviando notificación:', error);
+        console.error('Error en notificación individual:', error);
+        throw error;
     }
 }
 
-            async function verificarNotificacionesCambios() {
+// Función para procesar notificaciones de bloque
+async function procesarNotificacionBloque(notificacion) {
+    try {
+        const payload = notificacion.payload;
+        
+        if (payload.esBloque) {
+            console.log(`📦 Procesando notificación de BLOQUE: ${payload.fecha} ${payload.horaPrincipal}`);
+            console.log(`   - Slots totales: ${payload.slotsTotales}`);
+            console.log(`   - Slot actual: ${payload.slotActual}`);
+            console.log(`   - Tipo: ${payload.tipo}`);
+            
+            // Obtener duración del servicio desde el payload o calcular
+            const duracionServicio = payload.slotsTotales * 40;
+            
+            // Forzar actualización de todas las horas del bloque
+            setTimeout(() => {
+                forzarActualizacionReservando(payload.fecha, payload.horaPrincipal, duracionServicio);
+            }, 200);
+        }
+    } catch (error) {
+        console.error('Error procesando notificación de bloque:', error);
+    }
+}
+
+           async function verificarNotificacionesCambios() {
     try {
         const ahora = new Date();
         const fechaLimite = new Date(ahora.getTime() - 10000);
@@ -3967,7 +4149,34 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
             if (selectedDate) {
                 const fechaActual = formatDate(selectedDate);
                 if (notif.fecha === fechaActual) {
-                    await actualizarHoraEspecifica(notif.fecha, notif.hora, notif.tipo);
+                    // Verificar si es una notificación de bloque
+                    if (notif.metadata) {
+                        try {
+                            const metadata = JSON.parse(notif.metadata);
+                            if (metadata.esBloque) {
+                                // Procesar como bloque
+                                procesarNotificacionBloque({
+                                    payload: {
+                                        fecha: notif.fecha,
+                                        horaPrincipal: metadata.horaPrincipal || notif.hora,
+                                        tipo: notif.tipo,
+                                        esBloque: true,
+                                        slotsTotales: metadata.slotsTotales || 1,
+                                        slotActual: metadata.slotActual || 1
+                                    }
+                                });
+                            } else {
+                                // Procesar individualmente
+                                await actualizarHoraEspecifica(notif.fecha, notif.hora, notif.tipo);
+                            }
+                        } catch (parseError) {
+                            console.error('Error parseando metadata:', parseError);
+                            await actualizarHoraEspecifica(notif.fecha, notif.hora, notif.tipo);
+                        }
+                    } else {
+                        // Procesar individualmente
+                        await actualizarHoraEspecifica(notif.fecha, notif.hora, notif.tipo);
+                    }
                 }
             }
         }
@@ -3976,7 +4185,6 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
         console.error('Error verificando notificaciones:', error);
     }
 }
-
 
             async function actualizarHoraEspecifica(fecha, hora, tipoNotificacion = null) {
     try {
