@@ -1504,6 +1504,7 @@ function detenerPolling() {
         console.log('⏸️ Polling detenido');
     }
 }
+// MODIFICA la función sincronizarEstadosHoras para manejar bloques
 async function sincronizarEstadosHoras() {
     try {
         if (!selectedDate || !barberoFijo) return;
@@ -1522,18 +1523,18 @@ async function sincronizarEstadosHoras() {
         // 1. Obtener citas actualizadas
         await precargarCitasFuturas();
         
-        // 2. Obtener solicitudes pendientes
+        // 2. Obtener solicitudes pendientes (CON TODAS LAS HORAS DEL BLOQUE)
         await obtenerSolicitudesPendientes(true);
         
         // 3. Verificar notificaciones
         await verificarNotificacionesCambios();
-
+        
         limpiarEstadosSeguros();
         
-        // 4. Forzar actualización UI de reservas PRIMERO
-        forzarActualizacionUIReservas(fechaFormateada);
+        // 4. Mostrar TODAS las reservas activas (incluyendo bloques)
+        await mostrarTodasReservasActivas(fechaFormateada);
         
-        // 5. Actualizar estados existentes CON DURACIÓN ACTUAL
+        // 5. Actualizar estados existentes
         await actualizarEstadosHorasExistentes(fechaFormateada);
         
         // 6. Limpiar caché viejo
@@ -1541,6 +1542,35 @@ async function sincronizarEstadosHoras() {
         
     } catch (error) {
         console.error('❌ Error sincronizando estados:', error);
+    }
+}
+
+// AÑADE esta nueva función para mostrar todas las reservas activas
+async function mostrarTodasReservasActivas(fecha) {
+    console.log(`🎯 Mostrando TODAS las reservas activas para: ${fecha}`);
+    
+    // Agrupar reservas por usuario
+    const reservasPorUsuario = new Map();
+    
+    for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
+        const [reservaFecha, reservaHora] = clave.split('_');
+        
+        if (reservaFecha === fecha && reservaInfo.usuarioId !== miUsuarioId) {
+            if (!reservasPorUsuario.has(reservaInfo.usuarioId)) {
+                reservasPorUsuario.set(reservaInfo.usuarioId, []);
+            }
+            reservasPorUsuario.get(reservaInfo.usuarioId).push(reservaHora);
+        }
+    }
+    
+    // Mostrar todas las reservas de cada usuario
+    for (const [usuarioId, horas] of reservasPorUsuario.entries()) {
+        console.log(`👤 Usuario ${usuarioId} tiene reservas en: ${horas.join(', ')}`);
+        
+        for (const hora of horas) {
+            // Forzar actualización de cada hora
+            forzarActualizacionReservando(fecha, hora);
+        }
     }
 }
 
@@ -1921,7 +1951,6 @@ async function debugSolicitudesTemporales() {
     }
 }
 
-// Agrega un botón para debug
 
 function mostrarEstadoReservandoEnUI(fecha, hora) {
     try {
@@ -1965,41 +1994,41 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
         
         console.log(`🔄 Configurando botón como RESERVANDO POR OTRO USUARIO: ${fecha} ${hora}`);
         
-        // Limpiar intervalo anterior si existe
-        if (horaBtn.dataset.intervaloContador) {
-            clearInterval(horaBtn.dataset.intervaloContador);
-            delete horaBtn.dataset.intervaloContador;
-        }
+        // Configurar este botón como reservando
+        configurarBotonReservando(horaBtn, horaSinSegundos, fecha);
         
-        // Configurar clase y contenido SIN contador descendente
-        horaBtn.disabled = true;
-        horaBtn.classList.add('reservando');
-        horaBtn.classList.remove('selected', 'mi-reserva-activa');
-        
-        horaBtn.innerHTML = `
-            ${horaSinSegundos}
-            <br>
-            <small style="font-size: 10px; color: #ffa500; background: rgba(139, 69, 19, 0.3); padding: 2px 6px; border-radius: 4px; margin-top: 3px; display: inline-block;">
-                ⏳ Reservando por otro usuario
-            </small>
-        `;
-        
-        // En lugar de actualizar segundos, verificamos expiración cada 5 segundos
-        const intervalo = setInterval(() => {
-            if (!horaBtn.isConnected) {
-                clearInterval(intervalo);
-                return;
-            }
+        // Si es parte de un bloque, también verificar las otras horas del bloque
+        if (reservaInfo.esParteDeBloque !== undefined) {
+            console.log(`📦 Verificando bloque completo para ${hora}`);
             
-            const ahora = new Date();
-            if (reservaInfo.expira_en <= ahora) {
-                clearInterval(intervalo);
-                // Forzar actualización
-                sincronizarEstadosHoras();
+            // Buscar otras horas del mismo bloque
+            const horaIndex = parseInt(horaBtn.dataset.index);
+            if (!isNaN(horaIndex)) {
+                // Verificar hora anterior (posible inicio de bloque)
+                const horaAnteriorBtn = document.querySelector(`.hora-btn[data-index="${horaIndex - 1}"]`);
+                if (horaAnteriorBtn) {
+                    const claveAnterior = `${fecha}_${horaAnteriorBtn.dataset.hora}`;
+                    const reservaAnterior = solicitudesPendientes.get(claveAnterior);
+                    
+                    if (reservaAnterior && reservaAnterior.usuarioId === reservaInfo.usuarioId) {
+                        console.log(`🔄 También configurando hora anterior como reservando: ${horaAnteriorBtn.dataset.hora}`);
+                        configurarBotonReservando(horaAnteriorBtn, horaAnteriorBtn.dataset.hora, fecha);
+                    }
+                }
+                
+                // Verificar hora siguiente (otra parte del bloque)
+                const horaSiguienteBtn = document.querySelector(`.hora-btn[data-index="${horaIndex + 1}"]`);
+                if (horaSiguienteBtn) {
+                    const claveSiguiente = `${fecha}_${horaSiguienteBtn.dataset.hora}`;
+                    const reservaSiguiente = solicitudesPendientes.get(claveSiguiente);
+                    
+                    if (reservaSiguiente && reservaSiguiente.usuarioId === reservaInfo.usuarioId) {
+                        console.log(`🔄 También configurando hora siguiente como reservando: ${horaSiguienteBtn.dataset.hora}`);
+                        configurarBotonReservando(horaSiguienteBtn, horaSiguienteBtn.dataset.hora, fecha);
+                    }
+                }
             }
-        }, 5000); // Verificar cada 5 segundos
-        
-        horaBtn.dataset.intervaloContador = intervalo;
+        }
         
     } catch (error) {
         console.error('❌ Error mostrando estado reservando:', error);
@@ -2033,6 +2062,7 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
             }
 
             // ============ SISTEMA DE RESERVAS ============
+
 async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque = false) {
     if (bloqueoLlamadaEnProgreso && !esParteDeBloque) {
         console.log('⏳ Ya hay una reserva en progreso...');
@@ -2059,27 +2089,98 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
             return;
         }
         
-        // 2. Verificar disponibilidad
-        const verificacion = await verificarDisponibilidadInstantanea(fechaStr, horaStr);
-        
-        if (!verificacion.disponible) {
-            if (verificacion.razon === 'ocupada') {
-                showAlert('❌ Esta hora acaba de ser ocupada por otro usuario', 'error');
-                await sincronizarEstadosHoras();
-            } else {
-                showAlert('⏳ Esta hora está siendo reservada por otro usuario', 'warning');
+        // 2. Verificar disponibilidad del bloque completo (para la hora principal)
+        if (!esParteDeBloque) {
+            const slotsNecesarios = Math.ceil(duracionServicio / 40);
+            const horaIndex = parseInt(btn.dataset.index || '0');
+            
+            // Verificar disponibilidad de todas las horas del bloque
+            for (let i = 0; i < slotsNecesarios; i++) {
+                const siguienteIndex = horaIndex + i;
+                const siguienteBtn = document.querySelector(`.hora-btn[data-index="${siguienteIndex}"]`);
+                
+                if (siguienteBtn) {
+                    const siguienteHoraStr = siguienteBtn.dataset.hora;
+                    const verificacion = await verificarDisponibilidadInstantanea(fechaStr, siguienteHoraStr);
+                    
+                    if (!verificacion.disponible) {
+                        if (verificacion.razon === 'ocupada') {
+                            showAlert('❌ Una de las horas necesarias ya está ocupada por otro usuario', 'error');
+                            await sincronizarEstadosHoras();
+                        } else {
+                            showAlert('⏳ Una de las horas necesarias está siendo reservada por otro usuario', 'warning');
+                        }
+                        if (!esParteDeBloque) bloqueoLlamadaEnProgreso = false;
+                        return;
+                    }
+                } else {
+                    showAlert('❌ No hay suficiente tiempo disponible para este servicio', 'error');
+                    if (!esParteDeBloque) bloqueoLlamadaEnProgreso = false;
+                    return;
+                }
             }
-            if (!esParteDeBloque) bloqueoLlamadaEnProgreso = false;
-            return;
+        } else {
+            // Para horas adicionales del bloque, solo verificar esa hora específica
+            const verificacion = await verificarDisponibilidadInstantanea(fechaStr, horaStr);
+            
+            if (!verificacion.disponible) {
+                if (verificacion.razon === 'ocupada') {
+                    showAlert('❌ Esta hora acaba de ser ocupada por otro usuario', 'error');
+                    await sincronizarEstadosHoras();
+                } else {
+                    showAlert('⏳ Esta hora está siendo reservada por otro usuario', 'warning');
+                }
+                if (!esParteDeBloque) bloqueoLlamadaEnProgreso = false;
+                return;
+            }
         }
         
-        // 3. Registrar nueva reserva
-        const resultado = await registrarSolicitudTemporal(fechaStr, horaStr);
-        
-        if (!resultado) {
-            showAlert('❌ Esta hora ya está siendo reservada por otro usuario', 'error');
-            if (!esParteDeBloque) bloqueoLlamadaEnProgreso = false;
-            return;
+        // 3. Registrar nueva reserva en BD - IMPORTANTE: Registrar TODAS las horas del bloque
+        if (!esParteDeBloque) {
+            const slotsNecesarios = Math.ceil(duracionServicio / 40);
+            const horaIndex = parseInt(btn.dataset.index || '0');
+            
+            // Primero, limpiar todas las reservas previas del usuario
+            const { error: deleteError } = await supabase
+                .from('solicitudes_temporales')
+                .delete()
+                .eq('usuario_id', miUsuarioId);
+                
+            if (deleteError) {
+                console.error('❌ Error limpiando reservas previas:', deleteError);
+            }
+            
+            // Registrar cada hora del bloque
+            let todasReservadas = true;
+            for (let i = 0; i < slotsNecesarios; i++) {
+                const siguienteIndex = horaIndex + i;
+                const siguienteBtn = document.querySelector(`.hora-btn[data-index="${siguienteIndex}"]`);
+                
+                if (siguienteBtn) {
+                    const siguienteHoraStr = siguienteBtn.dataset.hora;
+                    const resultado = await registrarSolicitudIndividual(fechaStr, siguienteHoraStr, i > 0);
+                    
+                    if (!resultado) {
+                        todasReservadas = false;
+                        break;
+                    }
+                }
+            }
+            
+            if (!todasReservadas) {
+                // Si falló alguna, limpiar todas
+                await supabase
+                    .from('solicitudes_temporales')
+                    .delete()
+                    .eq('usuario_id', miUsuarioId);
+                    
+                showAlert('❌ Error al reservar todas las horas necesarias', 'error');
+                if (!esParteDeBloque) bloqueoLlamadaEnProgreso = false;
+                return;
+            }
+        } else {
+            // Para horas adicionales del bloque (ya se registraron en el paso anterior)
+            console.log(`✅ Hora ${horaStr} ya registrada como parte del bloque`);
         }
         
         // 4. Configurar reserva activa (solo la primera del bloque)
@@ -2090,15 +2191,38 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
                 boton: btn,
                 inicio: Date.now(),
                 timeoutId: null,
-                duracion: duracionServicio
+                duracion: duracionServicio,
+                slots: Math.ceil(duracionServicio / 40)
             };
 
-            console.log(`🎯 reservaActiva establecida: ${fechaStr} ${horaStr} (${duracionServicio} minutos)`);
+            console.log(`🎯 reservaActiva establecida: ${fechaStr} ${horaStr} (${duracionServicio} minutos, ${reservaActiva.slots} slots)`);
         }
         
-        // 5. Actualizar UI INMEDIATAMENTE - SOLO VERDE
+        // 5. Actualizar UI INMEDIATAMENTE
         if (!esParteDeBloque) {
             actualizarUIReservaActiva(btn, horaStr, 30);
+            
+            // Actualizar también las horas adicionales del bloque
+            const slotsNecesarios = Math.ceil(duracionServicio / 40);
+            const horaIndex = parseInt(btn.dataset.index || '0');
+            
+            for (let i = 1; i < slotsNecesarios; i++) {
+                const siguienteIndex = horaIndex + i;
+                const siguienteBtn = document.querySelector(`.hora-btn[data-index="${siguienteIndex}"]`);
+                
+                if (siguienteBtn) {
+                    const siguienteHoraStr = siguienteBtn.dataset.hora;
+                    siguienteBtn.disabled = true;
+                    siguienteBtn.classList.add('mi-reserva-activa', 'parte-bloque');
+                    siguienteBtn.innerHTML = `
+                        ${siguienteHoraStr}
+                        <br>
+                        <small style="font-size: 9px; color: #90EE90;">
+                            ⭐ Bloque (${duracionServicio} min)
+                        </small>
+                    `;
+                }
+            }
         } else {
             // Para horas adicionales del bloque, mostrar como parte del bloque
             btn.disabled = true;
@@ -2107,12 +2231,12 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
                 ${horaStr}
                 <br>
                 <small style="font-size: 9px; color: #90EE90;">
-                    ⭐ Bloque
+                    ⭐ Bloque (${duracionServicio} min)
                 </small>
             `;
         }
         
-        // 6. Configurar timeout de liberación (30 segundos)
+        // 6. Configurar timeout de liberación (30 segundos) - solo para la hora principal
         if (!esParteDeBloque) {
             timeoutReserva = setTimeout(async () => {
                 console.log('⏰ Timeout de reserva alcanzado');
@@ -2137,6 +2261,65 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
     }
 }
 
+// AÑADE esta nueva función para registrar reservas individuales
+async function registrarSolicitudIndividual(fecha, hora, esParteDeBloque = false) {
+    try {
+        console.log(`📝 Registrando solicitud individual: ${fecha} ${hora} ${esParteDeBloque ? '(parte de bloque)' : ''}`);
+        
+        // Crear fecha de expiración (30 segundos desde ahora)
+        const ahora = new Date();
+        const expiraEn = new Date(ahora.getTime() + 30000);
+        
+        // Formatear para BD
+        const expiraEnUTC = expiraEn.toISOString();
+        const creadoEnUTC = ahora.toISOString();
+        
+        // Insertar reserva
+        const { data, error } = await supabase
+            .from('solicitudes_temporales')
+            .insert([{
+                usuario_id: miUsuarioId,
+                fecha: fecha,
+                hora: hora,
+                expira_en: expiraEnUTC,
+                creado_en: creadoEnUTC,
+                es_bloque: esParteDeBloque
+            }])
+            .select();
+            
+        if (error) {
+            console.error('❌ Error insertando reserva temporal:', error);
+            
+            // Verificar si es un error de conflicto
+            if (error.code === '23505') { // Violación de unique constraint
+                console.log('⚠️ Hora ya reservada por otro usuario');
+                return false;
+            }
+            return false;
+        }
+        
+        console.log('✅ Reserva individual creada en BD:', data);
+        
+        // Actualizar estructuras locales
+        const clave = `${fecha}_${hora}`;
+        solicitudesPendientes.set(clave, {
+            usuarioId: miUsuarioId,
+            timestamp: ahora,
+            expira_en: expiraEn,
+            esParteDeBloque: esParteDeBloque
+        });
+        
+        actualizarCacheLocal(fecha, hora, 'mi-reserva-activa', miUsuarioId);
+        
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Error crítico en registrarSolicitudIndividual:', error);
+        return false;
+    }
+}
+
+
 async function liberarReservaCompleta(fechaStr, horaStr, duracionServicio) {
     try {
         console.log(`🔓 LIBERANDO BLOQUE COMPLETO: ${fechaStr} ${horaStr} (${duracionServicio} minutos)`);
@@ -2145,39 +2328,56 @@ async function liberarReservaCompleta(fechaStr, horaStr, duracionServicio) {
         const horaIndex = parseInt(document.querySelector(`.hora-btn[data-fecha="${fechaStr}"][data-hora="${horaStr}"]`)?.dataset.index);
         
         if (!isNaN(horaIndex)) {
-            // Liberar todas las horas del bloque
+            // 1. Primero liberar todas las horas del bloque en BD
             for (let i = 0; i < slotsNecesarios; i++) {
                 const siguienteHora = document.querySelector(`.hora-btn[data-index="${horaIndex + i}"]`);
                 if (siguienteHora) {
                     const siguienteHoraStr = siguienteHora.dataset.hora;
                     await liberarReserva(fechaStr, siguienteHoraStr);
+                }
+            }
+            
+            // 2. Luego actualizar la UI de todas las horas
+            for (let i = 0; i < slotsNecesarios; i++) {
+                const siguienteHora = document.querySelector(`.hora-btn[data-index="${horaIndex + i}"]`);
+                if (siguienteHora) {
+                    const siguienteHoraStr = siguienteHora.dataset.hora;
                     
-                    // Resetear UI
-                    if (siguienteHora.classList.contains('parte-bloque')) {
-                        siguienteHora.classList.remove('mi-reserva-activa', 'parte-bloque');
-                        siguienteHora.disabled = false;
-                        siguienteHora.textContent = siguienteHoraStr;
-                    }
+                    // Limpiar completamente
+                    siguienteHora.className = 'hora-btn';
+                    siguienteHora.style.cssText = '';
+                    
+                    // Verificar estado actual y configurar correctamente
+                    setTimeout(async () => {
+                        await actualizarHoraEspecifica(fechaStr, siguienteHoraStr, 'reserva_liberada');
+                    }, 100);
                 }
             }
         } else {
             // Fallback: liberar solo la hora principal
             await liberarReserva(fechaStr, horaStr);
-        }
-        
-        // Resetear UI de la hora principal
-        const horaPrincipalBtn = document.querySelector(`.hora-btn[data-fecha="${fechaStr}"][data-hora="${horaStr}"]`);
-        if (horaPrincipalBtn) {
-            resetearUIReserva(horaPrincipalBtn, horaStr);
+            
+            // Actualizar UI de la hora principal
+            const horaPrincipalBtn = document.querySelector(`.hora-btn[data-fecha="${fechaStr}"][data-hora="${horaStr}"]`);
+            if (horaPrincipalBtn) {
+                setTimeout(async () => {
+                    await actualizarHoraEspecifica(fechaStr, horaStr, 'reserva_liberada');
+                }, 100);
+            }
         }
         
         console.log(`✅ Bloque completo liberado: ${fechaStr} ${horaStr}`);
+        
+        // 3. Forzar sincronización para actualizar todos los estados
+        setTimeout(async () => {
+            await obtenerSolicitudesPendientes(true);
+            await sincronizarEstadosHoras();
+        }, 300);
         
     } catch (error) {
         console.error('❌ Error liberando bloque:', error);
     }
 }
-
 // AÑADE esta función nueva:
 async function verificarMiReservaExistente(fecha, hora) {
     try {
@@ -3014,29 +3214,64 @@ function resetearEstadoHoras() {
 }
 
 
-          function verificarYMostrarReservasActivas(fecha) {
+  
+function verificarYMostrarReservasActivas(fecha) {
     console.log(`🔍 Verificando reservas activas para fecha: ${fecha}`);
     console.log(`📊 Total de reservas en memoria: ${solicitudesPendientes.size}`);
     
     let reservasMostradas = 0;
     
+    // Primero, identificar todos los usuarios que tienen reservas
+    const usuariosConReservas = new Map();
+    
     for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
         const [reservaFecha, reservaHora] = clave.split('_');
         
-        if (reservaFecha === fecha) {
-            console.log(`📌 Encontrada reserva activa: ${clave}`);
-            console.log(`   - Usuario: ${reservaInfo.usuarioId}`);
-            console.log(`   - Es mi reserva? ${reservaInfo.usuarioId === miUsuarioId}`);
+        if (reservaFecha === fecha && reservaInfo.usuarioId !== miUsuarioId) {
+            if (!usuariosConReservas.has(reservaInfo.usuarioId)) {
+                usuariosConReservas.set(reservaInfo.usuarioId, []);
+            }
+            usuariosConReservas.get(reservaInfo.usuarioId).push({ hora: reservaHora, clave });
+        }
+    }
+    
+    // Para cada usuario, mostrar todas sus reservas (incluyendo bloques)
+    for (const [usuarioId, reservas] of usuariosConReservas.entries()) {
+        console.log(`👤 Usuario ${usuarioId} tiene ${reservas.length} reservas`);
+        
+        for (const reserva of reservas) {
+            console.log(`🚨 ES RESERVA DE OTRO USUARIO - FORZANDO ACTUALIZACIÓN: ${reserva.hora}`);
             
-            if (reservaInfo.usuarioId !== miUsuarioId) {
-                console.log(`🚨 ES RESERVA DE OTRO USUARIO - FORZANDO ACTUALIZACIÓN: ${reservaHora}`);
-                
-                // Forzar actualización inmediata
-                setTimeout(() => {
-                    forzarActualizacionReservando(fecha, reservaHora);
-                }, 300);
-                
-                reservasMostradas++;
+            // Forzar actualización inmediata
+            setTimeout(() => {
+                forzarActualizacionReservando(fecha, reserva.hora);
+            }, 300);
+            
+            reservasMostradas++;
+            
+            // Verificar si es parte de un bloque
+            const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${reserva.hora}"]`);
+            if (horaBtn) {
+                const horaIndex = parseInt(horaBtn.dataset.index);
+                if (!isNaN(horaIndex)) {
+                    // Verificar horas adyacentes del mismo usuario
+                    const horasAdyacentes = [horaIndex - 1, horaIndex + 1];
+                    
+                    for (const indexAdj of horasAdyacentes) {
+                        const btnAdj = document.querySelector(`.hora-btn[data-index="${indexAdj}"]`);
+                        if (btnAdj) {
+                            const claveAdj = `${fecha}_${btnAdj.dataset.hora}`;
+                            const reservaAdj = solicitudesPendientes.get(claveAdj);
+                            
+                            if (reservaAdj && reservaAdj.usuarioId === usuarioId) {
+                                console.log(`🔄 También forzando hora adyacente del bloque: ${btnAdj.dataset.hora}`);
+                                setTimeout(() => {
+                                    forzarActualizacionReservando(fecha, btnAdj.dataset.hora);
+                                }, 500);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -3513,14 +3748,18 @@ async function forzarLimpiezaReserva(fecha, hora) {
                 btn.title = 'Hora ocupada';
             }
 
-           function configurarBotonReservando(btn, horaStr, fecha) {
+        // MODIFICA la función configurarBotonReservando para bloques
+function configurarBotonReservando(btn, horaStr, fecha) {
     const horaSinSegundos = horaStr.includes(':') ? horaStr.split(':').slice(0, 2).join(':') : horaStr;
     const clave = `${fecha}_${horaStr}`;
     const reservaInfo = solicitudesPendientes.get(clave);
     
     // Si no hay información de reserva o es mi reserva, no mostrar como "reservando"
     if (!reservaInfo || reservaInfo.usuarioId === miUsuarioId) {
-        configurarBotonDisponible(btn, horaStr, fecha);
+        // Verificar si debería ser disponible
+        setTimeout(() => {
+            configurarBotonDisponible(btn, horaStr, fecha);
+        }, 100);
         return;
     }
     
@@ -3528,7 +3767,10 @@ async function forzarLimpiezaReserva(fecha, hora) {
     
     // Configurar el botón como "reservando"
     btn.disabled = true;
-    btn.className = 'hora-btn reservando'; // Limpiar todas las clases y agregar solo estas
+    btn.className = 'hora-btn reservando bloque-reservando'; // Agregar clase especial para bloques
+    
+    // Texto diferente si es parte de un bloque
+    const textoBloque = reservaInfo.esParteDeBloque ? ' (Bloque)' : '';
     
     btn.innerHTML = `
         ${horaSinSegundos}
@@ -3547,7 +3789,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
             word-break: break-word;
             animation: subtle-pulse 3s infinite;
         ">
-            ⏳ Reservando por otro usuario
+            ⏳ Reservando por otro usuario${textoBloque}
         </small>
     `;
     
@@ -3570,7 +3812,12 @@ async function forzarLimpiezaReserva(fecha, hora) {
         transition: none !important;
     `;
     
-    btn.title = 'Hora siendo reservada por otro usuario';
+    btn.title = 'Hora siendo reservada por otro usuario' + (reservaInfo.esParteDeBloque ? ' (parte de un bloque)' : '');
+    
+    // Marcar que este botón está bloqueado como reservando
+    btn.dataset.estadoBloqueado = 'reservando';
+    btn.dataset.usuarioReserva = reservaInfo.usuarioId;
+    btn.dataset.expiraReserva = reservaInfo.expira_en.toISOString();
 }
 
 function limpiarEstadosSeguros() {
@@ -3596,8 +3843,7 @@ function limpiarEstadosSeguros() {
         }
     });
 }
-
-  function configurarBotonDisponible(btn, horaStr, fecha, duracionServicio) {
+function configurarBotonDisponible(btn, horaStr, fecha, duracionServicio) {
     const clave = `${fecha}_${horaStr}`;
     
     // Obtener duración si no está especificada
@@ -3605,6 +3851,8 @@ function limpiarEstadosSeguros() {
         const duracionInput = document.getElementById('servicioDuracion');
         duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
     }
+    
+    // 1. Verificar si el botón está en un estado especial que NO debe cambiarse
     if (btn.classList.contains('reservando') && btn.innerHTML.includes('Reservando por otro usuario')) {
         console.log(`🛡️ Botón ${horaStr} ya está como "Reservando por otro usuario" - NO cambiar`);
         return;
@@ -3619,12 +3867,12 @@ function limpiarEstadosSeguros() {
         console.log(`🛡️ Botón ${horaStr} ya está ocupada - NO cambiar`);
         return;
     }
-    // // 1. Verificar si NO es un botón "Reservando por otro usuario"
-    // if (btn.dataset.estadoBloqueado === 'reservando' || 
-    //     (btn.classList.contains('reservando') && btn.innerHTML.includes('Reservando por otro usuario'))) {
-    //     console.log(`⚠️ Botón ${horaStr} está bloqueado como reservando - NO configurar como disponible`);
-    //     return;
-    // }
+    
+    // Verificar si el botón está bloqueado como "reservando" por dataset
+    if (btn.dataset.estadoBloqueado === 'reservando' || btn.dataset.estadoBloqueado === 'bloque-reservando') {
+        console.log(`⚠️ Botón ${horaStr} está bloqueado como reservando - NO configurar como disponible`);
+        return;
+    }
     
     // 2. Si el botón fue clickeado recientemente (en los últimos 2 segundos), no cambiar
     const lastClickTime = parseInt(btn.dataset.lastClickTime || '0');
@@ -3689,13 +3937,13 @@ function limpiarEstadosSeguros() {
                         btn.classList.remove('selected', 'click-in-progress');
                         btn.style.cssText = '';
                         
-                        showAlert('❌ Una de las horas necesarias ya está siendo reservada', 'error');
+                        showAlert('❌ Una de las horas necesarias ya está siendo reservada por otro usuario', 'error');
                         return;
                     }
                 }
             }
             
-            // Reservar bloque completo
+            // Reservar bloque completo usando la nueva función mejorada
             let contador = 0;
             for (let i = 0; i < slotsNecesarios; i++) {
                 const siguienteHora = document.querySelector(`.hora-btn[data-index="${index + i}"]`);
@@ -3717,27 +3965,62 @@ function limpiarEstadosSeguros() {
     
     // 5. Configuración visual del botón
     btn.disabled = false;
-    btn.classList.remove('selected', 'ocupada', 'reservando', 'mi-reserva-activa', 'no-disponible', 'click-in-progress');
+    btn.classList.remove('selected', 'ocupada', 'reservando', 'mi-reserva-activa', 'no-disponible', 'click-in-progress', 'bloque-reservando', 'parte-bloque');
     btn.title = `Hora disponible para servicio de ${duracionServicio} minutos`;
+    
+    // Eliminar datos de bloqueo
+    delete btn.dataset.estadoBloqueado;
+    delete btn.dataset.usuarioReserva;
+    delete btn.dataset.expiraReserva;
+    delete btn.dataset.lastClickTime;
     
     // Restaurar estilo por defecto
     btn.style.cssText = '';
+    btn.style.transform = '';
+    btn.style.boxShadow = '';
+    btn.style.cursor = 'pointer';
+    btn.style.pointerEvents = 'auto';
     
-    // Mostrar indicador para servicios largos
+    // Mostrar indicador para servicios largos - SIEMPRE mostrar si la duración > 40
     if (duracionServicio > 40) {
         const slotsNecesarios = Math.ceil(duracionServicio / 40);
         btn.innerHTML = `
             ${horaStr}
             <br>
-            <small style="font-size: 9px; color: #4CAF50; background: rgba(76, 175, 80, 0.1); padding: 2px 5px; border-radius: 3px; margin-top: 2px; display: inline-block;">
+            <small style="
+                font-size: 9px; 
+                color: #4CAF50; 
+                background: rgba(76, 175, 80, 0.1); 
+                padding: 2px 5px; 
+                border-radius: 3px; 
+                margin-top: 2px; 
+                display: inline-block;
+                transition: all 0.3s ease;
+            ">
                 ${slotsNecesarios} slot${slotsNecesarios > 1 ? 's' : ''}
             </small>
         `;
     } else {
         btn.textContent = horaStr;
     }
+    
+    // Asegurar que el botón tenga el tamaño correcto
+    btn.style.minHeight = '60px';
+    btn.style.display = 'flex';
+    btn.style.flexDirection = 'column';
+    btn.style.justifyContent = 'center';
+    btn.style.alignItems = 'center';
+    btn.style.padding = '8px 4px';
+    btn.style.fontSize = '13px';
+    btn.style.fontWeight = '600';
+    btn.style.borderRadius = '8px';
+    btn.style.border = '2px solid #4CAF50';
+    btn.style.background = 'rgba(76, 175, 80, 0.1)';
+    btn.style.color = '#4CAF50';
+    btn.style.transition = 'all 0.3s ease';
+    
+    console.log(`✅ Botón ${horaStr} configurado como disponible (${duracionServicio} min)`);
 }
-
 function verificarPuedeSerInicioBloque(index, fecha, duracionServicio) {
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
     
