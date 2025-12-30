@@ -1533,10 +1533,13 @@ async function sincronizarEstadosHoras() {
         // 4. Forzar actualización UI de reservas PRIMERO
         forzarActualizacionUIReservas(fechaFormateada);
         
-        // 5. Actualizar estados existentes CON DURACIÓN ACTUAL
+        // 5. **NUEVO: Forzar actualización de TODOS los bloques de otros usuarios**
+        forzarActualizacionReservando(fechaFormateada, 'all-blocks');
+        
+        // 6. Actualizar estados existentes CON DURACIÓN ACTUAL
         await actualizarEstadosHorasExistentes(fechaFormateada);
         
-        // 6. Limpiar caché viejo
+        // 7. Limpiar caché viejo
         limpiarCacheExpirado();
         
     } catch (error) {
@@ -3170,7 +3173,22 @@ let bloqueoActualizacion = new Set(); // Para evitar actualizaciones simultánea
 
 function forzarActualizacionReservando(fecha, hora, duracionServicio = null) {
     const claveBloqueo = `${fecha}_${hora}`;
+    if (hora === 'all-blocks') {
+    // Procesar todos los bloques de otros usuarios
+    const reservasOtrosUsuarios = [];
+    for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
+        const [fechaRes, horaRes] = clave.split('_');
+        if (fechaRes === fecha && reservaInfo.usuarioId !== miUsuarioId) {
+            reservasOtrosUsuarios.push({ hora: horaRes, info: reservaInfo });
+        }
+    }
     
+    // Procesar cada reserva encontrada
+    reservasOtrosUsuarios.forEach(({ hora: horaReserva }) => {
+        forzarActualizacionReservando(fecha, horaReserva, duracionServicio);
+    });
+    return;
+}
     // Evitar múltiples ejecuciones simultáneas
     if (bloqueoActualizacion.has(claveBloqueo)) {
         return;
@@ -3199,133 +3217,108 @@ function forzarActualizacionReservando(fecha, hora, duracionServicio = null) {
             }
         }
         
-        // Buscar botón de la hora principal
-        let horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaLimpia}"]`);        
-        if (!horaBtn) {
-            // Buscar botones que coincidan
-            const todosBotones = document.querySelectorAll('.hora-btn');
-            for (const btn of todosBotones) {
-                if (btn.dataset.fecha === fecha) {
-                    const btnHora = btn.dataset.hora;
-                    const btnHoraLimpia = btnHora.split(':').slice(0, 2).join(':');
-                    if (btnHoraLimpia === horaLimpia) {
-                        horaBtn = btn;
-                        break;
+        // **NUEVO: Buscar TODAS las reservas de otros usuarios en esta fecha**
+        const reservasOtrosUsuarios = [];
+        for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
+            const [fechaRes, horaRes] = clave.split('_');
+            if (fechaRes === fecha && reservaInfo.usuarioId !== miUsuarioId) {
+                reservasOtrosUsuarios.push({ hora: horaRes, info: reservaInfo });
+            }
+        }
+        
+        console.log(`🔍 Encontradas ${reservasOtrosUsuarios.length} reservas de otros usuarios`);
+        
+        // Para cada reserva de otro usuario, marcar su bloque completo
+        reservasOtrosUsuarios.forEach(({ hora: horaReserva, info }) => {
+            const horaReservaLimpia = horaReserva.includes(':') ? 
+                horaReserva.split(':').slice(0, 2).join(':') : horaReserva;
+            
+            // Buscar el botón de esta hora reservada
+            const horaBtnReserva = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaReservaLimpia}"]`);
+            
+            if (horaBtnReserva) {
+                const indexReserva = parseInt(horaBtnReserva.dataset.index);
+                
+                console.log(`📍 Procesando bloque para ${horaReservaLimpia}, índice: ${indexReserva}`);
+                
+                // Marcar TODOS los botones desde esta hora hasta el fin del bloque
+                for (let i = 0; i < slotsNecesarios; i++) {
+                    const indexActual = indexReserva + i;
+                    const siguienteBtn = document.querySelector(`.hora-btn[data-index="${indexActual}"]`);
+                    
+                    if (!siguienteBtn) {
+                        console.log(`⚠️ Botón de índice ${indexActual} no encontrado`);
+                        continue;
                     }
+                    
+                    const siguienteHora = siguienteBtn.dataset.hora;
+                    const siguienteHoraLimpia = siguienteHora.split(':').slice(0, 2).join(':');
+                    
+                    // Verificar si YA está correctamente configurado
+                    const yaConfigurado = siguienteBtn.classList.contains('reservando') && 
+                                         siguienteBtn.innerHTML.includes('Reservando por otro usuario');
+                    
+                    if (yaConfigurado) {
+                        console.log(`✅ Botón ${siguienteHora} ya está configurado como reservando`);
+                        continue;
+                    }
+                    
+                    // Verificar si es MI reserva activa
+                    if (siguienteBtn.classList.contains('mi-reserva-activa') || 
+                        siguienteBtn.classList.contains('selected')) {
+                        console.log(`⚠️ Botón ${siguienteHora} es MI reserva activa - NO cambiar`);
+                        continue;
+                    }
+                    
+                    console.log(`🎯 Configurando ${siguienteHora} como "Reservando por otro usuario" (parte de bloque)`);
+                    
+                    // Guardar referencia al estado actual
+                    const estadoAnterior = determinarEstadoBotonActual(siguienteBtn);
+                    
+                    // Aplicar cambios de UNA VEZ
+                    siguienteBtn.disabled = true;
+                    siguienteBtn.classList.remove('selected', 'mi-reserva-activa', 'disponible');
+                    siguienteBtn.classList.add('reservando');
+                    
+                    // Aplicar estilos DIRECTAMENTE sin transiciones
+                    siguienteBtn.style.cssText = `
+                        background-color: rgba(139, 69, 19, 0.2) !important;
+                        border: 2px solid #8B4513 !important;
+                        color: #8B4513 !important;
+                        font-weight: bold !important;
+                        cursor: not-allowed !important;
+                        opacity: 0.9 !important;
+                        pointer-events: none !important;
+                        transition: none !important;
+                    `;
+                    
+                    // Actualizar contenido
+                    siguienteBtn.innerHTML = `
+                        ${siguienteHoraLimpia}
+                        <br>
+                        <small style="
+                            font-size: 10px; 
+                            color: #ff9800; 
+                            background: rgba(139, 69, 19, 0.3); 
+                            padding: 3px 8px; 
+                            border-radius: 4px; 
+                            margin-top: 3px; 
+                            display: inline-block;
+                            font-weight: bold;
+                        ">
+                            ⏳ Reservando por otro usuario
+                        </small>
+                    `;
+                    
+                    // Prevenir que el polling lo vuelva a cambiar
+                    siguienteBtn.dataset.estadoBloqueado = 'reservando';
+                    siguienteBtn.dataset.usuarioReserva = info.usuarioId;
+                    siguienteBtn.dataset.expiraReserva = info.expira_en.toISOString();
+                    
+                    console.log(`✅ ${siguienteHora} marcado permanentemente como "Reservando por otro usuario"`);
                 }
             }
-        }
-        
-        if (!horaBtn) {
-            console.log(`⚠️ Botón principal no encontrado: ${fecha} ${horaLimpia}`);
-            return;
-        }
-        
-        // Obtener índice de la hora principal
-        const indexPrincipal = parseInt(horaBtn.dataset.index);
-        if (isNaN(indexPrincipal)) {
-            console.log('⚠️ No se pudo obtener índice de la hora principal');
-            return;
-        }
-        
-        console.log(`📍 Hora principal: ${horaLimpia}, índice: ${indexPrincipal}, slots: ${slotsNecesarios}`);
-        
-        // Verificar si ES MI RESERVA activa actualmente
-        if (horaBtn.classList.contains('mi-reserva-activa') || horaBtn.classList.contains('selected')) {
-            console.log(`⚠️ Botón ${horaLimpia} es MI reserva activa - NO cambiar a reservando`);
-            return;
-        }
-        
-        // Verificar si es reserva de OTRO usuario en la hora principal
-        const clave = `${fecha}_${horaLimpia}`;
-        const reservaInfo = solicitudesPendientes.get(clave);
-        
-        let esReservaOtroUsuario = false;
-        if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
-            esReservaOtroUsuario = true;
-            console.log(`✅ Hora principal ${horaLimpia} es reserva de otro usuario (${reservaInfo.usuarioId})`);
-        }
-        
-        // Verificar también las horas siguientes del bloque
-        for (let i = 0; i < slotsNecesarios; i++) {
-            const indexActual = indexPrincipal + i;
-            const siguienteBtn = document.querySelector(`.hora-btn[data-index="${indexActual}"]`);
-            
-            if (!siguienteBtn) {
-                console.log(`⚠️ Botón de índice ${indexActual} no encontrado`);
-                continue;
-            }
-            
-            const siguienteHora = siguienteBtn.dataset.hora;
-            const siguienteHoraLimpia = siguienteHora.split(':').slice(0, 2).join(':');
-            const claveSiguiente = `${fecha}_${siguienteHoraLimpia}`;
-            
-            // Verificar si esta hora también está reservada por el MISMO usuario
-            const reservaSiguiente = solicitudesPendientes.get(claveSiguiente);
-            const esMismaReserva = reservaSiguiente && 
-                                  reservaInfo && 
-                                  reservaSiguiente.usuarioId === reservaInfo.usuarioId;
-            
-            if (esReservaOtroUsuario || esMismaReserva) {
-                console.log(`🎯 Configurando ${siguienteHora} como "Reservando por otro usuario" (parte de bloque)`);
-                
-                // Verificar si YA está correctamente configurado
-                const yaConfigurado = siguienteBtn.classList.contains('reservando') && 
-                                     siguienteBtn.innerHTML.includes('Reservando por otro usuario');
-                
-                if (yaConfigurado) {
-                    console.log(`✅ Botón ${siguienteHora} ya está configurado como reservando`);
-                    continue;
-                }
-                
-                // Guardar referencia al estado actual
-                const estadoAnterior = determinarEstadoBotonActual(siguienteBtn);
-                
-                // Aplicar cambios de UNA VEZ
-                siguienteBtn.disabled = true;
-                siguienteBtn.classList.remove('selected', 'mi-reserva-activa', 'disponible');
-                siguienteBtn.classList.add('reservando');
-                
-                // Aplicar estilos DIRECTAMENTE sin transiciones
-                siguienteBtn.style.cssText = `
-                    background-color: rgba(139, 69, 19, 0.2) !important;
-                    border: 2px solid #8B4513 !important;
-                    color: #8B4513 !important;
-                    font-weight: bold !important;
-                    cursor: not-allowed !important;
-                    opacity: 0.9 !important;
-                    pointer-events: none !important;
-                    transition: none !important;
-                `;
-                
-                // Actualizar contenido
-                siguienteBtn.innerHTML = `
-                    ${siguienteHoraLimpia}
-                    <br>
-                    <small style="
-                        font-size: 10px; 
-                        color: #ff9800; 
-                        background: rgba(139, 69, 19, 0.3); 
-                        padding: 3px 8px; 
-                        border-radius: 4px; 
-                        margin-top: 3px; 
-                        display: inline-block;
-                        font-weight: bold;
-                    ">
-                        ⏳ Reservando por otro usuario
-                    </small>
-                `;
-                
-                // Prevenir que el polling lo vuelva a cambiar
-                siguienteBtn.dataset.estadoBloqueado = 'reservando';
-                siguienteBtn.dataset.usuarioReserva = (reservaInfo || reservaSiguiente).usuarioId;
-                siguienteBtn.dataset.expiraReserva = (reservaInfo || reservaSiguiente).expira_en.toISOString();
-                
-                console.log(`✅ ${siguienteHora} marcado permanentemente como "Reservando por otro usuario"`);
-            } else {
-                console.log(`⚠️ Hora ${siguienteHora} no es parte del mismo bloque reservado`);
-            }
-        }
+        });
         
     } catch (error) {
         console.error('❌ Error forzando actualización de bloque:', error);
