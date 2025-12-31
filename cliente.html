@@ -3263,10 +3263,21 @@ async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaA
         const { hora: h, minutos: m } = horas[i];
         const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
         
-        // Hora pasada
-        if (esHoy && (h < horaActual || (h === horaActual && m <= minutosActual))) {
-            estados[i] = 'pasado';
-            continue;
+         if (esHoy) {
+            // Para horas antes de las 14:00 (mañana)
+            if (h < 14) {
+                if (h < horaActual || (h === horaActual && m <= minutosActual)) {
+                    estados[i] = 'pasado';
+                    continue;
+                }
+            } 
+            // Para horas desde las 14:00 en adelante (tarde)
+            else if (h >= 14) {
+                if (h < horaActual || (h === horaActual && m <= minutosActual)) {
+                    estados[i] = 'pasado';
+                    continue;
+                }
+            }
         }
         
         // Estado individual sin considerar duración
@@ -4434,33 +4445,32 @@ function generarHorasDisponibles(duracionServicio = 40) {
         }
     }
     
+    console.log(`📊 Horas mañana generadas: ${horas.length}`);
+    
     // Turno tarde: 14:40 - 19:20  
-    for (let hora = 14; hora <= 19; hora++) {
-        // Para las 14:00, empezar en 40 minutos
-        let startMinutos = (hora === 14) ? 40 : 0;
-        
-        for (let minutos = startMinutos; minutos < 60; minutos += intervalo) {
-            // Caso especial para 19:20
-            if (hora === 19) {
-                if (minutos === 20) {
-                    horas.push({ hora, minutos, index });
-                    index++;
-                    break; // Solo 19:20
-                }
-                continue; // Saltar otras horas de las 19
-            }
-            
-            if (hora === 14 && minutos < 40) continue;
-            
+    // Primero 14:40
+    horas.push({ hora: 14, minutos: 40, index });
+    index++;
+    
+    // Después 15:00 hasta 18:40
+    for (let hora = 15; hora <= 18; hora++) {
+        for (let minutos = 0; minutos < 60; minutos += intervalo) {
             horas.push({ hora, minutos, index });
             index++;
         }
     }
     
+    // Finalmente 19:20
+    horas.push({ hora: 19, minutos: 20, index });
+    index++;
+    
     console.log(`📊 Total horas generadas: ${horas.length}`);
-    // Verificar si incluye 19:20
-    const tiene1920 = horas.some(h => h.hora === 19 && h.minutos === 20);
-    console.log(`🔍 ¿Incluye 19:20? ${tiene1920 ? '✅ SÍ' : '❌ NO'}`);
+    console.log(`📋 Últimas 3 horas:`);
+    const ultimasHoras = horas.slice(-3);
+    ultimasHoras.forEach((h, i) => {
+        const horaStr = `${String(h.hora).padStart(2, '0')}:${String(h.minutos).padStart(2, '0')}`;
+        console.log(`   ${i+1}. ${horaStr} (índice ${h.index})`);
+    });
     
     return horas;
 }
