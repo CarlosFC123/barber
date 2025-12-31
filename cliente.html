@@ -3133,9 +3133,9 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
     console.log(`⏱️ Duración del servicio: ${duracionServicio} minutos`);
     
     const horasGrid = document.getElementById('horasGrid');
-    if (!horasGrid) {
-        console.log('❌ horasGrid no encontrado');
-        return;
+    if (horasGrid && horasGrid.children.length > 0) {
+        console.log('⚠️ Grid ya tiene horas, limpiando primero...');
+        limpiarGridHorasCompletamente();
     }
     
     // Restaurar el estilo original del grid SIEMPRE
@@ -3601,50 +3601,26 @@ async function actualizarBotonReservandoEspecifico(fecha, hora) {
 function resetearEstadoHoras() {
     console.log('🧹 Reset completo del estado de horas');
     
-    // 1. Detener todos los intervalos de botones
-    document.querySelectorAll('.hora-btn').forEach(btn => {
-        if (btn.dataset.intervaloContador) {
-            clearInterval(btn.dataset.intervaloContador);
-            delete btn.dataset.intervaloContador;
-        }
-    });
+    // Usar la función de limpieza completa
+    limpiarGridHorasCompletamente();
     
-    // 2. Limpiar completamente el grid
-    const horasGrid = document.getElementById('horasGrid');
-    if (horasGrid) {
-        // RESTAURAR ESTILO ORIGINAL DEL GRID
-        horasGrid.style.display = 'grid';
-        horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
-        horasGrid.style.gap = '8px';
-        horasGrid.innerHTML = ''; // Limpiar completamente
-        
-        // Opcional: mostrar mensaje de estado limpio
-        horasGrid.innerHTML = `
-            <div class="empty-state" style="grid-column: 1 / -1; padding: 20px; text-align: center;">
-                <div style="font-size: 48px; margin-bottom: 10px;">📅</div>
-                <h3>Selecciona una fecha</h3>
-                <p>Por favor, elige una fecha en el calendario</p>
-            </div>
-        `;
-    }
-    
-    // 3. Resetear display de fecha
+    // Resetear display de fecha
     const selectedDateDisplay = document.getElementById('selectedDateDisplay');
     if (selectedDateDisplay) {
         selectedDateDisplay.textContent = 'Selecciona una fecha';
     }
     
-    // 4. Ocultar contenedor de horas
+    // Ocultar contenedor de horas
     const horasContainer = document.getElementById('horasContainer');
     if (horasContainer) {
         horasContainer.style.display = 'none';
     }
     
-    // 5. Limpiar input de hora seleccionada
+    // Limpiar input de hora seleccionada
     const horaInput = document.getElementById('hora');
     if (horaInput) horaInput.value = '';
     
-    // 6. Resetear selecciones visuales
+    // Limpiar selecciones visuales
     limpiarEstadosSeguros();
     
     console.log('✅ Estado de horas completamente reseteado');
@@ -4879,7 +4855,7 @@ function normalizarHora(horaStr) {
 }
             // ============ FUNCIONES EXISTENTES (MANTENIDAS) ============
 
-            function habilitarCalendario() {
+         function habilitarCalendario() {
     const calendarContainer = document.getElementById('calendarContainer');
     const calendarDisabledMessage = document.getElementById('calendarDisabledMessage');
     
@@ -4887,15 +4863,46 @@ function normalizarHora(horaStr) {
         calendarContainer.classList.remove('calendar-disabled');
         if (calendarDisabledMessage) calendarDisabledMessage.style.display = 'none';
         
-        // IMPORTANTE: Generar horas si hay una fecha seleccionada
-        if (selectedDate) {
-            console.log('📅 Calendario habilitado - generando horas para fecha seleccionada');
-            generateHoras(selectedDate);
-        }
+        // IMPORTANTE: NO generar horas aquí, solo habilitar el calendario
+        console.log('📅 Calendario habilitado - esperando selección de fecha');
     } else {
         calendarContainer.classList.add('calendar-disabled');
         if (calendarDisabledMessage) calendarDisabledMessage.style.display = 'block';
     }
+}
+
+function limpiarGridHorasCompletamente() {
+    const horasGrid = document.getElementById('horasGrid');
+    if (!horasGrid) return;
+    
+    console.log('🧹 Limpiando grid de horas completamente');
+    
+    // 1. Detener todos los intervalos
+    horasGrid.querySelectorAll('.hora-btn').forEach(btn => {
+        if (btn.dataset.intervaloContador) {
+            clearInterval(btn.dataset.intervaloContador);
+            delete btn.dataset.intervaloContador;
+        }
+    });
+    
+    // 2. Limpiar completamente
+    horasGrid.innerHTML = '';
+    
+    // 3. Restaurar estilos
+    horasGrid.style.display = 'grid';
+    horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
+    horasGrid.style.gap = '8px';
+    
+    // 4. Mostrar mensaje de estado
+    horasGrid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px;">
+            <div style="font-size: 48px; margin-bottom: 20px; color: #ccc;">📅</div>
+            <h3 style="color: #ccc; margin-bottom: 10px;">Selecciona una fecha</h3>
+            <p style="color: #999;">Por favor, elige una fecha en el calendario para ver las horas disponibles</p>
+        </div>
+    `;
+    
+    console.log('✅ Grid de horas limpiado completamente');
 }
 
             function generateCalendar(month = new Date()) {
@@ -5170,7 +5177,7 @@ function forzarActualizacionUIReservas(fecha) {
                 }
             }
 
-async function cargarServicios() {
+       async function cargarServicios() {
     try {
         const { data: servicios, error } = await supabase
             .from('servicios')
@@ -5201,64 +5208,94 @@ async function cargarServicios() {
                 </div>
             `).join('');
 
+            // Variable para controlar si ya hay una selección en proceso
+            let procesandoSeleccion = false;
+            
             document.querySelectorAll('.servicio-option').forEach(option => {
                 option.addEventListener('click', async function() {
-                    // 1. Limpiar selección visual
-                    document.querySelectorAll('.servicio-option').forEach(opt => {
-                        opt.classList.remove('selected');
-                    });
-                    this.classList.add('selected');
-                    
-                    const servicioInput = document.getElementById('servicio');
-                    const servicioDuracionInput = document.getElementById('servicioDuracion');
-                    
-                    if (servicioInput) servicioInput.value = this.dataset.servicioId;
-                    if (servicioDuracionInput) servicioDuracionInput.value = this.dataset.servicioDuracion;
-                    
-                    // 2. Cancelar cualquier reserva activa
-                    if (reservaActiva) {
-                        await cancelarReservaAnterior();
-                        showAlert('Reserva cancelada al cambiar servicio', 'info');
+                    // Prevenir múltiples clics simultáneos
+                    if (procesandoSeleccion) {
+                        console.log('⏭️ Ya hay una selección en proceso, ignorando clic');
+                        return;
                     }
                     
-                    // 3. Limpiar completamente la UI de horas ANTES de generar nuevas
-                    resetearEstadoHoras();
+                    procesandoSeleccion = true;
                     
-                    // 4. Ocultar horas mientras se procesa el cambio
-                    const horasContainer = document.getElementById('horasContainer');
-                    if (horasContainer) {
-                        horasContainer.style.display = 'none';
+                    try {
+                        // 1. Verificar si ya está seleccionado (evitar reprocesamiento)
+                        if (this.classList.contains('selected')) {
+                            console.log('✅ Ya estaba seleccionado');
+                            procesandoSeleccion = false;
+                            return;
+                        }
+                        
+                        console.log('🔄 Procesando selección de servicio...');
+                        
+                        // 2. Limpiar selección visual
+                        document.querySelectorAll('.servicio-option').forEach(opt => {
+                            opt.classList.remove('selected');
+                        });
+                        this.classList.add('selected');
+                        
+                        const servicioInput = document.getElementById('servicio');
+                        const servicioDuracionInput = document.getElementById('servicioDuracion');
+                        
+                        if (servicioInput) servicioInput.value = this.dataset.servicioId;
+                        if (servicioDuracionInput) servicioDuracionInput.value = this.dataset.servicioDuracion;
+                        
+                        // 3. Obtener duración
+                        const duracion = parseInt(this.dataset.servicioDuracion);
+                        console.log(`✅ Servicio seleccionado: ${duracion} minutos`);
+                        
+                        // 4. Cancelar cualquier reserva activa (si existe)
+                        if (reservaActiva) {
+                            await cancelarReservaAnterior();
+                            showAlert('Reserva cancelada al cambiar servicio', 'info');
+                        }
+                        
+                        // 5. Limpiar completamente la UI
+                        resetearEstadoHoras();
+                        
+                        // 6. Ocultar horas
+                        const horasContainer = document.getElementById('horasContainer');
+                        if (horasContainer) {
+                            horasContainer.style.display = 'none';
+                        }
+                        
+                        // 7. Limpiar fecha seleccionada
+                        selectedDate = null;
+                        const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+                        if (selectedDateDisplay) {
+                            selectedDateDisplay.textContent = 'Selecciona una fecha';
+                        }
+                        
+                        // 8. Limpiar input de hora
+                        const horaInput = document.getElementById('hora');
+                        if (horaInput) horaInput.value = '';
+                        
+                        // 9. Habilitar calendario
+                        calendarioHabilitado = true;
+                        habilitarCalendario();
+                        
+                        // 10. Regenerar calendario limpio
+                        currentMonth = new Date();
+                        generateCalendar(currentMonth);
+                        
+                        // 11. Detener polling mientras cambiamos
+                        detenerPolling();
+                        
+                        // 12. Mostrar mensaje
+                        showAlert(`✅ Servicio seleccionado (${duracion} minutos). Por favor, selecciona una fecha.`, 'success');
+                        
+                    } catch (error) {
+                        console.error('Error procesando selección de servicio:', error);
+                        showAlert('Error al cambiar servicio', 'error');
+                    } finally {
+                        // Restablecer controlador después de un tiempo
+                        setTimeout(() => {
+                            procesandoSeleccion = false;
+                        }, 1000);
                     }
-                    
-                    // 5. Limpiar fecha seleccionada
-                    selectedDate = null;
-                    const selectedDateDisplay = document.getElementById('selectedDateDisplay');
-                    if (selectedDateDisplay) {
-                        selectedDateDisplay.textContent = 'Selecciona una fecha';
-                    }
-                    
-                    // 6. Actualizar duración del servicio
-                    const duracion = parseInt(this.dataset.servicioDuracion);
-                    console.log(`✅ Servicio seleccionado: ${duracion} minutos`);
-                    
-                    // 7. Habilitar calendario
-                    calendarioHabilitado = true;
-                    habilitarCalendario();
-                    
-                    // 8. Regenerar calendario limpio
-                    currentMonth = new Date();
-                    generateCalendar(currentMonth);
-                    
-                    // 9. Forzar limpieza del grid de horas
-                    const horasGrid = document.getElementById('horasGrid');
-                    if (horasGrid) {
-                        horasGrid.innerHTML = '';
-                        horasGrid.style.display = 'grid';
-                        horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
-                    }
-                    
-                    // 10. Mostrar mensaje para que seleccione nueva fecha
-                    showAlert('✅ Servicio seleccionado. Por favor, selecciona una fecha en el calendario.', 'success');
                 });
             });
         }
@@ -5268,6 +5305,7 @@ async function cargarServicios() {
         showAlert('Error al cargar los servicios', 'error');
     }
 }
+
     function getCurrentTimeYucatan() {
     // NO usar hora del dispositivo, usar UTC directamente
     const ahora = new Date();
