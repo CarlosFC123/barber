@@ -1433,7 +1433,7 @@ function iniciarPollingInteligente() {
                 if (ahora - ultimaEjecucion < 2000) {
                     return;
                 }
-                
+                await limpiarBotonesCafeExpirados();
                 ultimaEjecucion = ahora;
                 console.log('🔄 Ejecutando polling inteligente (activo en agendar)');
                 
@@ -1525,27 +1525,63 @@ async function sincronizarEstadosHoras() {
         // 2. Obtener solicitudes pendientes
         await obtenerSolicitudesPendientes(true);
         
-        // 3. Verificar notificaciones
-        await verificarNotificacionesCambios();
-
-        // **NUEVO: Verificar bloques activos específicamente**
+        // 3. **MEJORADO: Verificar bloques activos ANTES de notificaciones**
         verificarBloquesActivosEnMemoria(fechaFormateada);
-
         verificarYMostrarBloquesCompletos(fechaFormateada);
-
+        
+        // 4. Verificar notificaciones
+        await verificarNotificacionesCambios();
+        
         limpiarEstadosSeguros();
         
-        // 4. Forzar actualización UI de reservas PRIMERO
+        // 5. Forzar actualización UI de reservas PRIMERO
         forzarActualizacionUIReservas(fechaFormateada);
         
-        // 5. Actualizar estados existentes CON DURACIÓN ACTUAL
+        // 6. Actualizar estados existentes CON DURACIÓN ACTUAL
         await actualizarEstadosHorasExistentes(fechaFormateada);
         
-        // 6. Limpiar caché viejo
+        // 7. **NUEVO: Verificación específica para bloques de 80 minutos**
+        await verificarBloques80Minutos(fechaFormateada);
+        
+        // 8. Limpiar caché viejo
         limpiarCacheExpirado();
         
     } catch (error) {
         console.error('❌ Error sincronizando estados:', error);
+    }
+}
+
+// **NUEVA FUNCIÓN: Verificación específica para bloques de 80 minutos**
+async function verificarBloques80Minutos(fecha) {
+    console.log(`🔍 Verificación específica para bloques de 80 minutos: ${fecha}`);
+    
+    // Buscar reservas con duración de 80 minutos (2 slots)
+    for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
+        const [reservaFecha, reservaHora] = clave.split('_');
+        
+        if (reservaFecha === fecha && reservaInfo.duracionServicio === 80 && reservaInfo.usuarioId !== miUsuarioId) {
+            console.log(`📦 Bloque de 80 minutos encontrado: ${reservaHora}`);
+            
+            const horaPrincipal = reservaInfo.horaPrincipal || reservaHora;
+            const slotsNecesarios = 2; // 80 minutos = 2 slots
+            
+            // Marcar ambas horas del bloque
+            for (let i = 0; i < slotsNecesarios; i++) {
+                const horaPrincipalIndex = obtenerIndexHora(horaPrincipal);
+                const horaIndex = horaPrincipalIndex + i;
+                
+                const horaBtn = document.querySelector(`.hora-btn[data-index="${horaIndex}"]`);
+                if (horaBtn) {
+                    const horaStr = horaBtn.dataset.hora;
+                    
+                    // Forzar actualización como "reservando" si no es mi reserva
+                    if (!horaBtn.classList.contains('mi-reserva-activa')) {
+                        console.log(`   - Forzando ${horaStr} como reservando (bloque 80min)`);
+                        forzarActualizacionReservando(fecha, horaStr);
+                    }
+                }
+            }
+        }
     }
 }
 function verificarYActualizarReservasActivasForzadoPreservandoEstados() {
@@ -4138,7 +4174,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.title = 'Hora ocupada';
 }
 
-           function configurarBotonReservando(btn, horaStr, fecha) {
+        function configurarBotonReservando(btn, horaStr, fecha) {
     const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
     const horaSinSegundos = horaStr.includes(':') ? horaStr.split(':').slice(0, 2).join(':') : horaStr;
     const clave = `${fecha}_${horaStr}`;
@@ -4152,9 +4188,16 @@ async function forzarLimpiezaReserva(fecha, hora) {
     
     console.log(`🎯 CONFIGURANDO RESERVANDO: ${horaStr} para usuario ${reservaInfo.usuarioId}`);
     
+    // **CORRECCIÓN: Verificar si es parte de un bloque**
+    const esParteDeBloque = reservaInfo.esBloque || (reservaInfo.duracionServicio && reservaInfo.duracionServicio > 40);
+    
     // Configurar el botón como "reservando"
     btn.disabled = true;
     btn.className = 'hora-btn reservando'; // Limpiar todas las clases y agregar solo estas
+    
+    // **MEJORADO: Mostrar indicador de bloque si corresponde**
+    const textoBloque = esParteDeBloque && reservaInfo.duracionServicio > 40 ? 
+        ` (${reservaInfo.duracionServicio}min)` : '';
     
     btn.innerHTML = `
         ${horaFormateada}
@@ -4177,32 +4220,110 @@ async function forzarLimpiezaReserva(fecha, hora) {
             word-break: break-word;
             animation: subtle-pulse 3s infinite;
         ">
-            ⏳ Reservando por otro usuario
+            ⏳ Reservando por otro usuario${textoBloque}
         </small>
     `;
     
-    // Aplicar estilos CSS directamente
-    btn.style.cssText = `
-        background: linear-gradient(135deg, #f1a269 0%, #D2691E 100%) !important;
-        border-color: #A0522D !important;
-        color: white !important;
-        cursor: not-allowed !important;
-        opacity: 0.9 !important;
-        pointer-events: none !important;
-        min-height: 60px;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        align-items: center !important;
-        padding: 8px 4px !important;
-        font-size: 13px !important;
-        font-weight: 600 !important;
-        transition: none !important;
-    `;
+    // **CORRECCIÓN: Asegurar color rojo para horas ocupadas verdaderas**
+    // Verificar si realmente está ocupada (no solo reservando)
+    const citaExistente = todasLasCitasFuturasCache.some(c => 
+        c.fecha === fecha && c.hora === horaStr
+    );
     
-    btn.title = 'Hora siendo reservada por otro usuario';
+    if (citaExistente) {
+        // Si realmente está ocupada, usar color rojo
+        btn.style.cssText = `
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%) !important;
+            border-color: #ff3838 !important;
+            color: white !important;
+            cursor: not-allowed !important;
+            opacity: 0.9 !important;
+            pointer-events: none !important;
+            min-height: 60px;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+            padding: 8px 4px !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            transition: none !important;
+        `;
+        
+        // Actualizar texto para ocupada
+        btn.innerHTML = `
+            ${horaFormateada}
+            <br>
+            <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
+                ${periodo}
+            </small>
+            <br>
+            <small style="
+                font-size: 9px;
+                color: white;
+                background: rgba(255, 107, 107, 0.3);
+                padding: 2px 4px;
+                border-radius: 4px;
+                margin-top: 3px;
+                display: block;
+                text-align: center;
+            ">
+                🔒 Ocupada
+            </small>
+        `;
+    } else {
+        // Si solo está reservando, usar color café
+        btn.style.cssText = `
+            background: linear-gradient(135deg, #f1a269 0%, #D2691E 100%) !important;
+            border-color: #A0522D !important;
+            color: white !important;
+            cursor: not-allowed !important;
+            opacity: 0.9 !important;
+            pointer-events: none !important;
+            min-height: 60px;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+            padding: 8px 4px !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            transition: none !important;
+        `;
+    }
+    
+    btn.title = citaExistente ? 'Hora ocupada' : 'Hora siendo reservada por otro usuario';
 }
-
+function limpiarBotonesCafeExpirados() {
+    console.log('🧹 Limpiando botones café expirados...');
+    
+    const ahora = new Date();
+    const botonesCafe = document.querySelectorAll('.hora-btn.reservando');
+    
+    botonesCafe.forEach(btn => {
+        const fecha = btn.dataset.fecha;
+        const hora = btn.dataset.hora;
+        const clave = `${fecha}_${hora}`;
+        
+        const reservaInfo = solicitudesPendientes.get(clave);
+        
+        // Si no hay información de reserva o ha expirado
+        if (!reservaInfo || reservaInfo.expira_en <= ahora) {
+            console.log(`🧽 Limpiando botón café expirado: ${hora}`);
+            
+            // Verificar si realmente está disponible
+            const citaExistente = todasLasCitasFuturasCache.some(c => 
+                c.fecha === fecha && c.hora === hora
+            );
+            
+            if (citaExistente) {
+                configurarBotonOcupada(btn, hora);
+            } else {
+                configurarBotonDisponible(btn, hora, fecha);
+            }
+        }
+    });
+}
 function limpiarEstadosSeguros() {
     console.log('🧹 Limpiando solo estados seguros...');
     const horasGrid = document.getElementById('horasGrid');
@@ -4644,9 +4765,12 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
     
+    // **CORRECCIÓN: Usar formatearHoraAMPM para mostrar correctamente**
+    const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
+    
     // Establecer HTML con texto claro
     btn.innerHTML = `
-        ${horaStr}
+        ${horaFormateada}
         <br>
         <small style="font-size: 10px; color: #999; background: rgba(153, 153, 153, 0.1); padding: 2px 4px; border-radius: 3px; margin-top: 3px; display: inline-block;">
             ❌ No disponible
