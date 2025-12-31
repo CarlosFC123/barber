@@ -3599,24 +3599,55 @@ async function actualizarBotonReservandoEspecifico(fecha, hora) {
 }
 
 function resetearEstadoHoras() {
+    console.log('🧹 Reset completo del estado de horas');
+    
+    // 1. Detener todos los intervalos de botones
+    document.querySelectorAll('.hora-btn').forEach(btn => {
+        if (btn.dataset.intervaloContador) {
+            clearInterval(btn.dataset.intervaloContador);
+            delete btn.dataset.intervaloContador;
+        }
+    });
+    
+    // 2. Limpiar completamente el grid
     const horasGrid = document.getElementById('horasGrid');
     if (horasGrid) {
         // RESTAURAR ESTILO ORIGINAL DEL GRID
         horasGrid.style.display = 'grid';
         horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
         horasGrid.style.gap = '8px';
-        horasGrid.innerHTML = '';
+        horasGrid.innerHTML = ''; // Limpiar completamente
+        
+        // Opcional: mostrar mensaje de estado limpio
+        horasGrid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1; padding: 20px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 10px;">📅</div>
+                <h3>Selecciona una fecha</h3>
+                <p>Por favor, elige una fecha en el calendario</p>
+            </div>
+        `;
     }
     
+    // 3. Resetear display de fecha
     const selectedDateDisplay = document.getElementById('selectedDateDisplay');
     if (selectedDateDisplay) {
         selectedDateDisplay.textContent = 'Selecciona una fecha';
     }
     
+    // 4. Ocultar contenedor de horas
     const horasContainer = document.getElementById('horasContainer');
     if (horasContainer) {
         horasContainer.style.display = 'none';
     }
+    
+    // 5. Limpiar input de hora seleccionada
+    const horaInput = document.getElementById('hora');
+    if (horaInput) horaInput.value = '';
+    
+    // 6. Resetear selecciones visuales
+    limpiarEstadosSeguros();
+    
+    console.log('✅ Estado de horas completamente reseteado');
 }
 
 
@@ -5139,7 +5170,7 @@ function forzarActualizacionUIReservas(fecha) {
                 }
             }
 
-            async function cargarServicios() {
+async function cargarServicios() {
     try {
         const { data: servicios, error } = await supabase
             .from('servicios')
@@ -5172,6 +5203,7 @@ function forzarActualizacionUIReservas(fecha) {
 
             document.querySelectorAll('.servicio-option').forEach(option => {
                 option.addEventListener('click', async function() {
+                    // 1. Limpiar selección visual
                     document.querySelectorAll('.servicio-option').forEach(opt => {
                         opt.classList.remove('selected');
                     });
@@ -5183,29 +5215,50 @@ function forzarActualizacionUIReservas(fecha) {
                     if (servicioInput) servicioInput.value = this.dataset.servicioId;
                     if (servicioDuracionInput) servicioDuracionInput.value = this.dataset.servicioDuracion;
                     
+                    // 2. Cancelar cualquier reserva activa
                     if (reservaActiva) {
                         await cancelarReservaAnterior();
                         showAlert('Reserva cancelada al cambiar servicio', 'info');
                     }
                     
-                    // Actualizar duración del servicio seleccionado
+                    // 3. Limpiar completamente la UI de horas ANTES de generar nuevas
+                    resetearEstadoHoras();
+                    
+                    // 4. Ocultar horas mientras se procesa el cambio
+                    const horasContainer = document.getElementById('horasContainer');
+                    if (horasContainer) {
+                        horasContainer.style.display = 'none';
+                    }
+                    
+                    // 5. Limpiar fecha seleccionada
+                    selectedDate = null;
+                    const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+                    if (selectedDateDisplay) {
+                        selectedDateDisplay.textContent = 'Selecciona una fecha';
+                    }
+                    
+                    // 6. Actualizar duración del servicio
                     const duracion = parseInt(this.dataset.servicioDuracion);
                     console.log(`✅ Servicio seleccionado: ${duracion} minutos`);
                     
+                    // 7. Habilitar calendario
                     calendarioHabilitado = true;
                     habilitarCalendario();
+                    
+                    // 8. Regenerar calendario limpio
+                    currentMonth = new Date();
                     generateCalendar(currentMonth);
                     
-                    // Si ya hay una fecha seleccionada, regenerar horas con la nueva duración
-                    if (selectedDate) {
-                        console.log('🔄 Regenerando horas con nueva duración:', duracion);
-                        await generateHoras(selectedDate, duracion);
-                        
-                        const horasContainer = document.getElementById('horasContainer');
-                        if (horasContainer) {
-                            horasContainer.style.display = 'block';
-                        }
+                    // 9. Forzar limpieza del grid de horas
+                    const horasGrid = document.getElementById('horasGrid');
+                    if (horasGrid) {
+                        horasGrid.innerHTML = '';
+                        horasGrid.style.display = 'grid';
+                        horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
                     }
+                    
+                    // 10. Mostrar mensaje para que seleccione nueva fecha
+                    showAlert('✅ Servicio seleccionado. Por favor, selecciona una fecha en el calendario.', 'success');
                 });
             });
         }
@@ -5215,7 +5268,6 @@ function forzarActualizacionUIReservas(fecha) {
         showAlert('Error al cargar los servicios', 'error');
     }
 }
-
     function getCurrentTimeYucatan() {
     // NO usar hora del dispositivo, usar UTC directamente
     const ahora = new Date();
