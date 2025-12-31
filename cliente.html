@@ -4105,26 +4105,41 @@ async function forzarLimpiezaReserva(fecha, hora) {
 }
 
             function configurarBotonPasado(btn, horaStr) {
-                btn.disabled = true;
-                btn.classList.add('disabled');
-                btn.textContent = horaStr;
-                btn.title = 'Hora pasada';
-            }
+    const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
+    
+    btn.disabled = true;
+    btn.classList.add('disabled');
+    btn.innerHTML = `
+        ${horaFormateada}
+        <br>
+        <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
+            ${periodo}
+        </small>
+    `;
+    btn.title = 'Hora pasada';
+}
 
             function configurarBotonOcupada(btn, horaStr) {
-                btn.disabled = true;
-                btn.classList.add('ocupada');
-                btn.innerHTML = `
-                    ${horaStr}
-                    <br>
-                    <small style="font-size: 10px; color: #ff6b6b;">
-                        🔒 Ocupada
-                    </small>
-                `;
-                btn.title = 'Hora ocupada';
-            }
+    const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
+    
+    btn.disabled = true;
+    btn.classList.add('ocupada');
+    btn.innerHTML = `
+        ${horaFormateada}
+        <br>
+        <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
+            ${periodo}
+        </small>
+        <br>
+        <small style="font-size: 10px; color: #ff6b6b;">
+            🔒 Ocupada
+        </small>
+    `;
+    btn.title = 'Hora ocupada';
+}
 
            function configurarBotonReservando(btn, horaStr, fecha) {
+    const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
     const horaSinSegundos = horaStr.includes(':') ? horaStr.split(':').slice(0, 2).join(':') : horaStr;
     const clave = `${fecha}_${horaStr}`;
     const reservaInfo = solicitudesPendientes.get(clave);
@@ -4142,7 +4157,11 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.className = 'hora-btn reservando'; // Limpiar todas las clases y agregar solo estas
     
     btn.innerHTML = `
-        ${horaSinSegundos}
+        ${horaFormateada}
+        <br>
+        <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
+            ${periodo}
+        </small>
         <br>
         <small style="
             font-size: 9px;
@@ -4402,8 +4421,13 @@ function limpiarEstadosSeguros() {
     // 7. Configuración visual del botón
     btn.disabled = false;
     btn.classList.remove('selected', 'ocupada', 'reservando', 'mi-reserva-activa', 'no-disponible', 'click-in-progress', 'parte-bloque');
-    btn.title = `Hora disponible para servicio de ${duracionServicio} minutos`;
     
+    const [horaNum, minutoNum] = horaStr.split(':').map(Number);
+    const periodo = horaNum < 12 ? 'AM' : 'PM';
+    const hora12 = horaNum % 12 || 12; // Convertir a formato 12 horas
+    const horaFormateada = `${hora12}:${String(minutoNum).padStart(2, '0')}`;
+    
+    btn.title = `Hora disponible ${horaFormateada} ${periodo} para servicio de ${duracionServicio} minutos`;    
     // Restaurar estilo por defecto
     btn.style.cssText = '';
     
@@ -4411,15 +4435,39 @@ function limpiarEstadosSeguros() {
     if (duracionServicio > 40) {
         const slotsNecesarios = Math.ceil(duracionServicio / 40);
         btn.innerHTML = `
-            ${horaStr}
+            ${horaFormateada}
+            <br>
+            <small style="font-size: 8px; color: #4CAF50; margin-top: 2px;">
+                ${periodo}
+            </small>
             <br>
             <small style="font-size: 9px; color: #4CAF50; background: rgba(76, 175, 80, 0.1); padding: 2px 5px; border-radius: 3px; margin-top: 2px; display: inline-block;">
                 ${slotsNecesarios} slot${slotsNecesarios > 1 ? 's' : ''}
             </small>
         `;
     } else {
-        btn.textContent = horaStr;
+        btn.innerHTML = `
+            ${horaFormateada}
+            <br>
+            <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
+                ${periodo}
+            </small>
+        `;
     }
+}
+
+function formatearHoraAMPM(horaStr) {
+    if (!horaStr || !horaStr.includes(':')) return horaStr;
+    
+    const [horaNum, minutoNum] = horaStr.split(':').map(Number);
+    const periodo = horaNum < 12 ? 'AM' : 'PM';
+    const hora12 = horaNum % 12 || 12; // Convertir a formato 12 horas
+    
+    return {
+        horaFormateada: `${hora12}:${String(minutoNum).padStart(2, '0')}`,
+        periodo: periodo,
+        full: `${hora12}:${String(minutoNum).padStart(2, '0')} ${periodo}`
+    };
 }
 async function forzarActualizacionEstadosDespuesDeLiberar(fecha) {
     if (!selectedDate) return;
@@ -4533,46 +4581,34 @@ function generarHorasDisponibles(duracionServicio = 40) {
     const intervalo = 40; // Intervalo base en minutos
     let index = 0;
     
-    // Turno mañana: 9:00 - 12:20
-    for (let hora = 9; hora <= 12; hora++) {
-        for (let minutos = 0; minutos < 60; minutos += intervalo) {
-            // Evitar generar horas fuera del rango
-            if (hora === 12 && minutos > 20) break;
+    // Generar horas desde 9:00 AM hasta 7:40 PM
+    for (let hora = 9; hora <= 19; hora++) {
+        // Definir los minutos para cada hora
+        const minutosPosibles = hora === 9 ? [0, 40] : [0, 40]; // Para todas las horas
+        
+        for (const minutos of minutosPosibles) {
+            // Evitar generar horas fuera del rango deseado
+            if (hora === 19 && minutos > 40) break; // Solo 19:00 y 19:40
+            if (hora === 12 && minutos > 20) break; // Solo 12:00 y 12:20
+            
+            // Generar la hora
             horas.push({ hora, minutos, index });
             index++;
         }
     }
-    
-    console.log(`📊 Horas mañana generadas: ${horas.length}`);
-    
-    // Turno tarde: 14:40 - 19:20  
-    // Primero 14:40
-    horas.push({ hora: 14, minutos: 40, index });
-    index++;
-    
-    // Después 15:00 hasta 18:40
-    for (let hora = 15; hora <= 18; hora++) {
-        for (let minutos = 0; minutos < 60; minutos += intervalo) {
-            horas.push({ hora, minutos, index });
-            index++;
-        }
-    }
-    
-    // Finalmente 19:20
-    horas.push({ hora: 19, minutos: 20, index });
-    index++;
     
     console.log(`📊 Total horas generadas: ${horas.length}`);
-    console.log(`📋 Últimas 3 horas:`);
-    const ultimasHoras = horas.slice(-3);
-    ultimasHoras.forEach((h, i) => {
+    
+    // Mostrar todas las horas generadas para depuración
+    console.log('📋 Horas generadas:');
+    horas.forEach((h, i) => {
         const horaStr = `${String(h.hora).padStart(2, '0')}:${String(h.minutos).padStart(2, '0')}`;
-        console.log(`   ${i+1}. ${horaStr} (índice ${h.index})`);
+        const periodo = h.hora < 12 ? 'AM' : (h.hora < 18 ? 'PM' : 'PM');
+        console.log(`   ${i+1}. ${horaStr} ${periodo}`);
     });
     
     return horas;
 }
-
 function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     // Limpiar completamente el botón primero
     btn.className = 'hora-btn';
