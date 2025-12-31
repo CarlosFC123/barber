@@ -4457,16 +4457,18 @@ function limpiarEstadosSeguros() {
 }
 
 function formatearHoraAMPM(horaStr) {
-    if (!horaStr || !horaStr.includes(':')) return horaStr;
+    if (!horaStr || !horaStr.includes(':')) return { horaFormateada: horaStr, periodo: '', full: horaStr };
     
     const [horaNum, minutoNum] = horaStr.split(':').map(Number);
     const periodo = horaNum < 12 ? 'AM' : 'PM';
-    const hora12 = horaNum % 12 || 12; // Convertir a formato 12 horas
+    const hora12 = horaNum % 12 || 12; // Convertir a formato 12 horas (0 se convierte en 12)
     
     return {
         horaFormateada: `${hora12}:${String(minutoNum).padStart(2, '0')}`,
         periodo: periodo,
-        full: `${hora12}:${String(minutoNum).padStart(2, '0')} ${periodo}`
+        full: `${hora12}:${String(minutoNum).padStart(2, '0')} ${periodo}`,
+        hora24: horaNum,
+        minutos24: minutoNum
     };
 }
 async function forzarActualizacionEstadosDespuesDeLiberar(fecha) {
@@ -4514,34 +4516,35 @@ async function forzarActualizacionEstadosDespuesDeLiberar(fecha) {
 }
 
 function verificarPuedeSerInicioBloque(index, fecha, duracionServicio) {
+    const horas = generarHorasDisponibles(duracionServicio);
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
     
-    // Obtener todos los botones de horas
-    const horasGrid = document.getElementById('horasGrid');
-    if (!horasGrid) return false;
+    // Verificar si hay suficientes horas consecutivas disponibles
+    if (index + slotsNecesarios > horas.length) {
+        return false; // No hay suficientes horas
+    }
     
-    // Verificar slots consecutivos
+    // Obtener todas las horas del bloque
     for (let i = 0; i < slotsNecesarios; i++) {
-        const siguienteIndex = index + i;
-        const siguienteBtn = document.querySelector(`.hora-btn[data-index="${siguienteIndex}"]`);
+        const horaIndex = index + i;
+        if (horaIndex >= horas.length) return false;
         
-        if (!siguienteBtn) {
-            return false; // No hay suficientes horas
-        }
+        const horaData = horas[horaIndex];
+        const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
         
-        // Verificar estado del slot - IMPORTANTE: Si es mi reserva activa, se considera disponible
-        const estaOcupada = siguienteBtn.classList.contains('ocupada');
-        const estaReservando = siguienteBtn.classList.contains('reservando');
-        const esMiReserva = siguienteBtn.classList.contains('mi-reserva-activa');
+        // Buscar el botón para esta hora
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaStr}"]`);
+        
+        if (!horaBtn) return false;
+        
+        // Verificar estado del botón
+        const estaOcupada = horaBtn.classList.contains('ocupada');
+        const estaReservando = horaBtn.classList.contains('reservando');
+        const esMiReserva = horaBtn.classList.contains('mi-reserva-activa');
         
         // Si está ocupada por otro usuario o reservando por otro usuario, no disponible
-        if (estaOcupada || estaReservando) {
+        if (estaOcupada || (estaReservando && !esMiReserva)) {
             return false; // Slot no disponible
-        }
-        
-        // Si es mi reserva activa, es disponible para mí
-        if (esMiReserva) {
-            continue; // Este slot está disponible porque es mi reserva
         }
     }
     
@@ -4578,24 +4581,41 @@ async function resetearTodosLosBotones(fecha) {
 
 function generarHorasDisponibles(duracionServicio = 40) {
     const horas = [];
-    const intervalo = 40; // Intervalo base en minutos
     let index = 0;
     
-    // Generar horas desde 9:00 AM hasta 7:40 PM
-    for (let hora = 9; hora <= 19; hora++) {
-        // Definir los minutos para cada hora
-        const minutosPosibles = hora === 9 ? [0, 40] : [0, 40]; // Para todas las horas
-        
-        for (const minutos of minutosPosibles) {
-            // Evitar generar horas fuera del rango deseado
-            if (hora === 19 && minutos > 40) break; // Solo 19:00 y 19:40
-            if (hora === 12 && minutos > 20) break; // Solo 12:00 y 12:20
-            
-            // Generar la hora
-            horas.push({ hora, minutos, index });
-            index++;
-        }
-    }
+    // Horas específicas en la mañana (9:00 AM - 12:20 PM)
+    const horasManana = [
+        { hora: 9, minutos: 0 },   // 9:00 AM
+        { hora: 9, minutos: 40 },  // 9:40 AM
+        { hora: 10, minutos: 20 }, // 10:20 AM
+        { hora: 11, minutos: 0 },  // 11:00 AM
+        { hora: 11, minutos: 40 }, // 11:40 AM
+        { hora: 12, minutos: 20 }  // 12:20 PM
+    ];
+    
+    // Horas específicas en la tarde (2:40 PM - 7:20 PM)
+    const horasTarde = [
+        { hora: 14, minutos: 40 }, // 2:40 PM
+        { hora: 15, minutos: 20 }, // 3:20 PM
+        { hora: 16, minutos: 0 },  // 4:00 PM
+        { hora: 16, minutos: 40 }, // 4:40 PM
+        { hora: 17, minutos: 20 }, // 5:20 PM
+        { hora: 18, minutos: 0 },  // 6:00 PM
+        { hora: 18, minutos: 40 }, // 6:40 PM
+        { hora: 19, minutos: 20 }  // 7:20 PM
+    ];
+    
+    // Agregar horas de la mañana
+    horasManana.forEach(horaData => {
+        horas.push({ hora: horaData.hora, minutos: horaData.minutos, index });
+        index++;
+    });
+    
+    // Agregar horas de la tarde
+    horasTarde.forEach(horaData => {
+        horas.push({ hora: horaData.hora, minutos: horaData.minutos, index });
+        index++;
+    });
     
     console.log(`📊 Total horas generadas: ${horas.length}`);
     
@@ -4604,7 +4624,8 @@ function generarHorasDisponibles(duracionServicio = 40) {
     horas.forEach((h, i) => {
         const horaStr = `${String(h.hora).padStart(2, '0')}:${String(h.minutos).padStart(2, '0')}`;
         const periodo = h.hora < 12 ? 'AM' : (h.hora < 18 ? 'PM' : 'PM');
-        console.log(`   ${i+1}. ${horaStr} ${periodo}`);
+        const hora12 = h.hora % 12 || 12;
+        console.log(`   ${i+1}. ${hora12}:${String(h.minutos).padStart(2, '0')} ${periodo} (${horaStr})`);
     });
     
     return horas;
