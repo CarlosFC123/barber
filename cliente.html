@@ -3252,6 +3252,12 @@ async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaA
     
     console.log(`📊 Calculando estados: ${slotsNecesarios} slots necesarios para ${duracionServicio} minutos`);
     
+    // Asegurarse de que tenemos todos los índices
+    horas.forEach((h, i) => {
+        if (h.index === undefined) {
+            h.index = i;
+        }
+    });
     // 1. Calcular estados individuales sin considerar duración
     for (let i = 0; i < horas.length; i++) {
         const { hora: h, minutos: m } = horas[i];
@@ -4413,7 +4419,7 @@ async function resetearTodosLosBotones(fecha) {
     await actualizarEstadosHorasExistentes(fecha);
 }
 
-        function generarHorasDisponibles(duracionServicio = 40) {
+function generarHorasDisponibles(duracionServicio = 40) {
     const horas = [];
     const intervalo = 40; // Intervalo base en minutos
     let index = 0;
@@ -4434,15 +4440,16 @@ async function resetearTodosLosBotones(fecha) {
         let startMinutos = (hora === 14) ? 40 : 0;
         
         for (let minutos = startMinutos; minutos < 60; minutos += intervalo) {
-            // Evitar generar horas fuera del rango
-            if (hora === 19 && minutos >= 20) {
-                // Solo agregar 19:20 y luego salir
+            // Caso especial para 19:20
+            if (hora === 19) {
                 if (minutos === 20) {
                     horas.push({ hora, minutos, index });
                     index++;
+                    break; // Solo 19:20
                 }
-                break;
+                continue; // Saltar otras horas de las 19
             }
+            
             if (hora === 14 && minutos < 40) continue;
             
             horas.push({ hora, minutos, index });
@@ -4451,9 +4458,9 @@ async function resetearTodosLosBotones(fecha) {
     }
     
     console.log(`📊 Total horas generadas: ${horas.length}`);
-    horas.forEach((h, i) => {
-        console.log(`${i}: ${String(h.hora).padStart(2, '0')}:${String(h.minutos).padStart(2, '0')}`);
-    });
+    // Verificar si incluye 19:20
+    const tiene1920 = horas.some(h => h.hora === 19 && h.minutos === 20);
+    console.log(`🔍 ¿Incluye 19:20? ${tiene1920 ? '✅ SÍ' : '❌ NO'}`);
     
     return horas;
 }
@@ -5041,7 +5048,7 @@ function forzarActualizacionUIReservas(fecha) {
                      data-servicio-duracion="${servicio.duracion || 40}">
                     <h3>${servicio.nombre}</h3>
                     <div class="precio">$${servicio.precio}</div>
-                    <div class="duracion">⏱️ ${servicio.duracion || 40} min</div>
+                    <div class="duracion">⏱️ ${servicio.duracion || 40}</div>
                     <p>${servicio.descripcion || 'Servicio profesional de barbería'}</p>
                 </div>
             `).join('');
