@@ -6642,28 +6642,21 @@ function getYucatanTimePlusHours(hours) {
             return;
         }
         
-        // 2. Verificar si es un bloque de 80 minutos
-        const esBloque = cita.es_bloque === true;
-        const horaPrincipal = cita.hora_principal;
-        
-        console.log('🔍 Información del bloque:');
-        console.log(`   - Es bloque? ${esBloque}`);
-        console.log(`   - Hora principal: ${horaPrincipal}`);
-        console.log(`   - Duración: ${cita.duracion || 40} minutos`);
-        
-        // 3. Buscar TODAS las citas del mismo bloque
+        // 2. Verificar si es parte de un bloque
+        let esHoraPrincipal = false;
         let todasLasCitasDelBloque = [cita];
         
-        // Si es la hora principal (es_bloque = false, pero tiene duración 80)
-        if (!esBloque && (cita.duracion || 40) === 80) {
-            console.log('📦 Es hora principal de bloque de 80 minutos, buscando horas secundarias...');
+        // CASO A: Es la hora principal (es_bloque = false o null, y tiene duración 80)
+        if ((!cita.es_bloque || cita.es_bloque === false) && (cita.duracion || 40) === 80) {
+            esHoraPrincipal = true;
+            console.log('📦 Es hora principal de bloque de 80 minutos');
             
-            // Buscar TODAS las horas que tengan esta hora como hora_principal
+            // Buscar las horas que tienen esta hora como hora_principal
             const { data: horasSecundarias, error: errorSecundarias } = await supabase
                 .from('citas')
                 .select('*')
                 .eq('fecha', cita.fecha)
-                .eq('hora_principal', cita.hora) // Buscar citas que tengan esta hora como hora_principal
+                .eq('hora_principal', cita.hora)
                 .eq('cliente_id', usuarioActual.id)
                 .in('estado', ['aceptada', 'pendiente', 'confirmada']);
                 
@@ -6674,70 +6667,65 @@ function getYucatanTimePlusHours(hours) {
             if (horasSecundarias && horasSecundarias.length > 0) {
                 console.log(`✅ Encontradas ${horasSecundarias.length} horas secundarias del bloque`);
                 todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasSecundarias];
-                
-                // DEBUG: Mostrar información de las citas encontradas
-                horasSecundarias.forEach((horaSec, index) => {
-                    console.log(`   ${index + 1}. Hora secundaria: ${horaSec.hora}, es_bloque: ${horaSec.es_bloque}, hora_principal: ${horaSec.hora_principal}`);
-                });
             }
         }
         
-        // Si es parte del bloque (es_bloque = true), buscar la hora principal
-        if (esBloque && horaPrincipal) {
-            console.log(`🔍 Es parte de bloque, buscando hora principal y otras del mismo bloque...`);
+        // CASO B: Es hora secundaria del bloque (es_bloque = true)
+        if (cita.es_bloque === true) {
+            console.log('📦 Es hora secundaria de bloque');
             
-            // Primero buscar la hora principal
-            const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
-                .from('citas')
-                .select('*')
-                .eq('fecha', cita.fecha)
-                .eq('hora', horaPrincipal)
-                .eq('cliente_id', usuarioActual.id)
-                .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                .maybeSingle();
-                
-            if (errorPrincipal) {
-                console.error('Error buscando hora principal:', errorPrincipal);
-            }
-            
-            if (horaPrincipalCita) {
-                console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora}`);
-                // Añadir la hora principal al array
-                todasLasCitasDelBloque.push(horaPrincipalCita);
-                
-                // Luego buscar otras horas secundarias del mismo bloque (excluyendo la actual)
-                const { data: otrasHorasBloque, error: errorOtras } = await supabase
+            // Buscar la hora principal
+            const horaPrincipal = cita.hora_principal;
+            if (horaPrincipal) {
+                const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
                     .from('citas')
                     .select('*')
                     .eq('fecha', cita.fecha)
-                    .eq('hora_principal', horaPrincipal)
+                    .eq('hora', horaPrincipal)
                     .eq('cliente_id', usuarioActual.id)
                     .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                    .neq('id', cita.id); // Excluir la cita actual
+                    .maybeSingle();
                     
-                if (errorOtras) {
-                    console.error('Error buscando otras horas del bloque:', errorOtras);
+                if (errorPrincipal) {
+                    console.error('Error buscando hora principal:', errorPrincipal);
                 }
                 
-                if (otrasHorasBloque && otrasHorasBloque.length > 0) {
-                    console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
-                    todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...otrasHorasBloque];
+                if (horaPrincipalCita) {
+                    console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora}`);
+                    esHoraPrincipal = true;
+                    todasLasCitasDelBloque.push(horaPrincipalCita);
+                    
+                    // Buscar otras horas secundarias del mismo bloque
+                    const { data: otrasHorasBloque, error: errorOtras } = await supabase
+                        .from('citas')
+                        .select('*')
+                        .eq('fecha', cita.fecha)
+                        .eq('hora_principal', horaPrincipal)
+                        .eq('cliente_id', usuarioActual.id)
+                        .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                        .neq('id', cita.id); // Excluir la cita actual
+                        
+                    if (errorOtras) {
+                        console.error('Error buscando otras horas del bloque:', errorOtras);
+                    }
+                    
+                    if (otrasHorasBloque && otrasHorasBloque.length > 0) {
+                        console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
+                        todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...otrasHorasBloque];
+                    }
                 }
             }
         }
         
-        // 4. Eliminar duplicados por ID
+        // Eliminar duplicados
         const idsUnicos = [...new Set(todasLasCitasDelBloque.map(c => c.id))];
         todasLasCitasDelBloque = todasLasCitasDelBloque.filter((cita, index, self) => 
             index === self.findIndex(c => c.id === cita.id)
         );
         
         console.log(`📊 Citas únicas del bloque: ${todasLasCitasDelBloque.length}`);
-        todasLasCitasDelBloque.forEach((c, i) => {
-            console.log(`   ${i + 1}. ${c.hora} (es_bloque: ${c.es_bloque}, hora_principal: ${c.hora_principal})`);
-        });
         
-        // 5. Verificar permisos de cancelación para TODAS las citas del bloque
+        // 3. Verificar permisos de cancelación para TODAS las citas del bloque
         let todasPuedenCancelar = true;
         const citasNoCancelables = [];
         
@@ -6765,17 +6753,17 @@ function getYucatanTimePlusHours(hours) {
             return;
         }
         
-        // 6. Confirmación de cancelación
+        // 4. Confirmación de cancelación
         const esBloqueCompleto = todasLasCitasDelBloque.length > 1;
         const mensajeConfirmacion = esBloqueCompleto 
-            ? `¿Estás seguro de que quieres cancelar el bloque completo de ${(cita.duracion || 40)} minutos? Se cancelarán ${todasLasCitasDelBloque.length} horas: ${todasLasCitasDelBloque.map(c => c.hora).join(', ')}`
+            ? `¿Estás seguro de que quieres cancelar el bloque completo de 80 minutos? Se cancelarán ${todasLasCitasDelBloque.length} horas: ${todasLasCitasDelBloque.map(c => c.hora).join(', ')}`
             : '¿Estás seguro de que quieres cancelar esta cita?';
             
         if (!confirm(mensajeConfirmacion)) {
             return;
         }
         
-        // 7. Cancelar TODAS las citas del bloque
+        // 5. Cancelar TODAS las citas del bloque
         const idsACancelar = todasLasCitasDelBloque.map(c => c.id);
         console.log(`🎯 IDs a cancelar: ${idsACancelar.join(', ')}`);
         
@@ -6783,33 +6771,31 @@ function getYucatanTimePlusHours(hours) {
             .from('citas')
             .update({ 
                 estado: 'cancelada'
-                // El trigger se encargará de establecer expira_en automáticamente
             })
             .in('id', idsACancelar)
             .select('id, estado, hora, expira_en');
             
         if (error) throw error;
 
-        console.log(`✅ ${updatedCitas.length} cita(s) cancelada(s) - Trigger establecerá expira_en automáticamente`);
+        console.log(`✅ ${updatedCitas.length} cita(s) cancelada(s)`);
         
-        // 8. Mostrar mensaje de éxito
+        // 6. Mostrar mensaje de éxito
         if (esBloqueCompleto) {
-            const horasCanceladas = todasLasCitasDelBloque.map(c => c.hora).sort().join(', ');
-            showAlert(`✅ Bloque de ${(cita.duracion || 40)} minutos cancelado exitosamente. Se cancelaron las horas: ${horasCanceladas}. Se eliminarán automáticamente en 2 horas.`, 'success');
+            showAlert(`✅ Bloque de 80 minutos cancelado exitosamente. Se cancelaron ${todasLasCitasDelBloque.length} horas. Se eliminarán automáticamente en 2 horas.`, 'success');
         } else {
             showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
         }
         
-        // 9. Actualizar caché y notificar
+        // 7. Actualizar caché y notificar
         await limpiarCacheDespuesDeAgendar();
         await precargarCitasFuturas();
         
-        // 10. Notificar la liberación de cada hora
+        // 8. Notificar la liberación de cada hora
         for (const citaDelBloque of todasLasCitasDelBloque) {
             await notificarCambioCita(citaDelBloque.fecha, citaDelBloque.hora, 'cita_cancelada');
         }
         
-        // 11. Recargar la lista de citas
+        // 9. Recargar la lista de citas
         await cargarMisCitas();
         
         setTimeout(() => {
@@ -6821,7 +6807,6 @@ function getYucatanTimePlusHours(hours) {
         showAlert('❌ Error al cancelar la cita: ' + error.message, 'error');
     }
 }
-
 
     async function verificarCitasPasadas() {
     try {
