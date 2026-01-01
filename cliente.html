@@ -1521,6 +1521,9 @@ async function sincronizarEstadosHoras() {
         
         // 1. Obtener citas actualizadas
         await precargarCitasFuturas();
+
+        await forzarActualizacionBloquesOcupados(fechaFormateada);
+
         
         // 2. Obtener solicitudes pendientes
         await obtenerSolicitudesPendientes(true);
@@ -4174,7 +4177,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.title = 'Hora ocupada';
 }
 
-        function configurarBotonReservando(btn, horaStr, fecha) {
+     function configurarBotonReservando(btn, horaStr, fecha) {
     const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
     const horaSinSegundos = horaStr.includes(':') ? horaStr.split(':').slice(0, 2).join(':') : horaStr;
     const clave = `${fecha}_${horaStr}`;
@@ -4188,50 +4191,63 @@ async function forzarLimpiezaReserva(fecha, hora) {
     
     console.log(`🎯 CONFIGURANDO RESERVANDO: ${horaStr} para usuario ${reservaInfo.usuarioId}`);
     
-    // **CORRECCIÓN: Verificar si es parte de un bloque**
+    // **NUEVA LÓGICA: Verificar si es parte de un bloque YA OCUPADO**
     const esParteDeBloque = reservaInfo.esBloque || (reservaInfo.duracionServicio && reservaInfo.duracionServicio > 40);
     
-    // Configurar el botón como "reservando"
+    // **NUEVO: Verificar si la hora principal del bloque ya está ocupada**
+    let estaRealmenteOcupada = false;
+    let horaPrincipal = null;
+    
+    if (esParteDeBloque) {
+        horaPrincipal = reservaInfo.horaPrincipal || encontrarHoraPrincipalDelBloque(fecha, horaStr, reservaInfo);
+        
+        if (horaPrincipal) {
+            // Verificar si la hora principal ya está ocupada (tiene cita en BD)
+            estaRealmenteOcupada = estaHoraOcupadaEnBD(fecha, horaPrincipal);
+            
+            // Si la hora principal está ocupada, TODAS las horas del bloque también lo están
+            if (estaRealmenteOcupada) {
+                console.log(`🔗 ${horaStr} es parte de bloque ocupado (principal: ${horaPrincipal})`);
+            }
+        }
+    }
+    
+    // Verificar directamente si esta hora está ocupada
+    if (!estaRealmenteOcupada) {
+        estaRealmenteOcupada = estaHoraOcupadaEnBD(fecha, horaStr);
+    }
+    
+    // Configurar el botón
     btn.disabled = true;
-    btn.className = 'hora-btn reservando'; // Limpiar todas las clases y agregar solo estas
+    btn.className = 'hora-btn reservando';
     
-    // **MEJORADO: Mostrar indicador de bloque si corresponde**
-    const textoBloque = esParteDeBloque && reservaInfo.duracionServicio > 40 ? 
-        ` (${reservaInfo.duracionServicio}min)` : '';
-    
-    btn.innerHTML = `
-        ${horaFormateada}
-        <br>
-        <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
-            ${periodo}
-        </small>
-        <br>
-        <small style="
-            font-size: 9px;
-            color: #ffa500;
-            background: rgba(139, 69, 19, 0.3);
-            padding: 2px 4px;
-            border-radius: 4px;
-            margin-top: 3px;
-            display: block;
-            text-align: center;
-            white-space: normal;
-            max-width: 100%;
-            word-break: break-word;
-            animation: subtle-pulse 3s infinite;
-        ">
-            ⏳ Reservando por otro usuario${textoBloque}
-        </small>
-    `;
-    
-    // **CORRECCIÓN: Asegurar color rojo para horas ocupadas verdaderas**
-    // Verificar si realmente está ocupada (no solo reservando)
-    const citaExistente = todasLasCitasFuturasCache.some(c => 
-        c.fecha === fecha && c.hora === horaStr
-    );
-    
-    if (citaExistente) {
-        // Si realmente está ocupada, usar color rojo
+    // **DECISIÓN: Rojo si está ocupada, Café si solo está reservando**
+    if (estaRealmenteOcupada) {
+        // **OCUPADA - COLOR ROJO**
+        btn.classList.add('ocupada');
+        btn.classList.remove('reservando');
+        
+        btn.innerHTML = `
+            ${horaFormateada}
+            <br>
+            <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
+                ${periodo}
+            </small>
+            <br>
+            <small style="
+                font-size: 9px;
+                color: white;
+                background: rgba(255, 107, 107, 0.3);
+                padding: 2px 4px;
+                border-radius: 4px;
+                margin-top: 3px;
+                display: block;
+                text-align: center;
+            ">
+                🔒 Ocupada ${esParteDeBloque ? '(bloque)' : ''}
+            </small>
+        `;
+        
         btn.style.cssText = `
             background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%) !important;
             border-color: #ff3838 !important;
@@ -4250,7 +4266,13 @@ async function forzarLimpiezaReserva(fecha, hora) {
             transition: none !important;
         `;
         
-        // Actualizar texto para ocupada
+        btn.title = 'Hora ocupada';
+        
+    } else {
+        // **RESERVANDO - COLOR CAFÉ**
+        const textoBloque = esParteDeBloque && reservaInfo.duracionServicio > 40 ? 
+            ` (${reservaInfo.duracionServicio}min)` : '';
+        
         btn.innerHTML = `
             ${horaFormateada}
             <br>
@@ -4260,19 +4282,22 @@ async function forzarLimpiezaReserva(fecha, hora) {
             <br>
             <small style="
                 font-size: 9px;
-                color: white;
-                background: rgba(255, 107, 107, 0.3);
+                color: #ffa500;
+                background: rgba(139, 69, 19, 0.3);
                 padding: 2px 4px;
                 border-radius: 4px;
                 margin-top: 3px;
                 display: block;
                 text-align: center;
+                white-space: normal;
+                max-width: 100%;
+                word-break: break-word;
+                animation: subtle-pulse 3s infinite;
             ">
-                🔒 Ocupada
+                ⏳ Reservando por otro usuario${textoBloque}
             </small>
         `;
-    } else {
-        // Si solo está reservando, usar color café
+        
         btn.style.cssText = `
             background: linear-gradient(135deg, #f1a269 0%, #D2691E 100%) !important;
             border-color: #A0522D !important;
@@ -4290,9 +4315,62 @@ async function forzarLimpiezaReserva(fecha, hora) {
             font-weight: 600 !important;
             transition: none !important;
         `;
+        
+        btn.title = 'Hora siendo reservada por otro usuario';
+    }
+}
+
+function estaHoraOcupadaEnBD(fecha, hora) {
+    // Primero verificar en caché
+    const enCache = todasLasCitasFuturasCache.some(c => 
+        c.fecha === fecha && c.hora === hora
+    );
+    
+    if (enCache) {
+        return true;
     }
     
-    btn.title = citaExistente ? 'Hora ocupada' : 'Hora siendo reservada por otro usuario';
+    // Si no está en caché, podría ser parte de un bloque
+    // Buscar citas que tengan esta hora como parte de su bloque
+    const esParteDeBloque = todasLasCitasFuturasCache.some(c => {
+        if (!c.hora_principal) return false;
+        
+        // Si esta cita es un bloque y esta hora está dentro de su rango
+        const duracion = c.duracion || 40;
+        const slots = Math.ceil(duracion / 40);
+        const horaPrincipalIndex = obtenerIndexHora(c.hora_principal);
+        const horaActualIndex = obtenerIndexHora(hora);
+        
+        if (!isNaN(horaPrincipalIndex) && !isNaN(horaActualIndex)) {
+            return horaActualIndex >= horaPrincipalIndex && 
+                   horaActualIndex < horaPrincipalIndex + slots;
+        }
+        return false;
+    });
+    
+    return esParteDeBloque;
+}
+
+// **NUEVA FUNCIÓN AUXILIAR: Encontrar la hora principal de un bloque**
+function encontrarHoraPrincipalDelBloque(fecha, hora, reservaInfo) {
+    // Si ya tenemos la hora principal, usarla
+    if (reservaInfo.horaPrincipal) {
+        return reservaInfo.horaPrincipal;
+    }
+    
+    // Buscar entre todas las reservas del mismo usuario en la misma fecha
+    for (const [clave, reserva] of solicitudesPendientes.entries()) {
+        const [reservaFecha, reservaHora] = clave.split('_');
+        
+        if (reservaFecha === fecha && 
+            reserva.usuarioId === reservaInfo.usuarioId && 
+            !reserva.esBloque && 
+            reserva.duracionServicio > 40) {
+            return reservaHora;
+        }
+    }
+    
+    return null;
 }
 function limpiarBotonesCafeExpirados() {
     console.log('🧹 Limpiando botones café expirados...');
@@ -5295,44 +5373,147 @@ function forzarActualizacionUIReservas(fecha) {
         }
     }
 }
-        async function precargarCitasFuturas() {
-        try {
-            if (!barberoFijo) return;
-            
-            // Limpiar caché anterior
-            todasLasCitasFuturasCache = [];
-            cacheEstadosHoras.clear();
-            
-            const ahora = new Date();
-            const año = ahora.getFullYear();
-            const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-            const dia = String(ahora.getDate()).padStart(2, '0');
-            const fechaActual = `${año}-${mes}-${dia}`;
-            
-            const { data: citas, error } = await supabase
-                .from('citas')
-                .select('id, fecha, hora, estado, cliente_id, barbero_id')
-                .eq('barbero_id', barberoFijo.id)
-                .gte('fecha', fechaActual)
-                .in('estado', ['aceptada', 'pendiente', 'confirmada']);
+       async function precargarCitasFuturas() {
+    try {
+        if (!barberoFijo) return;
+        
+        // Limpiar caché anterior
+        todasLasCitasFuturasCache = [];
+        cacheEstadosHoras.clear();
+        
+        const ahora = new Date();
+        const año = ahora.getFullYear();
+        const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+        const dia = String(ahora.getDate()).padStart(2, '0');
+        const fechaActual = `${año}-${mes}-${dia}`;
+        
+        // **MODIFICADO: Incluir hora_principal y duración**
+        const { data: citas, error } = await supabase
+            .from('citas')
+            .select('id, fecha, hora, estado, cliente_id, barbero_id, hora_principal, duracion')
+            .eq('barbero_id', barberoFijo.id)
+            .gte('fecha', fechaActual)
+            .in('estado', ['aceptada', 'pendiente', 'confirmada']);
 
-            if (error) throw error;
+        if (error) throw error;
+        
+        todasLasCitasFuturasCache = citas || [];
+        
+        // **MEJORADO: Actualizar caché para TODAS las horas del bloque**
+        if (citas) {
+            citas.forEach(cita => {
+                // Marcar la hora principal como ocupada
+                actualizarCacheLocal(cita.fecha, cita.hora, 'ocupada', cita.cliente_id);
+                
+                // Si es parte de un bloque, marcar también las horas adicionales
+                if (cita.hora_principal && cita.duracion && cita.duracion > 40) {
+                    const slotsNecesarios = Math.ceil(cita.duracion / 40);
+                    const horaPrincipalIndex = obtenerIndexHora(cita.hora_principal);
+                    
+                    if (!isNaN(horaPrincipalIndex)) {
+                        for (let i = 1; i < slotsNecesarios; i++) {
+                            const horaIndex = horaPrincipalIndex + i;
+                            const horaBtn = document.querySelector(`.hora-btn[data-index="${horaIndex}"]`);
+                            
+                            if (horaBtn) {
+                                const horaStr = horaBtn.dataset.hora;
+                                // Marcar también como ocupada en caché
+                                actualizarCacheLocal(cita.fecha, horaStr, 'ocupada', cita.cliente_id);
+                                console.log(`📦 Marcando ${horaStr} como ocupada (parte de bloque)`);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        console.log(`📊 ${todasLasCitasFuturasCache.length} citas futuras precargadas`);
+        
+    } catch (error) {
+        console.error('❌ Error precargando citas futuras:', error);
+    }
+}
+
+async function forzarActualizacionBloquesOcupados(fecha) {
+    console.log(`🎯 Forzando actualización de bloques ocupados para: ${fecha}`);
+    
+    // Buscar todas las citas que sean bloques
+    const citasBloque = todasLasCitasFuturasCache.filter(cita => 
+        cita.hora_principal && cita.duracion && cita.duracion > 40
+    );
+    
+    for (const cita of citasBloque) {
+        const duracion = cita.duracion || 40;
+        const slotsNecesarios = Math.ceil(duracion / 40);
+        const horaPrincipalIndex = obtenerIndexHora(cita.hora_principal);
+        
+        if (!isNaN(horaPrincipalIndex)) {
+            console.log(`📦 Procesando bloque ocupado: ${cita.hora_principal} (${duracion}min, ${slotsNecesarios} slots)`);
             
-            todasLasCitasFuturasCache = citas || [];
-            
-            // Actualizar caché local
-            if (citas) {
-                citas.forEach(cita => {
-                    actualizarCacheLocal(cita.fecha, cita.hora, 'ocupada', cita.cliente_id);
-                });
+            // Marcar TODAS las horas del bloque como ocupadas
+            for (let i = 0; i < slotsNecesarios; i++) {
+                const horaIndex = horaPrincipalIndex + i;
+                const horaBtn = document.querySelector(`.hora-btn[data-index="${horaIndex}"]`);
+                
+                if (horaBtn) {
+                    const horaStr = horaBtn.dataset.hora;
+                    
+                    // Forzar actualización como ocupada
+                    if (!horaBtn.classList.contains('mi-reserva-activa')) {
+                        console.log(`   - Configurando ${horaStr} como ocupada`);
+                        
+                        // Limpiar y configurar como ocupada
+                        horaBtn.className = 'hora-btn ocupada';
+                        horaBtn.disabled = true;
+                        
+                        const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
+                        
+                        horaBtn.innerHTML = `
+                            ${horaFormateada}
+                            <br>
+                            <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
+                                ${periodo}
+                            </small>
+                            <br>
+                            <small style="
+                                font-size: 9px;
+                                color: white;
+                                background: rgba(255, 107, 107, 0.3);
+                                padding: 2px 4px;
+                                border-radius: 4px;
+                                margin-top: 3px;
+                                display: block;
+                                text-align: center;
+                            ">
+                                🔒 Ocupada ${i > 0 ? '(bloque)' : ''}
+                            </small>
+                        `;
+                        
+                        horaBtn.style.cssText = `
+                            background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%) !important;
+                            border-color: #ff3838 !important;
+                            color: white !important;
+                            cursor: not-allowed !important;
+                            opacity: 0.9 !important;
+                            pointer-events: none !important;
+                            min-height: 60px;
+                            display: flex !important;
+                            flex-direction: column !important;
+                            justify-content: center !important;
+                            align-items: center !important;
+                            padding: 8px 4px !important;
+                            font-size: 13px !important;
+                            font-weight: 600 !important;
+                            transition: none !important;
+                        `;
+                        
+                        horaBtn.title = 'Hora ocupada';
+                    }
+                }
             }
-            
-            console.log(`📊 ${todasLasCitasFuturasCache.length} citas futuras precargadas`);
-            
-        } catch (error) {
-            console.error('❌ Error precargando citas futuras:', error);
         }
     }
+}
 
             async function cargarBarberoFijo() {
                 try {
