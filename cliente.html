@@ -1433,7 +1433,7 @@ function iniciarPollingInteligente() {
                 if (ahora - ultimaEjecucion < 2000) {
                     return;
                 }
-                await limpiarBotonesCafeExpirados();
+                await limpiarBotonesReservandoExpirados();
                 ultimaEjecucion = ahora;
                 console.log('🔄 Ejecutando polling inteligente (activo en agendar)');
                 
@@ -4174,7 +4174,7 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.title = 'Hora ocupada';
 }
 
-     function configurarBotonReservando(btn, horaStr, fecha) {
+    function configurarBotonReservando(btn, horaStr, fecha) {
     const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
     const horaSinSegundos = horaStr.includes(':') ? horaStr.split(':').slice(0, 2).join(':') : horaStr;
     const clave = `${fecha}_${horaStr}`;
@@ -4186,135 +4186,63 @@ async function forzarLimpiezaReserva(fecha, hora) {
         return;
     }
     
-    console.log(`🎯 CONFIGURANDO RESERVANDO: ${horaStr} para usuario ${reservaInfo.usuarioId}`);
+    console.log(`🎯 CONFIGURANDO RESERVANDO (ROJO): ${horaStr} para usuario ${reservaInfo.usuarioId}`);
     
-    // **NUEVA LÓGICA: Verificar si es parte de un bloque YA OCUPADO**
+    // **NUEVA LÓGICA: Siempre usar color ROJO para horas reservadas por otros usuarios**
     const esParteDeBloque = reservaInfo.esBloque || (reservaInfo.duracionServicio && reservaInfo.duracionServicio > 40);
-    
-    // **NUEVO: Verificar si la hora principal del bloque ya está ocupada**
-    let estaRealmenteOcupada = false;
-    let horaPrincipal = null;
-    
-    if (esParteDeBloque) {
-        horaPrincipal = reservaInfo.horaPrincipal || encontrarHoraPrincipalDelBloque(fecha, horaStr, reservaInfo);
-        
-        if (horaPrincipal) {
-            // Verificar si la hora principal ya está ocupada (tiene cita en BD)
-            estaRealmenteOcupada = estaHoraOcupadaEnBD(fecha, horaPrincipal);
-            
-            // Si la hora principal está ocupada, TODAS las horas del bloque también lo están
-            if (estaRealmenteOcupada) {
-                console.log(`🔗 ${horaStr} es parte de bloque ocupado (principal: ${horaPrincipal})`);
-            }
-        }
-    }
-    
-    // Verificar directamente si esta hora está ocupada
-    if (!estaRealmenteOcupada) {
-        estaRealmenteOcupada = estaHoraOcupadaEnBD(fecha, horaStr);
-    }
     
     // Configurar el botón
     btn.disabled = true;
     btn.className = 'hora-btn reservando';
     
-    // **DECISIÓN: Rojo si está ocupada, Café si solo está reservando**
-    if (estaRealmenteOcupada) {
-        // **OCUPADA - COLOR ROJO**
-        btn.classList.add('ocupada');
-        btn.classList.remove('reservando');
-        
-        btn.innerHTML = `
-            ${horaFormateada}
-            <br>
-            <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
-                ${periodo}
-            </small>
-            <br>
-            <small style="
-                font-size: 9px;
-                color: white;
-                background: rgba(255, 107, 107, 0.3);
-                padding: 2px 4px;
-                border-radius: 4px;
-                margin-top: 3px;
-                display: block;
-                text-align: center;
-            ">
-                🔒 Ocupada ${esParteDeBloque ? '(bloque)' : ''}
-            </small>
-        `;
-        
-        btn.style.cssText = `
-            background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%) !important;
-            border-color: #ff3838 !important;
-            color: white !important;
-            cursor: not-allowed !important;
-            opacity: 0.9 !important;
-            pointer-events: none !important;
-            min-height: 60px;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            align-items: center !important;
-            padding: 8px 4px !important;
-            font-size: 13px !important;
-            font-weight: 600 !important;
-            transition: none !important;
-        `;
-        
-        btn.title = 'Hora ocupada';
-        
-    } else {
-        // **RESERVANDO - COLOR CAFÉ**
-        const textoBloque = esParteDeBloque && reservaInfo.duracionServicio > 40 ? 
-            ` (${reservaInfo.duracionServicio}min)` : '';
-        
-        btn.innerHTML = `
-            ${horaFormateada}
-            <br>
-            <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
-                ${periodo}
-            </small>
-            <br>
-            <small style="
-                font-size: 9px;
-                color: #ffa500;
-                background: rgba(139, 69, 19, 0.3);
-                padding: 2px 4px;
-                border-radius: 4px;
-                margin-top: 3px;
-                display: block;
-                text-align: center;
-                white-space: normal;
-                max-width: 100%;
-                word-break: break-word;
-                animation: subtle-pulse 3s infinite;
-            ">
-                ⏳ Reservando por otro usuario${textoBloque}
-            </small>
-        `;
-        
-        btn.style.cssText = `
-            background: linear-gradient(135deg, #f1a269 0%, #D2691E 100%) !important;
-            border-color: #A0522D !important;
-            color: white !important;
-            cursor: not-allowed !important;
-            opacity: 0.9 !important;
-            pointer-events: none !important;
-            min-height: 60px;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            align-items: center !important;
-            padding: 8px 4px !important;
-            font-size: 13px !important;
-            font-weight: 600 !important;
-            transition: none !important;
-        `;
-        
-        btn.title = 'Hora siendo reservada por otro usuario';
-    }
+    // **SIEMPRE ROJO - COLOR ROJO INTENSIDAD MEDIA/ALTA**
+    const textoBloque = esParteDeBloque && reservaInfo.duracionServicio > 40 ? 
+        ` (${reservaInfo.duracionServicio}min)` : '';
+    
+    btn.innerHTML = `
+        ${horaFormateada}
+        <br>
+        <small style="font-size: 8px; color: #fff; margin-top: 2px;">
+            ${periodo}
+        </small>
+        <br>
+        <small style="
+            font-size: 9px;
+            color: white;
+            background: rgba(220, 53, 69, 0.4);
+            padding: 2px 4px;
+            border-radius: 4px;
+            margin-top: 3px;
+            display: block;
+            text-align: center;
+            white-space: normal;
+            max-width: 100%;
+            word-break: break-word;
+            animation: subtle-pulse 3s infinite;
+        ">
+            ⏳ Reservando por otro usuario${textoBloque}
+        </small>
+    `;
+    
+    btn.style.cssText = `
+        background: linear-gradient(135deg, #ff6b6b 0%, #dc3545 100%) !important;
+        border-color: #c82333 !important;
+        color: white !important;
+        cursor: not-allowed !important;
+        opacity: 0.9 !important;
+        pointer-events: none !important;
+        min-height: 60px;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 8px 4px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        transition: none !important;
+    `;
+    
+    btn.title = 'Hora siendo reservada por otro usuario';
 }
 
 function estaHoraOcupadaEnBD(fecha, hora) {
@@ -4369,13 +4297,13 @@ function encontrarHoraPrincipalDelBloque(fecha, hora, reservaInfo) {
     
     return null;
 }
-function limpiarBotonesCafeExpirados() {
-    console.log('🧹 Limpiando botones café expirados...');
+function limpiarBotonesReservandoExpirados() {
+    console.log('🧹 Limpiando botones "reservando" expirados...');
     
     const ahora = new Date();
-    const botonesCafe = document.querySelectorAll('.hora-btn.reservando');
+    const botonesReservando = document.querySelectorAll('.hora-btn.reservando');
     
-    botonesCafe.forEach(btn => {
+    botonesReservando.forEach(btn => {
         const fecha = btn.dataset.fecha;
         const hora = btn.dataset.hora;
         const clave = `${fecha}_${hora}`;
@@ -4384,7 +4312,7 @@ function limpiarBotonesCafeExpirados() {
         
         // Si no hay información de reserva o ha expirado
         if (!reservaInfo || reservaInfo.expira_en <= ahora) {
-            console.log(`🧽 Limpiando botón café expirado: ${hora}`);
+            console.log(`🧽 Limpiando botón "reservando" expirado: ${hora}`);
             
             // Verificar si realmente está disponible
             const citaExistente = todasLasCitasFuturasCache.some(c => 
@@ -5293,7 +5221,7 @@ function forzarActualizacionUIReservas(fecha) {
     const fechaActual = formatDate(selectedDate);
     if (fecha !== fechaActual) return;
     
-    console.log(`🎯 FORZANDO ACTUALIZACIÓN UI RESERVAS: ${fecha}`);
+    console.log(`🎯 FORZANDO ACTUALIZACIÓN UI RESERVAS (ROJO): ${fecha}`);
     
     // Recorrer todas las reservas en memoria
     for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
@@ -5315,20 +5243,20 @@ function forzarActualizacionUIReservas(fecha) {
                                 horaBtn.innerHTML.includes('Reservando por otro usuario');
             
             if (!yaConfigurado) {
-                console.log(`🔄 Configurando ${reservaHora} como reservando`);
+                console.log(`🔄 Configurando ${reservaHora} como reservando (ROJO)`);
                 
                 // Limpiar completamente
                 horaBtn.className = 'hora-btn';
                 
-                // Aplicar clase reservando y estilos
+                // Aplicar clase reservando y estilos ROJOS
                 horaBtn.disabled = true;
                 horaBtn.classList.add('reservando');
                 horaBtn.classList.remove('selected', 'mi-reserva-activa', 'disponible');
                 
-                // Aplicar estilos INMEDIATOS
+                // Aplicar estilos ROJOS INMEDIATOS
                 horaBtn.style.cssText = `
-                    background: linear-gradient(135deg, #f1a269 0%, #D2691E 100%) !important;
-                    border-color: #A0522D !important;
+                    background: linear-gradient(135deg, #ff6b6b 0%, #dc3545 100%) !important;
+                    border-color: #c82333 !important;
                     color: white !important;
                     cursor: not-allowed !important;
                     opacity: 0.9 !important;
@@ -5343,14 +5271,19 @@ function forzarActualizacionUIReservas(fecha) {
                     font-weight: 600 !important;
                 `;
                 
+                // Verificar si es parte de un bloque
+                const esParteDeBloque = reservaInfo.esBloque || (reservaInfo.duracionServicio && reservaInfo.duracionServicio > 40);
+                const textoBloque = esParteDeBloque && reservaInfo.duracionServicio > 40 ? 
+                    ` (${reservaInfo.duracionServicio}min)` : '';
+                
                 // Actualizar contenido
                 horaBtn.innerHTML = `
                     ${reservaHora}
                     <br>
                     <small style="
                         font-size: 9px;
-                        color: #ffa500;
-                        background: rgba(139, 69, 19, 0.3);
+                        color: white;
+                        background: rgba(220, 53, 69, 0.4);
                         padding: 2px 4px;
                         border-radius: 4px;
                         margin-top: 3px;
@@ -5361,11 +5294,11 @@ function forzarActualizacionUIReservas(fecha) {
                         word-break: break-word;
                         animation: subtle-pulse 3s infinite;
                     ">
-                        ⏳ Reservando por otro usuario
+                        ⏳ Reservando por otro usuario${textoBloque}
                     </small>
                 `;
                 
-                console.log(`✅ ${reservaHora} configurado como "Reservando por otro usuario"`);
+                console.log(`✅ ${reservaHora} configurado como "Reservando por otro usuario" (ROJO)`);
             }
         }
     }
