@@ -6234,7 +6234,7 @@ function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
              data-es-bloque="true"
              data-horas-bloque="${horasBloque.join(',')}">
             <div class="cita-header">
-                <h3>${citaPrincipal.servicios.nombre} (Bloque de 80 minutos)</h3>
+                <h3>${citaPrincipal.servicios.nombre}</h3>
                 <span class="cita-estado estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
             </div>
             <div class="cita-detalles">
@@ -6245,6 +6245,7 @@ function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
                 <p><strong>👤 Barbero:</strong> ${citaPrincipal.barberos.nombre}</p>
                 <p><strong>💰 Precio total:</strong> $${citaPrincipal.servicios.precio}</p>
                 ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
+                <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
                 <div id="contador-${citaPrincipal.id}" class="contador-cita"></div>
                 ${mensajeCancelacionHTML}
             </div>
@@ -6295,6 +6296,7 @@ function generarHTMLCitaIndividual(cita) {
                 <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
                 <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
                 ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
                 <div id="contador-${cita.id}" class="contador-cita"></div>
                 ${mensajeCancelacionHTML}
             </div>
