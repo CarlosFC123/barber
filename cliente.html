@@ -4158,9 +4158,23 @@ async function forzarLimpiezaReserva(fecha, hora) {
     btn.title = 'Hora pasada';
 }
 
-         function configurarBotonOcupada(btn, horaStr) {
-    // Usar la nueva función con parámetros por defecto
-    configurarBotonOcupadaComoBloque(btn, horaStr, 40, true);
+            function configurarBotonOcupada(btn, horaStr) {
+    const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
+    
+    btn.disabled = true;
+    btn.classList.add('ocupada');
+    btn.innerHTML = `
+        ${horaFormateada}
+        <br>
+        <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
+            ${periodo}
+        </small>
+        <br>
+        <small style="font-size: 10px; color: #ff6b6b;">
+            🔒 Ocupada
+        </small>
+    `;
+    btn.title = 'Hora ocupada';
 }
 
      function configurarBotonReservando(btn, horaStr, fecha) {
@@ -4316,33 +4330,27 @@ function estaHoraOcupadaEnBD(fecha, hora) {
         return true;
     }
     
-    // Si no está en caché como hora directa, podría ser parte de un bloque
+    // Si no está en caché, podría ser parte de un bloque
     // Buscar citas que tengan esta hora como parte de su bloque
-    for (const cita of todasLasCitasFuturasCache) {
-        if (!cita.hora_principal) continue;
+    const esParteDeBloque = todasLasCitasFuturasCache.some(c => {
+        if (!c.hora_principal) return false;
         
-        const duracion = cita.duracion || 40;
-        
-        // Solo verificar bloques largos
-        if (duracion <= 40) continue;
-        
-        // Verificar si esta hora está dentro del rango del bloque
-        const horaPrincipalIndex = obtenerIndexHora(cita.hora_principal);
+        // Si esta cita es un bloque y esta hora está dentro de su rango
+        const duracion = c.duracion || 40;
+        const slots = Math.ceil(duracion / 40);
+        const horaPrincipalIndex = obtenerIndexHora(c.hora_principal);
         const horaActualIndex = obtenerIndexHora(hora);
         
         if (!isNaN(horaPrincipalIndex) && !isNaN(horaActualIndex)) {
-            const slots = Math.ceil(duracion / 40);
-            
-            if (horaActualIndex >= horaPrincipalIndex && 
-                horaActualIndex < horaPrincipalIndex + slots) {
-                console.log(`🔗 ${hora} es parte del bloque ocupado que comienza en ${cita.hora_principal}`);
-                return true;
-            }
+            return horaActualIndex >= horaPrincipalIndex && 
+                   horaActualIndex < horaPrincipalIndex + slots;
         }
-    }
+        return false;
+    });
     
-    return false;
+    return esParteDeBloque;
 }
+
 // **NUEVA FUNCIÓN AUXILIAR: Encontrar la hora principal de un bloque**
 function encontrarHoraPrincipalDelBloque(fecha, hora, reservaInfo) {
     // Si ya tenemos la hora principal, usarla
@@ -5379,151 +5387,53 @@ function forzarActualizacionUIReservas(fecha) {
         const dia = String(ahora.getDate()).padStart(2, '0');
         const fechaActual = `${año}-${mes}-${dia}`;
         
-        // **CONSULTA ACTUALIZADA: Incluir duración de servicios**
+        // **MODIFICADO: Incluir hora_principal y duración**
         const { data: citas, error } = await supabase
             .from('citas')
-            .select(`
-                id, 
-                fecha, 
-                hora, 
-                estado, 
-                cliente_id, 
-                barbero_id, 
-                hora_principal,
-                servicio_id,
-                es_bloque,
-                duracion,
-                servicios (
-                    duracion as duracion_servicio
-                )
-            `)
+            .select('id, fecha, hora, estado, cliente_id, barbero_id, hora_principal, duracion')
             .eq('barbero_id', barberoFijo.id)
             .gte('fecha', fechaActual)
             .in('estado', ['aceptada', 'pendiente', 'confirmada']);
 
         if (error) throw error;
         
-        // Procesar las citas para obtener duración correcta
-        todasLasCitasFuturasCache = (citas || []).map(cita => ({
-            id: cita.id,
-            fecha: cita.fecha,
-            hora: cita.hora,
-            estado: cita.estado,
-            cliente_id: cita.cliente_id,
-            barbero_id: cita.barbero_id,
-            hora_principal: cita.hora_principal,
-            duracion: cita.duracion || cita.duracion_servicio || 40, // Priorizar duración de cita
-            servicio_id: cita.servicio_id,
-            es_bloque: cita.es_bloque
-        }));
+        todasLasCitasFuturasCache = citas || [];
         
-        console.log(`📊 ${todasLasCitasFuturasCache.length} citas futuras precargadas`);
-        
-        // **MEJORADO: Marcar todas las horas de bloques como ocupadas en caché**
-        if (todasLasCitasFuturasCache.length > 0) {
-            // Agrupar por hora_principal para bloques
-            const bloques = {};
-            
-            todasLasCitasFuturasCache.forEach(cita => {
-                if (cita.hora_principal) {
-                    if (!bloques[cita.hora_principal]) {
-                        bloques[cita.hora_principal] = [];
-                    }
-                    bloques[cita.hora_principal].push(cita);
-                }
-                
-                // Marcar siempre como ocupada en caché
+        // **MEJORADO: Actualizar caché para TODAS las horas del bloque**
+        if (citas) {
+            citas.forEach(cita => {
+                // Marcar la hora principal como ocupada
                 actualizarCacheLocal(cita.fecha, cita.hora, 'ocupada', cita.cliente_id);
-            });
-            
-            // Procesar bloques para marcar horas adicionales
-            for (const [horaPrincipal, citasBloque] of Object.entries(bloques)) {
-                if (citasBloque.length > 0) {
-                    // Tomar duración de la primera cita del bloque
-                    const duracionBloque = citasBloque[0].duracion || 40;
+                
+                // Si es parte de un bloque, marcar también las horas adicionales
+                if (cita.hora_principal && cita.duracion && cita.duracion > 40) {
+                    const slotsNecesarios = Math.ceil(cita.duracion / 40);
+                    const horaPrincipalIndex = obtenerIndexHora(cita.hora_principal);
                     
-                    if (duracionBloque > 40) {
-                        const slotsNecesarios = Math.ceil(duracionBloque / 40);
-                        const horaPrincipalIndex = obtenerIndexHora(horaPrincipal);
-                        
-                        if (!isNaN(horaPrincipalIndex)) {
-                            console.log(`📦 Bloque detectado: ${horaPrincipal} (${duracionBloque}min, ${slotsNecesarios} slots)`);
+                    if (!isNaN(horaPrincipalIndex)) {
+                        for (let i = 1; i < slotsNecesarios; i++) {
+                            const horaIndex = horaPrincipalIndex + i;
+                            const horaBtn = document.querySelector(`.hora-btn[data-index="${horaIndex}"]`);
                             
-                            // Marcar horas del bloque en caché
-                            for (let i = 0; i < slotsNecesarios; i++) {
-                                const horaIndex = horaPrincipalIndex + i;
-                                const horaBtn = document.querySelector(`.hora-btn[data-index="${horaIndex}"]`);
-                                
-                                if (horaBtn) {
-                                    const horaStr = horaBtn.dataset.hora;
-                                    // Usar cliente_id de la primera cita del bloque
-                                    actualizarCacheLocal(citasBloque[0].fecha, horaStr, 'ocupada', citasBloque[0].cliente_id);
-                                }
+                            if (horaBtn) {
+                                const horaStr = horaBtn.dataset.hora;
+                                // Marcar también como ocupada en caché
+                                actualizarCacheLocal(cita.fecha, horaStr, 'ocupada', cita.cliente_id);
+                                console.log(`📦 Marcando ${horaStr} como ocupada (parte de bloque)`);
                             }
                         }
                     }
                 }
-            }
+            });
         }
+        
+        console.log(`📊 ${todasLasCitasFuturasCache.length} citas futuras precargadas`);
         
     } catch (error) {
         console.error('❌ Error precargando citas futuras:', error);
-        // Si hay error con la columna duracion, usar consulta más simple
-        console.log('⚠️ Intentando consulta alternativa...');
-        await cargarCitasSinDuracion();
     }
 }
 
-// **FUNCIÓN DE FALLBACK si la columna duracion no existe**
-async function cargarCitasSinDuracion() {
-    try {
-        const ahora = new Date();
-        const año = ahora.getFullYear();
-        const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-        const dia = String(ahora.getDate()).padStart(2, '0');
-        const fechaActual = `${año}-${mes}-${dia}`;
-        
-        const { data: citas, error } = await supabase
-            .from('citas')
-            .select(`
-                id, 
-                fecha, 
-                hora, 
-                estado, 
-                cliente_id, 
-                barbero_id, 
-                hora_principal,
-                servicio_id,
-                es_bloque,
-                servicios (
-                    duracion
-                )
-            `)
-            .eq('barbero_id', barberoFijo.id)
-            .gte('fecha', fechaActual)
-            .in('estado', ['aceptada', 'pendiente', 'confirmada']);
-
-        if (error) throw error;
-        
-        todasLasCitasFuturasCache = (citas || []).map(cita => ({
-            id: cita.id,
-            fecha: cita.fecha,
-            hora: cita.hora,
-            estado: cita.estado,
-            cliente_id: cita.cliente_id,
-            barbero_id: cita.barbero_id,
-            hora_principal: cita.hora_principal,
-            duracion: cita.servicios?.duracion || 40,
-            servicio_id: cita.servicio_id,
-            es_bloque: cita.es_bloque
-        }));
-        
-        console.log(`📊 ${todasLasCitasFuturasCache.length} citas futuras precargadas (modo fallback)`);
-        
-    } catch (error) {
-        console.error('❌ Error en consulta alternativa:', error);
-    }
-}
 async function forzarActualizacionBloquesOcupados(fecha) {
     console.log(`🎯 Forzando actualización de bloques ocupados para: ${fecha}`);
     
@@ -5532,16 +5442,14 @@ async function forzarActualizacionBloquesOcupados(fecha) {
         cita.hora_principal && cita.duracion && cita.duracion > 40
     );
     
-    console.log(`📦 Encontrados ${citasBloque.length} bloques ocupados`);
-    
     for (const cita of citasBloque) {
         const duracion = cita.duracion || 40;
         const slotsNecesarios = Math.ceil(duracion / 40);
         const horaPrincipalIndex = obtenerIndexHora(cita.hora_principal);
         
-        console.log(`📦 Procesando bloque: ${cita.hora_principal} (${duracion}min, ${slotsNecesarios} slots)`);
-        
         if (!isNaN(horaPrincipalIndex)) {
+            console.log(`📦 Procesando bloque ocupado: ${cita.hora_principal} (${duracion}min, ${slotsNecesarios} slots)`);
+            
             // Marcar TODAS las horas del bloque como ocupadas
             for (let i = 0; i < slotsNecesarios; i++) {
                 const horaIndex = horaPrincipalIndex + i;
@@ -5550,11 +5458,8 @@ async function forzarActualizacionBloquesOcupados(fecha) {
                 if (horaBtn) {
                     const horaStr = horaBtn.dataset.hora;
                     
-                    // Verificar si ya está correctamente configurado
-                    const yaEsOcupada = horaBtn.classList.contains('ocupada') && 
-                                      horaBtn.style.background.includes('ff6b6b');
-                    
-                    if (!yaEsOcupada) {
+                    // Forzar actualización como ocupada
+                    if (!horaBtn.classList.contains('mi-reserva-activa')) {
                         console.log(`   - Configurando ${horaStr} como ocupada`);
                         
                         // Limpiar y configurar como ocupada
@@ -5562,10 +5467,6 @@ async function forzarActualizacionBloquesOcupados(fecha) {
                         horaBtn.disabled = true;
                         
                         const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
-                        
-                        // Determinar si es la hora principal o parte del bloque
-                        const esHoraPrincipal = i === 0;
-                        const textoBloque = !esHoraPrincipal ? '(bloque)' : '';
                         
                         horaBtn.innerHTML = `
                             ${horaFormateada}
@@ -5584,11 +5485,10 @@ async function forzarActualizacionBloquesOcupados(fecha) {
                                 display: block;
                                 text-align: center;
                             ">
-                                🔒 Ocupada ${textoBloque}
+                                🔒 Ocupada ${i > 0 ? '(bloque)' : ''}
                             </small>
                         `;
                         
-                        // Aplicar estilo ROJO
                         horaBtn.style.cssText = `
                             background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%) !important;
                             border-color: #ff3838 !important;
@@ -5608,13 +5508,9 @@ async function forzarActualizacionBloquesOcupados(fecha) {
                         `;
                         
                         horaBtn.title = 'Hora ocupada';
-                    } else {
-                        console.log(`   - ${horaStr} ya está configurada como ocupada`);
                     }
                 }
             }
-        } else {
-            console.log(`⚠️ No se pudo obtener índice para ${cita.hora_principal}`);
         }
     }
 }
@@ -6081,9 +5977,8 @@ async function agendarCita(e) {
                     notas: i === 0 ? notas : `Parte de bloque de ${duracionServicio} minutos (hora principal: ${hora})`,
                     estado: 'aceptada',
                     creado_en: getCurrentTimeYucatan(),
-                    es_bloque: duracionServicio > 40, // Marcar como bloque si es servicio largo
-                    hora_principal: i === 0 ? null : hora, // Marcar la hora principal
-                    duracion: duracionServicio // **NUEVO: Guardar la duración directamente**
+                    es_bloque: true,
+                    hora_principal: i === 0 ? null : hora // Marcar la hora principal
                 });
             }
         }
@@ -6094,7 +5989,7 @@ async function agendarCita(e) {
             .insert(citasACrear)
             .select(`
                 *,
-                servicios(nombre, precio, duracion), // **NUEVO: Incluir duración**
+                servicios(nombre, precio),
                 barberos(nombre)
             `);
 
@@ -6116,25 +6011,18 @@ async function agendarCita(e) {
         // 1. Cancelar la reserva temporal completa
         await liberarReservaCompleta(fechaFormateada, hora, duracionServicio);
         
-        // 2. Actualizar caché de citas futuras INMEDIATAMENTE con información completa
+        // 2. Actualizar caché de citas futuras INMEDIATAMENTE
         if (data) {
             data.forEach(cita => {
-                // **MEJORADO: Incluir toda la información necesaria para bloques**
                 todasLasCitasFuturasCache.push({
                     id: cita.id,
                     fecha: cita.fecha,
                     hora: cita.hora,
                     estado: 'aceptada',
                     barbero_id: cita.barbero_id,
-                    cliente_id: cita.cliente_id,
-                    hora_principal: cita.hora_principal,
-                    duracion: cita.duracion || cita.servicios?.duracion || duracionServicio, // **NUEVO: Guardar duración**
-                    servicio_id: cita.servicio_id,
-                    es_bloque: cita.es_bloque
+                    cliente_id: cita.cliente_id
                 });
             });
-            
-            console.log(`📊 Caché actualizado con ${data.length} citas nuevas`);
         }
         
         // 3. Actualizar la UI INMEDIATAMENTE a "ocupada" para todas las horas del bloque
@@ -6143,10 +6031,7 @@ async function agendarCita(e) {
                 const siguienteHora = document.querySelector(`.hora-btn[data-index="${horaIndex + i}"]`);
                 if (siguienteHora) {
                     const siguienteHoraStr = siguienteHora.dataset.hora;
-                    
-                    // **MEJORADO: Configurar como ocupada con indicador de bloque si corresponde**
-                    const esHoraPrincipal = i === 0;
-                    configurarBotonOcupadaComoBloque(siguienteHora, siguienteHoraStr, duracionServicio, esHoraPrincipal);
+                    configurarBotonOcupada(siguienteHora, siguienteHoraStr);
                 }
             }
         }
@@ -6163,15 +6048,7 @@ async function agendarCita(e) {
         // 5. Enviar correo de confirmación (solo uno por el bloque completo)
         let correoEnviado = false;
         if (data && data[0]) {
-            // **MEJORADO: Pasar información de duración al email**
-            const citaParaEmail = {
-                ...data[0],
-                servicios: {
-                    ...data[0].servicios,
-                    duracion: duracionServicio // Asegurar duración correcta
-                }
-            };
-            correoEnviado = await enviarNotificacionCita(citaParaEmail);
+            correoEnviado = await enviarNotificacionCita(data[0]);
         }
         
         // 6. Limpiar formulario
@@ -6197,7 +6074,7 @@ async function agendarCita(e) {
         currentMonth = new Date();
         generateCalendar(currentMonth);
         
-        // 9. Limpiar caché y recargar citas futuras
+        // 9. Limpiar caché
         await precargarCitasFuturas();
         
         // 10. Recargar citas del usuario
@@ -6227,58 +6104,6 @@ async function agendarCita(e) {
     }
 }
 
-function configurarBotonOcupadaComoBloque(btn, horaStr, duracionServicio, esHoraPrincipal = true) {
-    const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
-    
-    btn.disabled = true;
-    btn.className = 'hora-btn ocupada'; // Limpiar todas las clases
-    
-    // **MEJORADO: Mostrar indicador de bloque si no es hora principal**
-    const textoBloque = !esHoraPrincipal && duracionServicio > 40 ? '(bloque)' : '';
-    const textoAdicional = duracionServicio > 40 ? ` (${duracionServicio}min)` : '';
-    
-    btn.innerHTML = `
-        ${horaFormateada}
-        <br>
-        <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
-            ${periodo}
-        </small>
-        <br>
-        <small style="
-            font-size: 9px;
-            color: white;
-            background: rgba(255, 107, 107, 0.3);
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-top: 3px;
-            display: inline-block;
-        ">
-            🔒 Ocupada ${textoBloque}
-        </small>
-    `;
-    
-    // **Aplicar estilo ROJO consistente**
-    btn.style.cssText = `
-        background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%) !important;
-        border-color: #ff3838 !important;
-        color: white !important;
-        box-shadow: 0 2px 5px rgba(255, 107, 107, 0.3) !important;
-        cursor: not-allowed !important;
-        opacity: 0.9 !important;
-        pointer-events: none !important;
-        min-height: 60px;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        align-items: center !important;
-        padding: 8px 4px !important;
-        font-size: 13px !important;
-        font-weight: 600 !important;
-        transition: none !important;
-    `;
-    
-    btn.title = `Hora ocupada${textoAdicional}`;
-}
     async function limpiarSolicitudesCorruptas() {
         try {
             console.log('🧹 Limpiando solicitudes temporales corruptas...');
