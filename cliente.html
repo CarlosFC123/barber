@@ -5576,27 +5576,10 @@ function getExpiraEnTime(segundos = 30) {
 
 
 
-    function getYucatanDateTime(dateStr, timeStr) {
+   function getYucatanDateTime(dateStr, timeStr) {
     try {
         console.log(`📅 getYucatanDateTime recibió: dateStr="${dateStr}", timeStr="${timeStr}"`);
         
-        // Si ambos parámetros están vacíos o undefined
-        if (!dateStr && !timeStr) {
-            console.warn('⚠️ Ambos parámetros están vacíos');
-            return new Date();
-        }
-        
-        // Si solo tenemos un string combinado (para backward compatibility)
-        if (dateStr && !timeStr && dateStr.includes(' ')) {
-            const parts = dateStr.split(' ');
-            if (parts.length >= 2) {
-                dateStr = parts[0];
-                timeStr = parts[1];
-                console.log(`🔄 Parseado combinado: fecha="${dateStr}", hora="${timeStr}"`);
-            }
-        }
-        
-        // Validar parámetros
         if (!dateStr || !timeStr) {
             throw new Error(`Fecha u hora no proporcionadas. dateStr="${dateStr}", timeStr="${timeStr}"`);
         }
@@ -5625,21 +5608,18 @@ function getExpiraEnTime(segundos = 30) {
             throw new Error('Valores numéricos inválidos en fecha/hora');
         }
         
-        // Crear fecha en hora Yucatán (UTC-6)
-        // Asumimos que los valores proporcionados ya están en hora local Yucatán
-        const fechaLocal = new Date(year, month, day, hour, minute, 0, 0);
+        // **CORREGIDO: Crear fecha directamente, sin ajustes de UTC**
+        // Los valores ya están en hora Yucatán
+        const fechaYucatan = new Date(year, month, day, hour, minute, 0, 0);
         
-        // Convertir a UTC (sumar 6 horas para Yucatán)
-        const fechaUTC = new Date(fechaLocal.getTime() + (6 * 60 * 60 * 1000));
+        console.log(`✅ Fecha Yucatán creada: ${fechaYucatan.toLocaleString('es-MX', { timeZone: 'America/Merida' })}`);
         
-        console.log(`✅ Fecha convertida: Local=${fechaLocal.toLocaleString('es-MX')}, UTC=${fechaUTC.toISOString()}`);
-        
-        return fechaLocal; // Devolver la fecha local
+        return fechaYucatan;
         
     } catch (error) {
         console.error('❌ Error en getYucatanDateTime:', error.message);
         
-        // Fallback: intentar crear fecha con lo que tengamos
+        // Fallback
         try {
             if (dateStr && timeStr) {
                 const fallbackDate = new Date(`${dateStr}T${timeStr}:00`);
@@ -5649,7 +5629,6 @@ function getExpiraEnTime(segundos = 30) {
                 }
             }
             
-            // Último recurso: fecha actual
             console.log('⚠️ Devolviendo fecha actual como fallback');
             return new Date();
             
@@ -6210,6 +6189,37 @@ function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
     const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
     const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
     
+    // AGREGAR FECHA DE AGENDAMIENTO
+    let fechaAgendamientoHTML = '';
+    if (citaPrincipal.creado_en) {
+        const fechaAgendamiento = new Date(citaPrincipal.creado_en);
+        const opciones = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            timeZone: 'America/Merida'  // Zona horaria de Yucatán
+        };
+        const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', opciones);
+        // Separar fecha y hora para mejor formato
+        const [fecha, hora] = fechaFormateada.split(', ');
+        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fecha} a las ${hora}</p>`;
+    }
+    
+    // Formatear fecha de la cita para mostrar en Yucatán
+    const fechaCitaFormateada = fechaCitaYucatan.toLocaleString('es-MX', { 
+        timeZone: 'America/Merida',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
     // Para eliminación, solo mostrar botón si está completada o cancelada
     const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
     
@@ -6238,7 +6248,8 @@ function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
                 <span class="cita-estado estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
             </div>
             <div class="cita-detalles">
-                <p><strong>📅 Fecha:</strong> ${citaPrincipal.fecha}</p>
+                <p><strong>📅 Fecha de la cita:</strong> ${fechaCitaFormateada}</p>
+                ${fechaAgendamientoHTML}
                 <p><strong>🕐 Hora principal:</strong> ${citaPrincipal.hora}</p>
                 <p><strong>⏱️ Duración total:</strong> 80 minutos</p>
                 <p><strong>🕐 Horas del bloque:</strong> ${horasBloque.join(', ')}</p>
@@ -6262,7 +6273,6 @@ function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
         </div>
     `;
 }
-
 // Función auxiliar para generar HTML de cita individual
 function generarHTMLCitaIndividual(cita) {
     const fechaCitaYucatan = getYucatanDateTime(cita.fecha, cita.hora);
@@ -6274,6 +6284,37 @@ function generarHTMLCitaIndividual(cita) {
                         (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
     
     const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
+    
+    // FORMATAR FECHA DE AGENDAMIENTO - CORREGIDO
+    let fechaAgendamientoHTML = '';
+    if (cita.creado_en) {
+        const fechaAgendamiento = new Date(cita.creado_en);
+        const opciones = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            timeZone: 'America/Merida'  // Zona horaria de Yucatán
+        };
+        const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', opciones);
+        // Separar fecha y hora para mejor formato
+        const [fecha, hora] = fechaFormateada.split(', ');
+        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fecha} a las ${hora}</p>`;
+    }
+    
+    // Formatear fecha de la cita para mostrar en Yucatán
+    const fechaCitaFormateada = fechaCitaYucatan.toLocaleString('es-MX', { 
+        timeZone: 'America/Merida',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
     
     let mensajeCancelacionHTML = '';
     if (!citaPasada && tiempoParaCita > 0 && faltaMenosDeUnaHora && cita.estado !== 'cancelada') {
@@ -6291,7 +6332,8 @@ function generarHTMLCitaIndividual(cita) {
                 <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
             </div>
             <div class="cita-detalles">
-                <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
+                <p><strong>📅 Fecha de la cita:</strong> ${fechaCitaFormateada}</p>
+                ${fechaAgendamientoHTML}
                 <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
                 <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
                 ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
@@ -6312,7 +6354,6 @@ function generarHTMLCitaIndividual(cita) {
         </div>
     `;
 }
-
             async function limpiarCacheDespuesDeAgendar() {
         // Limpiar caché de citas futuras
         todasLasCitasFuturasCache = [];
