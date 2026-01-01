@@ -5668,12 +5668,7 @@ function getExpiraEnTime(segundos = 30) {
 function verificarCancelacionPermitida(fechaCitaYucatan) {
     try {
         console.log('🔍 Verificando cancelación permitida...');
-        console.log('   - Fecha cita:', fechaCitaYucatan);
-        console.log('   - Tipo de fechaCitaYucatan:', typeof fechaCitaYucatan);
-        console.log('   - Es Date?', fechaCitaYucatan instanceof Date);
-        console.log('   - Tiene getTime?', typeof fechaCitaYucatan.getTime === 'function');
         
-        // Verificar que fechaCitaYucatan sea un objeto Date válido
         if (!(fechaCitaYucatan instanceof Date)) {
             console.error('❌ fechaCitaYucatan no es un objeto Date:', fechaCitaYucatan);
             return false;
@@ -5686,15 +5681,13 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
         
         // Obtener hora ACTUAL local
         const ahoraLocal = new Date();
-        console.log('   - Hora actual:', ahoraLocal.toLocaleString('es-MX'));
-        console.log('   - Hora cita:', fechaCitaYucatan.toLocaleString('es-MX'));
         
         // Calcular diferencia en milisegundos
         const tiempoParaCita = fechaCitaYucatan.getTime() - ahoraLocal.getTime();
-        console.log('   - Tiempo para cita (ms):', tiempoParaCita);
         console.log('   - Tiempo para cita (horas):', tiempoParaCita / (1000 * 60 * 60));
         
         // Permitir cancelación solo si faltan más de 1 hora (3600000 ms)
+        // Para bloques, aplicar la misma regla a cada hora individualmente
         const puedeCancelar = tiempoParaCita > (60 * 60 * 1000);
         console.log('   - ¿Puede cancelar?', puedeCancelar);
         
@@ -5703,12 +5696,6 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
     } catch (error) {
         console.error('Error verificando cancelación:', error);
         console.error('Stack trace:', error.stack);
-        // Fallback: usar hora actual
-        const ahora = new Date();
-        if (fechaCitaYucatan instanceof Date && !isNaN(fechaCitaYucatan.getTime())) {
-            const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
-            return tiempoParaCita > (60 * 60 * 1000);
-        }
         return false;
     }
 }
@@ -6089,152 +6076,184 @@ async function agendarCita(e) {
             // ============ FUNCIONES DE CITAS ============
 
         async function cargarMisCitas() {
-        try {
-            const { data: citas, error } = await supabase
-                .from('citas')
-                .select(`
-                    *,
-                    servicios(nombre, precio),
-                    barberos(nombre)
-                `)
-                .eq('cliente_id', usuarioActual.id)
-                .order('fecha', { ascending: false });
+    try {
+        const { data: citas, error } = await supabase
+            .from('citas')
+            .select(`
+                *,
+                servicios(nombre, precio, duracion),
+                barberos(nombre)
+            `)
+            .eq('cliente_id', usuarioActual.id)
+            .order('fecha', { ascending: false });
 
-            if (error) throw error;
+        if (error) throw error;
 
-            const listaCitas = document.getElementById('listaCitas');
-            if (!listaCitas) return;
+        const listaCitas = document.getElementById('listaCitas');
+        if (!listaCitas) return;
+        
+        if (!citas || citas.length === 0) {
+            listaCitas.innerHTML = `
+                <div class="empty-state">
+                    <div>📅</div>
+                    <h3>No tienes citas agendadas</h3>
+                    <p>¡Agenda tu primera cita ahora!</p>
+                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
+                </div>
+            `;
+        } else {
+            // Primero crear el encabezado
+            let htmlContent = `
+                <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
+                    <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
+                    <button class="btn btn-primary" id="btnAgregarCitaDesdeLista" style="font-size: 16px; padding: 12px 24px;">
+                        📅 Agendar Nueva Cita
+                    </button>
+                </div>
+            `;
             
-            if (!citas || citas.length === 0) {
-                listaCitas.innerHTML = `
-                    <div class="empty-state">
-                        <div>📅</div>
-                        <h3>No tienes citas agendadas</h3>
-                        <p>¡Agenda tu primera cita ahora!</p>
-                        <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
-                    </div>
-                `;
-            } else {
-                // Primero crear el encabezado
-                let htmlContent = `
-                    <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
-                        <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
-                        <button class="btn btn-primary" id="btnAgregarCitaDesdeLista" style="font-size: 16px; padding: 12px 24px;">
-                            📅 Agendar Nueva Cita
-                        </button>
-                    </div>
-                `;
+            // Agrupar citas por bloque
+            const citasAgrupadas = {};
+            
+            citas.forEach(cita => {
+                const claveBloque = cita.es_bloque ? `${cita.fecha}_${cita.hora_principal}` : `${cita.fecha}_${cita.hora}`;
                 
-                // Luego agregar cada cita
-                citas.forEach(cita => {
-                    let fechaCreadoStr = 'N/A';
-                    if (cita.creado_en) {
+                if (!citasAgrupadas[claveBloque]) {
+                    citasAgrupadas[claveBloque] = [];
+                }
+                citasAgrupadas[claveBloque].push(cita);
+            });
+            
+            // Mostrar citas agrupadas
+            Object.values(citasAgrupadas).forEach(citasBloque => {
+                const citaPrincipal = citasBloque.find(c => !c.es_bloque) || citasBloque[0];
+                const esBloque = citasBloque.length > 1 || (citaPrincipal.duracion && citaPrincipal.duracion > 40);
+                
+                // Obtener fecha formateada (código existente)
+                let fechaCreadoStr = 'N/A';
+                if (citaPrincipal.creado_en) {
                     try {
-                        // Parsear la fecha
-                        const fechaUTC = new Date(cita.creado_en);
-                        
-                        // Verificar que sea una fecha válida
+                        const fechaUTC = new Date(citaPrincipal.creado_en);
                         if (!isNaN(fechaUTC.getTime())) {
-                            // Ajustar a hora de Yucatán (UTC-6)
                             const horaYucatan = new Date(fechaUTC.getTime() - (6 * 60 * 60 * 1000));
-                            
-                            // Formatear en español de México
                             fechaCreadoStr = horaYucatan.toLocaleString('es-MX', {
                                 year: 'numeric',
                                 month: '2-digit',
                                 day: '2-digit',
                                 hour: '2-digit',
                                 minute: '2-digit',
-                                // timeZone: 'America/Mexico_City' // Esto podría no ser necesario
                             });
-                            
-                            console.log(`📅 Debug fecha: ${cita.creado_en} -> ${fechaCreadoStr}`);
-                        } else {
-                            fechaCreadoStr = cita.creado_en; // Mostrar string crudo si no se puede parsear
                         }
                     } catch (error) {
-                        console.error('Error formateando fecha creación:', error);
-                        fechaCreadoStr = cita.creado_en; // Mostrar string crudo como fallback
+                        fechaCreadoStr = citaPrincipal.creado_en;
                     }
                 }
-                    
-                    const ahora = new Date();
-                    const [year, month, day] = cita.fecha.split('-');
-                    const [hour, minute] = cita.hora.split(':');
-                    const fechaCitaYucatan = new Date(year, month - 1, day, hour, minute, 0, 0);
-                    
-                    const citaPasada = fechaCitaYucatan < ahora;
-                    const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
-                    const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
-                    const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
-                                        (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
-                    
-                    const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
-                    
-                    let mensajeCancelacionHTML = '';
-                    if (!citaPasada && tiempoParaCita > 0 && faltaMenosDeUnaHora && cita.estado !== 'cancelada') {
-                        mensajeCancelacionHTML = `
-                            <p class="mensaje-cancelacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                                ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
+                
+                const ahora = new Date();
+                const [year, month, day] = citaPrincipal.fecha.split('-');
+                const [hour, minute] = citaPrincipal.hora.split(':');
+                const fechaCitaYucatan = new Date(year, month - 1, day, hour, minute, 0, 0);
+                
+                const citaPasada = fechaCitaYucatan < ahora;
+                const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+                const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+                const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
+                                    (citaPrincipal.estado === 'aceptada' || citaPrincipal.estado === 'pendiente' || citaPrincipal.estado === 'confirmada');
+                
+                const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
+                
+                let mensajeCancelacionHTML = '';
+                if (!citaPasada && tiempoParaCita > 0 && faltaMenosDeUnaHora && citaPrincipal.estado !== 'cancelada') {
+                    mensajeCancelacionHTML = `
+                        <p class="mensaje-cancelacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
+                            ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
+                        </p>
+                    `;
+                }
+                
+                // Mostrar información del bloque
+                let infoBloqueHTML = '';
+                if (esBloque) {
+                    const horasBloque = citasBloque.map(c => c.hora).sort().join(', ');
+                    infoBloqueHTML = `
+                        <div style="background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 6px; margin: 10px 0;">
+                            <p style="color: #28a745; margin: 0;">
+                                📦 <strong>Bloque de ${citaPrincipal.servicios.duracion || 40} minutos</strong>
+                                <br>
+                                <small>Horas: ${horasBloque}</small>
                             </p>
-                        `;
-                    }
-                                        
-                    htmlContent += `
-                        <div class="cita-card ${cita.estado}" id="cita-${cita.id}" data-cita-id="${cita.id}" data-fecha="${cita.fecha}" data-hora="${cita.hora}" data-expira="${cita.expira_en || ''}">
-                            <div class="cita-header">
-                                <h3>${cita.servicios.nombre}</h3>
-                                <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
-                            </div>
-                            <div class="cita-detalles">
-                                <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
-                                <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
-                                <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
-                                ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                                <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
-                                <div id="contador-${cita.id}" class="contador-cita"></div>
-                                <div id="contador-eliminar-${cita.id}" class="contador-eliminar"></div>
-                                ${mensajeCancelacionHTML}
-                            </div>
-                            <div class="cita-acciones">
-                                ${puedeCancelar ? `
-                                    <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
-                                ` : ''}
-                                ${!puedeCancelar && !citaPasada && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
-                                    <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
-                                ` : ''}
-                                ${puedeEliminar ? `
-                                    <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
-                                ` : ''}
-                            </div>
                         </div>
                     `;
-                });
-                
-                listaCitas.innerHTML = htmlContent;
-            }
-
-            // Iniciar contadores después de cargar el HTML
-            setTimeout(() => {
-                iniciarContadoresCitas();
-            }, 100);
-
-        } catch (error) {
-            console.error('❌ Error cargando citas:', error);
-            // Mostrar error en la UI
-            const listaCitas = document.getElementById('listaCitas');
-            if (listaCitas) {
-                listaCitas.innerHTML = `
-                    <div class="alert alert-error">
-                        <h3>Error al cargar citas</h3>
-                        <p>${error.message || 'No se pudieron cargar tus citas. Por favor, recarga la página.'}</p>
-                        <button class="btn btn-primary" onclick="app.cargarMisCitas()">Reintentar</button>
+                }
+                                    
+                htmlContent += `
+                    <div class="cita-card ${citaPrincipal.estado}" 
+                         id="cita-${citaPrincipal.id}" 
+                         data-cita-id="${citaPrincipal.id}" 
+                         data-fecha="${citaPrincipal.fecha}" 
+                         data-hora="${citaPrincipal.hora}" 
+                         data-es-bloque="${esBloque}"
+                         data-horas-bloque="${citasBloque.map(c => c.hora).join(',')}"
+                         data-expira="${citaPrincipal.expira_en || ''}">
+                        <div class="cita-header">
+                            <h3>${citaPrincipal.servicios.nombre} ${esBloque ? '(Bloque)' : ''}</h3>
+                            <span class="cita-estado estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
+                        </div>
+                        <div class="cita-detalles">
+                            ${infoBloqueHTML}
+                            <p><strong>📅 Fecha:</strong> ${citaPrincipal.fecha}</p>
+                            <p><strong>⏰ Hora${esBloque ? 's' : ''}:</strong> ${esBloque ? citasBloque.map(c => c.hora).sort().join(', ') : citaPrincipal.hora}</p>
+                            <p><strong>👤 Barbero:</strong> ${citaPrincipal.barberos.nombre}</p>
+                            <p><strong>💰 Precio:</strong> $${citaPrincipal.servicios.precio}</p>
+                            ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
+                            <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
+                            <div id="contador-${citaPrincipal.id}" class="contador-cita"></div>
+                            <div id="contador-eliminar-${citaPrincipal.id}" class="contador-eliminar"></div>
+                            ${mensajeCancelacionHTML}
+                        </div>
+                        <div class="cita-acciones">
+                            ${puedeCancelar ? `
+                                <button class="btn btn-danger" onclick="app.cancelarCita('${citaPrincipal.id}')">
+                                    ${esBloque ? 'Cancelar Bloque' : 'Cancelar Cita'}
+                                </button>
+                            ` : ''}
+                            ${!puedeCancelar && !citaPasada && (citaPrincipal.estado === 'aceptada' || citaPrincipal.estado === 'pendiente' || citaPrincipal.estado === 'confirmada') ? `
+                                <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">
+                                    ${esBloque ? 'No se puede cancelar bloque' : 'No se puede cancelar'}
+                                </button>
+                            ` : ''}
+                            ${puedeEliminar ? `
+                                <button class="btn btn-secondary" onclick="app.eliminarCita('${citaPrincipal.id}')">Eliminar ahora</button>
+                            ` : ''}
+                        </div>
                     </div>
                 `;
-            }
-            showAlert('Error al cargar tus citas', 'error');
+            });
+            
+            listaCitas.innerHTML = htmlContent;
         }
+
+        // Iniciar contadores después de cargar el HTML
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 100);
+
+    } catch (error) {
+        console.error('❌ Error cargando citas:', error);
+        // Mostrar error en la UI
+        const listaCitas = document.getElementById('listaCitas');
+        if (listaCitas) {
+            listaCitas.innerHTML = `
+                <div class="alert alert-error">
+                    <h3>Error al cargar citas</h3>
+                    <p>${error.message || 'No se pudieron cargar tus citas. Por favor, recarga la página.'}</p>
+                    <button class="btn btn-primary" onclick="app.cargarMisCitas()">Reintentar</button>
+                </div>
+            `;
+        }
+        showAlert('Error al cargar tus citas', 'error');
     }
+}
 
             async function limpiarCacheDespuesDeAgendar() {
         // Limpiar caché de citas futuras
@@ -6630,9 +6649,10 @@ function getYucatanTimePlusHours(hours) {
     try {
         console.log('🔄 Iniciando cancelación de cita:', citaId);
         
+        // 1. Obtener TODA la información de la cita
         const { data: cita, error: errorCita } = await supabase
             .from('citas')
-            .select('fecha, hora, estado, expira_en')
+            .select('*') // Obtener todos los campos
             .eq('id', citaId)
             .single();
 
@@ -6654,63 +6674,144 @@ function getYucatanTimePlusHours(hours) {
             return;
         }
         
-        const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
+        // 2. Verificar si es un bloque de 80 minutos
+        const esBloque = cita.es_bloque === true;
+        const horaPrincipal = cita.hora_principal;
         
-        if (!(fechaCita instanceof Date) || isNaN(fechaCita.getTime())) {
-            console.error('❌ fechaCita no es válido:', fechaCita);
-            showAlert('❌ Error en los datos de fecha/hora de la cita', 'error');
-            return;
+        console.log('🔍 Información del bloque:');
+        console.log(`   - Es bloque? ${esBloque}`);
+        console.log(`   - Hora principal: ${horaPrincipal}`);
+        console.log(`   - Duración: ${cita.duracion || 40} minutos`);
+        
+        // 3. Buscar TODAS las citas del mismo bloque
+        let todasLasCitasDelBloque = [cita];
+        
+        // Si es la hora principal, buscar la hora secundaria
+        if (!esBloque && (cita.duracion || 40) === 80) {
+            console.log('📦 Es hora principal de bloque de 80 minutos, buscando hora secundaria...');
+            
+            // Buscar la segunda hora del bloque
+            const { data: segundaHora, error: errorSegunda } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('fecha', cita.fecha)
+                .eq('hora_principal', cita.hora) // Buscar citas que tengan esta hora como principal
+                .eq('cliente_id', usuarioActual.id)
+                .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                .maybeSingle();
+                
+            if (errorSegunda) {
+                console.error('Error buscando hora secundaria:', errorSegunda);
+            }
+            
+            if (segundaHora) {
+                console.log(`✅ Encontrada hora secundaria: ${segundaHora.hora}`);
+                todasLasCitasDelBloque.push(segundaHora);
+            }
         }
         
-        console.log('📅 Fecha de cita convertida:', fechaCita.toLocaleString('es-MX'));
+        // Si es parte del bloque (hora secundaria), buscar la hora principal
+        if (esBloque && horaPrincipal) {
+            console.log(`🔍 Es parte de bloque, buscando hora principal: ${horaPrincipal}`);
+            
+            const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('fecha', cita.fecha)
+                .eq('hora', horaPrincipal)
+                .eq('cliente_id', usuarioActual.id)
+                .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                .maybeSingle();
+                
+            if (errorPrincipal) {
+                console.error('Error buscando hora principal:', errorPrincipal);
+            }
+            
+            if (horaPrincipalCita) {
+                console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora}`);
+                todasLasCitasDelBloque.push(horaPrincipalCita);
+            }
+        }
         
-        const puedeCancelar = verificarCancelacionPermitida(fechaCita);
-
-        if (!puedeCancelar) {
-            showAlert('❌ No puedes cancelar la cita cuando faltan menos de 1 hora', 'error');
+        // 4. Verificar permisos de cancelación para TODAS las citas del bloque
+        let todasPuedenCancelar = true;
+        const citasNoCancelables = [];
+        
+        for (const citaDelBloque of todasLasCitasDelBloque) {
+            const fechaCita = getYucatanDateTime(citaDelBloque.fecha, citaDelBloque.hora);
+            
+            if (!(fechaCita instanceof Date) || isNaN(fechaCita.getTime())) {
+                console.error('❌ fechaCita no es válido:', fechaCita);
+                showAlert('❌ Error en los datos de fecha/hora de la cita', 'error');
+                return;
+            }
+            
+            const puedeCancelar = verificarCancelacionPermitida(fechaCita);
+            
+            if (!puedeCancelar) {
+                todasPuedenCancelar = false;
+                citasNoCancelables.push(citaDelBloque.hora);
+            }
+        }
+        
+        if (!todasPuedenCancelar) {
+            const horasNoCancelables = citasNoCancelables.join(', ');
+            showAlert(`❌ No puedes cancelar el bloque completo. Las siguientes horas no pueden cancelarse: ${horasNoCancelables} (faltan menos de 1 hora)`, 'error');
             await cargarMisCitas();
             return;
         }
-
-        if (!confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
+        
+        // 5. Confirmación de cancelación
+        const esBloqueCompleto = todasLasCitasDelBloque.length > 1;
+        const mensajeConfirmacion = esBloqueCompleto 
+            ? `¿Estás seguro de que quieres cancelar el bloque completo de ${(cita.duracion || 40)} minutos? Se cancelarán ${todasLasCitasDelBloque.length} horas: ${todasLasCitasDelBloque.map(c => c.hora).join(', ')}`
+            : '¿Estás seguro de que quieres cancelar esta cita?';
+            
+        if (!confirm(mensajeConfirmacion)) {
             return;
         }
-
-        // IMPORTANTE: Solo actualizamos el estado
-        // El trigger se encargará de establecer expira_en automáticamente
-        const { data: updatedCita, error } = await supabase
+        
+        // 6. Cancelar TODAS las citas del bloque
+        const idsACancelar = todasLasCitasDelBloque.map(c => c.id);
+        console.log(`🎯 IDs a cancelar: ${idsACancelar.join(', ')}`);
+        
+        const { data: updatedCitas, error } = await supabase
             .from('citas')
             .update({ 
                 estado: 'cancelada'
-                // NOTA: NO establecemos expira_en ni actualizado_en aquí
-                // El trigger lo hará automáticamente
+                // El trigger se encargará de establecer expira_en automáticamente
             })
-            .eq('id', citaId)
-            .select('estado, expira_en');
+            .in('id', idsACancelar)
+            .select('id, estado, hora, expira_en');
             
         if (error) throw error;
 
-        console.log('✅ Cita cancelada - Trigger establecerá expira_en automáticamente');
+        console.log(`✅ ${updatedCitas.length} cita(s) cancelada(s) - Trigger establecerá expira_en automáticamente`);
         
-        if (updatedCita && updatedCita[0]) {
-            console.log('📊 Resultado después de cancelar:');
-            console.log('   - Estado:', updatedCita[0].estado);
-            console.log('   - expira_en (establecido por trigger):', updatedCita[0].expira_en);
+        // 7. Mostrar mensaje de éxito
+        if (esBloqueCompleto) {
+            const horasCanceladas = todasLasCitasDelBloque.map(c => c.hora).join(', ');
+            showAlert(`✅ Bloque de ${(cita.duracion || 40)} minutos cancelado exitosamente. Se cancelaron las horas: ${horasCanceladas}. Se eliminarán automáticamente en 2 horas.`, 'success');
+        } else {
+            showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
         }
         
-        showAlert('✅ Cita cancelada exitosamente. Se eliminará automáticamente en 2 horas.', 'success');
-
+        // 8. Actualizar caché y notificar
         await limpiarCacheDespuesDeAgendar();
         await precargarCitasFuturas();
         
+        // 9. Notificar la liberación de cada hora
+        for (const citaDelBloque of todasLasCitasDelBloque) {
+            await notificarCambioCita(citaDelBloque.fecha, citaDelBloque.hora, 'cita_cancelada');
+        }
+        
+        // 10. Recargar la lista de citas
         await cargarMisCitas();
         
         setTimeout(() => {
             iniciarContadoresCitas();
         }, 500);
         
-        await notificarCambioCita(cita.fecha, cita.hora, 'cita_cancelada');
-
     } catch (error) {
         console.error('❌ Error cancelando cita:', error);
         showAlert('❌ Error al cancelar la cita: ' + error.message, 'error');
