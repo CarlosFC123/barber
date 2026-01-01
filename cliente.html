@@ -6207,7 +6207,7 @@ function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
         const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', opciones);
         // Separar fecha y hora para mejor formato
         const [fecha, hora] = fechaFormateada.split(', ');
-        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fecha} a las ${hora}</p>`;
+        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong>${hora}</p>`;
     }
     
     // Formatear fecha de la cita para mostrar en Yucatán
@@ -6303,7 +6303,7 @@ function generarHTMLCitaIndividual(cita) {
         const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', opciones);
         // Separar fecha y hora para mejor formato
         const [fecha, hora] = fechaFormateada.split(', ');
-        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fecha} a las ${hora}</p>`;
+        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong>${hora}</p>`;
     }
     
     // Formatear fecha de la cita para mostrar en Yucatán
