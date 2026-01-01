@@ -6129,12 +6129,34 @@ async function agendarCita(e) {
                 citas.forEach(cita => {
                     let fechaCreadoStr = 'N/A';
                     if (cita.creado_en) {
-                        if (cita.creado_en.includes('T')) {
-                            fechaCreadoStr = new Date(cita.creado_en).toLocaleString('es-MX');
+                    try {
+                        // Parsear la fecha
+                        const fechaUTC = new Date(cita.creado_en);
+                        
+                        // Verificar que sea una fecha válida
+                        if (!isNaN(fechaUTC.getTime())) {
+                            // Ajustar a hora de Yucatán (UTC-6)
+                            const horaYucatan = new Date(fechaUTC.getTime() - (6 * 60 * 60 * 1000));
+                            
+                            // Formatear en español de México
+                            fechaCreadoStr = horaYucatan.toLocaleString('es-MX', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                // timeZone: 'America/Mexico_City' // Esto podría no ser necesario
+                            });
+                            
+                            console.log(`📅 Debug fecha: ${cita.creado_en} -> ${fechaCreadoStr}`);
                         } else {
-                            fechaCreadoStr = cita.creado_en;
+                            fechaCreadoStr = cita.creado_en; // Mostrar string crudo si no se puede parsear
                         }
+                    } catch (error) {
+                        console.error('Error formateando fecha creación:', error);
+                        fechaCreadoStr = cita.creado_en; // Mostrar string crudo como fallback
                     }
+                }
                     
                     const ahora = new Date();
                     const [year, month, day] = cita.fecha.split('-');
