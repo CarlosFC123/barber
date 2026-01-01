@@ -6081,7 +6081,7 @@ async function agendarCita(e) {
                 barberos(nombre)
             `)
             .eq('cliente_id', usuarioActual.id)
-            .order('fecha', { ascending: false });
+            .order('creado_en', { ascending: false });
 
         if (error) throw error;
 
@@ -6210,6 +6210,23 @@ function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
     const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
     const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
     
+    // FORMATAR FECHA DE AGENDAMIENTO
+    let fechaAgendamientoHTML = '';
+    if (citaPrincipal.creado_en) {
+        const fechaAgendamiento = new Date(citaPrincipal.creado_en);
+        const opciones = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'America/Merida'
+        };
+        const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', opciones);
+        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fechaFormateada}</p>`;
+    }
+    
     // Para eliminación, solo mostrar botón si está completada o cancelada
     const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
     
@@ -6238,14 +6255,14 @@ function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
                 <span class="cita-estado estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
             </div>
             <div class="cita-detalles">
-                <p><strong>📅 Fecha:</strong> ${citaPrincipal.fecha}</p>
+                <p><strong>📅 Fecha de la cita:</strong> ${citaPrincipal.fecha}</p>
+                ${fechaAgendamientoHTML}
                 <p><strong>🕐 Hora principal:</strong> ${citaPrincipal.hora}</p>
                 <p><strong>⏱️ Duración total:</strong> 80 minutos</p>
                 <p><strong>🕐 Horas del bloque:</strong> ${horasBloque.join(', ')}</p>
                 <p><strong>👤 Barbero:</strong> ${citaPrincipal.barberos.nombre}</p>
                 <p><strong>💰 Precio total:</strong> $${citaPrincipal.servicios.precio}</p>
                 ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
-                <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
                 <div id="contador-${citaPrincipal.id}" class="contador-cita"></div>
                 ${mensajeCancelacionHTML}
             </div>
@@ -6263,7 +6280,6 @@ function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
         </div>
     `;
 }
-
 // Función auxiliar para generar HTML de cita individual
 function generarHTMLCitaIndividual(cita) {
     const fechaCitaYucatan = getYucatanDateTime(cita.fecha, cita.hora);
@@ -6275,6 +6291,23 @@ function generarHTMLCitaIndividual(cita) {
                         (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
     
     const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
+    
+    // FORMATAR FECHA DE AGENDAMIENTO
+    let fechaAgendamientoHTML = '';
+    if (cita.creado_en) {
+        const fechaAgendamiento = new Date(cita.creado_en);
+        const opciones = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'America/Merida'
+        };
+        const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', opciones);
+        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fechaFormateada}</p>`;
+    }
     
     let mensajeCancelacionHTML = '';
     if (!citaPasada && tiempoParaCita > 0 && faltaMenosDeUnaHora && cita.estado !== 'cancelada') {
@@ -6292,11 +6325,11 @@ function generarHTMLCitaIndividual(cita) {
                 <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
             </div>
             <div class="cita-detalles">
-                <p><strong>📅 Fecha:</strong> ${cita.fecha} ${cita.hora}</p>
+                <p><strong>📅 Fecha de la cita:</strong> ${cita.fecha} ${cita.hora}</p>
+                ${fechaAgendamientoHTML}
                 <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
                 <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
                 ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                <p><strong>📅 Agendado el:</strong> ${fechaCreadoStr}</p>
                 <div id="contador-${cita.id}" class="contador-cita"></div>
                 ${mensajeCancelacionHTML}
             </div>
