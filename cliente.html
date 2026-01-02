@@ -90,6 +90,9 @@ body {
 .user-profile-dropdown {
     position: relative;
     z-index: 1000;
+    /* Asegurar que el efecto no se salga */
+    overflow: hidden;
+    border-radius: 50px; /* Mismo radio que el botón */
 }
 
 /* Botón aún más compacto */
@@ -111,9 +114,9 @@ body {
     max-width: 160px;
     justify-content: space-between;
     height: 40px;
-    /* Eliminar cualquier margin/padding extra */
-    margin: 0;
-    box-sizing: border-box;
+    position: relative; /* ← Añadir esto */
+    overflow: hidden; /* ← ¡IMPORTANTE! Esto contiene el efecto */
+    box-sizing: border-box; /* ← Asegurar que todo esté dentro */
 }
 .profile-btn::before {
     content: '';
@@ -122,13 +125,17 @@ body {
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.3), transparent);
-    transition: left 0.5s ease;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(212, 175, 55, 0.3) 50%, 
+        transparent 100%);
+    transition: left 0.7s ease; /* ← Hacer más lento para mejor efecto */
+    pointer-events: none; /* ← No interferir con clics */
+    z-index: 1; /* ← Detrás del contenido */
 }
-
-/* .profile-btn:hover::before {
-    left: 100%;
-} */
+.profile-btn:hover::before {
+    left: 100%; /* ← Esto ya no se sale porque el botón tiene overflow: hidden */
+}
 
 .profile-btn:hover {
     background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0.15) 100%);
@@ -142,7 +149,16 @@ body {
     gap: 6px;
     flex: 1;
     min-width: 0;
+    position: relative; /* ← Para estar por encima del efecto */
+    z-index: 2; /* ← Encima del pseudo-elemento */
 }
+.profile-btn img,
+.profile-name,
+.dropdown-arrow {
+    position: relative;
+    z-index: 2; /* ← Encima del efecto de brillo */
+}
+
 .profile-btn img {
     width: 28px;
     height: 28px;
