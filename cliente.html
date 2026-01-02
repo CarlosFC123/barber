@@ -25,21 +25,26 @@ body {
 .header {
     background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
     color: #d4af37;
-    padding: 25px 20px;
+    padding: 20px;
     text-align: center;
     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     border-bottom: 3px solid #d4af37;
+    position: relative;
 }
 
-/* =========================================== */
-/* HEADER MEJORADO */
-/* =========================================== */
 .header-top {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding: 0 20px;
-    position: relative;
+    align-items: center;
+    padding: 0;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Título a la izquierda */
+.header-left {
+    text-align: left;
+    flex: 1;
 }
 
 .header h1 {
@@ -47,13 +52,19 @@ body {
     margin-bottom: 5px;
     font-weight: 700;
     letter-spacing: 1px;
+    display: inline-block;
 }
-
 #welcomeMessage {
     color: #d4af37;
     font-size: 14px;
     margin-top: 5px;
     font-weight: 500;
+    display: block;
+}
+.header-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
 }
 
 /* =========================================== */
@@ -62,26 +73,24 @@ body {
 .user-profile-dropdown {
     position: relative;
     z-index: 1000;
-    margin-top: 5px;
 }
 
 .profile-btn {
     background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.05) 100%);
     border: 2px solid #d4af37;
     border-radius: 50px;
-    padding: 6px 12px;
+    padding: 6px 10px 6px 6px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     cursor: pointer;
     transition: all 0.3s ease;
     color: #d4af37;
     font-weight: 600;
-    font-size: 14px;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);
-    min-height: 44px;
+    font-size: 13px;
+    width: auto;
+    min-width: 140px;
+    justify-content: space-between;
 }
 
 .profile-btn::before {
@@ -1353,28 +1362,33 @@ h2 {
 <body>
 <div class="header" style="background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('img/fondo2.jpg') center/cover no-repeat;">
     <div class="header-top">
-        <div style="flex: 1;">
+        <div class="header-left">
             <h1>BARBER-SHOP</h1>
             <p style="color: #d4af37; font-size: 14px; margin-top: 5px;" id="welcomeMessage">
                 Cargando...
             </p>
         </div>
-        <div class="user-profile-dropdown" id="userProfileDropdown">
-            <button class="profile-btn" id="profileBtn">
-                <img id="userAvatar" src="" alt="Perfil">
-                <span class="dropdown-arrow">▼</span>
-            </button>
-            <div class="dropdown-menu" id="dropdownMenu">
-                <div class="dropdown-header">
-                    <div class="dropdown-user-info">
-                        <h3 id="dropdownName">Cargando...</h3>
-                        <p id="dropdownEmail">Cargando...</p>
+        <div class="header-right">
+            <div class="user-profile-dropdown" id="userProfileDropdown">
+                <button class="profile-btn" id="profileBtn">
+                    <div class="profile-btn-content">
+                        <img id="userAvatar" src="" alt="Perfil">
+                        <span class="profile-btn-text" id="profileName">Perfil</span>
                     </div>
-                </div>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item logout-item" id="logoutBtn">
-                    <span class="dropdown-icon">🚪</span> Cerrar Sesión
+                    <span class="dropdown-arrow">▼</span>
                 </button>
+                <div class="dropdown-menu" id="dropdownMenu">
+                    <div class="dropdown-header">
+                        <div class="dropdown-user-info">
+                            <h3 id="dropdownName">Cargando...</h3>
+                            <p id="dropdownEmail">Cargando...</p>
+                        </div>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item logout-item" id="logoutBtn">
+                        <span class="dropdown-icon">🚪</span> Cerrar Sesión
+                    </button>
+                </div>
             </div>
         </div>
     </div>
