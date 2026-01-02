@@ -22,23 +22,26 @@ body {
     color: #ffffff;
 }
 .header {
-    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('img/fondo2.jpg') center/cover no-repeat;
     color: #d4af37;
-    padding: 15px 20px;
+    padding: 25px 20px; /* Aumentado de 15px a 25px (más arriba/abajo) */
     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     border-bottom: 3px solid #d4af37;
+    min-height: 120px; /* Altura mínima para asegurar tamaño */
+    display: flex;
+    align-items: center; /* Centra verticalmente el contenido */
 }
 
 .header-top {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start; /* Cambiado a flex-start para alinear arriba */
+    align-items: center; /* Cambiado de flex-start a center */
     max-width: 1200px;
     margin: 0 auto;
     position: relative;
-    flex-wrap: nowrap; /* Evita que se envuelva */
+    flex-wrap: nowrap;
+    width: 100%; /* Asegura que ocupe todo el ancho */
 }
-
 /* Título a la izquierda - Ocupa el espacio disponible */
 .header-left {
     flex: 1;
@@ -47,8 +50,8 @@ body {
 }
 
 .header h1 {
-    font-size: 28px;
-    margin-bottom: 5px;
+    font-size: 32px; /* Aumentado de 28px a 32px */
+    margin-bottom: 8px; /* Aumentado de 5px a 8px */
     font-weight: 700;
     letter-spacing: 1px;
     text-align: left;
@@ -60,8 +63,8 @@ body {
 
 #welcomeMessage {
     color: #d4af37;
-    font-size: 14px;
-    margin-top: 2px;
+    font-size: 16px; /* Aumentado de 14px a 16px */
+    margin-top: 5px; /* Aumentado de 2px a 5px */
     font-weight: 500;
     text-align: left;
     white-space: nowrap;
