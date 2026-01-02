@@ -1569,6 +1569,90 @@ h2 {
                 
                 return cache;
             }
+
+
+            // Configurar el dropdown del perfil
+function configurarDropdownPerfil() {
+    const profileBtn = document.getElementById('profileBtn');
+    const dropdown = document.getElementById('userProfileDropdown');
+    const dropdownMenu = document.getElementById('dropdownMenu');
+    
+    if (!profileBtn || !dropdown) return;
+    
+    // Alternar dropdown
+    profileBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        dropdown.classList.toggle('active');
+    });
+    
+    // Cerrar dropdown al hacer clic fuera
+    document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target)) {
+            dropdown.classList.remove('active');
+        }
+    });
+    
+    // Cerrar dropdown al hacer clic en un item
+    dropdownMenu.addEventListener('click', function() {
+        dropdown.classList.remove('active');
+    });
+    
+    // Prevenir cierre cuando se hace clic dentro del dropdown
+    dropdownMenu.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+}
+
+// Función para cargar datos del usuario en el dropdown
+async function cargarDatosUsuarioDropdown() {
+    if (!usuarioActual) return;
+    
+    try {
+        // Obtener datos adicionales del usuario desde la tabla clientes
+        const { data: clienteData, error } = await supabase
+            .from('clientes')
+            .select('nombre, apellido, email, avatar_url')
+            .eq('id', usuarioActual.id)
+            .single();
+            
+        if (error) throw error;
+        
+        const nombreCompleto = `${clienteData.nombre} ${clienteData.apellido}`;
+        const email = clienteData.email;
+        const avatarUrl = clienteData.avatar_url || 'https://via.placeholder.com/150';
+        
+        // Actualizar elementos del DOM
+        document.getElementById('userName').textContent = nombreCompleto;
+        document.getElementById('userAvatar').src = avatarUrl;
+        document.getElementById('userAvatar').alt = `Foto de ${nombreCompleto}`;
+        
+        document.getElementById('dropdownName').textContent = `¡Bienvenido, ${clienteData.nombre}!`;
+        document.getElementById('dropdownEmail').textContent = email;
+        document.getElementById('dropdownAvatar').src = avatarUrl;
+        document.getElementById('dropdownAvatar').alt = `Foto de ${nombreCompleto}`;
+        
+        // Actualizar mensaje de bienvenida en el header
+        const welcomeMessage = document.querySelector('.welcome-message');
+        if (welcomeMessage) {
+            welcomeMessage.textContent = `Bienvenido, ${clienteData.nombre}!`;
+        }
+        
+    } catch (error) {
+        console.error('Error cargando datos del usuario:', error);
+        
+        // Usar datos básicos de auth si falla
+        const nombre = usuarioActual.user_metadata?.full_name || usuarioActual.email?.split('@')[0] || 'Usuario';
+        const email = usuarioActual.email || 'No disponible';
+        const avatarUrl = usuarioActual.user_metadata?.avatar_url || 'https://via.placeholder.com/150';
+        
+        document.getElementById('userName').textContent = nombre;
+        document.getElementById('userAvatar').src = avatarUrl;
+        
+        document.getElementById('dropdownName').textContent = `¡Bienvenido, ${nombre}!`;
+        document.getElementById('dropdownEmail').textContent = email;
+        document.getElementById('dropdownAvatar').src = avatarUrl;
+    }
+}
 // ============ SISTEMA DE DETECCIÓN DE ACTIVIDAD ============
 
 function iniciarDeteccionActividad() {
@@ -7784,6 +7868,10 @@ function getYucatanTimePlusHours(hours) {
             console.log('   - Hora actual navegador:', new Date().toLocaleString('es-MX'));
             console.log('   - Hora Yucatán (calculada):', getCurrentTimeYucatan());
             console.log('   - Hora Yucatán (ISO):', getCurrentISOTimeYucatan());
+            configurarDropdownPerfil();
+
+// Cargar datos del usuario en el dropdown
+cargarDatosUsuarioDropdown();
 
             iniciarDeteccionActividad();
             iniciarControlVisibilidad();
@@ -7878,6 +7966,13 @@ function getYucatanTimePlusHours(hours) {
             const prevMonthBtn = document.getElementById('prevMonth');
             const nextMonthBtn = document.getElementById('nextMonth');
             const logoutBtn = document.getElementById('logoutBtn');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        cerrarSesion();
+    });
+}
             const btnAgendarCita = document.getElementById('btnAgendarCita');
             
             if (prevMonthBtn) {
