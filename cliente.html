@@ -24,14 +24,14 @@ body {
 .header {
     background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('img/fondo2.jpg') center/cover no-repeat;
     color: #d4af37;
-    padding: 25px 20px; /* Aumentado de 15px a 25px (más arriba/abajo) */
+    padding: 25px 20px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     border-bottom: 3px solid #d4af37;
-    min-height: 120px; /* Altura mínima para asegurar tamaño */
+    min-height: 120px;
     display: flex;
-    align-items: center; /* Centra verticalmente el contenido */
+    align-items: center;
+    overflow: hidden; /* ← Evita que hijos se salgan */
 }
-
 .header-top {
     display: flex;
     justify-content: space-between;
@@ -41,18 +41,20 @@ body {
     position: relative;
     flex-wrap: nowrap;
     width: 100%;
-    overflow: visible; /* ← AÑADE ESTO */
+    /* REMOVER overflow: visible si existe */
 }
 /* Título a la izquierda - Ocupa el espacio disponible */
 .header-left {
     flex: 1;
-    min-width: 0; /* Permite que se reduzca */
-    padding-right: 20px; /* Espacio entre título y botón */
+    min-width: 0;
+    /* ELIMINAR padding-right que crea espacio vacío */
+    /* padding-right: 20px; ← COMENTAR O ELIMINAR ESTA LÍNEA */
+    overflow: hidden; /* Mantiene el texto dentro */
 }
 
 .header h1 {
-    font-size: 32px; /* Aumentado de 28px a 32px */
-    margin-bottom: 8px; /* Aumentado de 5px a 8px */
+    font-size: 32px;
+    margin-bottom: 8px;
     font-weight: 700;
     letter-spacing: 1px;
     text-align: left;
@@ -60,26 +62,26 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.2;
+    max-width: calc(100% - 180px); /* ← Limita para dejar espacio al botón */
 }
-
 #welcomeMessage {
     color: #d4af37;
-    font-size: 16px; /* Aumentado de 14px a 16px */
-    margin-top: 5px; /* Aumentado de 2px a 5px */
+    font-size: 16px;
+    margin-top: 5px;
     font-weight: 500;
     text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: calc(100% - 180px); /* ← Igual que el h1 */
 }
 .header-right {
     flex-shrink: 0;
     display: flex;
-    align-items: flex-start;
-    margin-top: 5px;
+    align-items: center; /* ← Cambiar de flex-start a center */
+    /* ELIMINAR margin-top que desalinea */
+    /* margin-top: 5px; ← COMENTAR O ELIMINAR */
     position: relative;
-    /* Asegurar que el dropdown se muestre fuera del contenedor */
-    overflow: visible;
 }
 
 /* =========================================== */
@@ -109,11 +111,10 @@ body {
     max-width: 160px;
     justify-content: space-between;
     height: 40px;
-    /* Prevenir que cause overflow horizontal */
+    /* Eliminar cualquier margin/padding extra */
+    margin: 0;
     box-sizing: border-box;
-    white-space: nowrap;
 }
-
 .profile-btn::before {
     content: '';
     position: absolute;
@@ -125,9 +126,9 @@ body {
     transition: left 0.5s ease;
 }
 
-.profile-btn:hover::before {
+/* .profile-btn:hover::before {
     left: 100%;
-}
+} */
 
 .profile-btn:hover {
     background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0.15) 100%);
@@ -198,10 +199,9 @@ body {
     overflow: hidden;
     backdrop-filter: blur(10px);
     z-index: 1000;
-    /* Añade estos 3 estilos críticos: */
-    max-width: calc(100vw - 40px);
+    /* IMPORTANTE: Asegurar que no cause scroll */
+    max-width: min(280px, calc(100vw - 40px));
     box-sizing: border-box;
-    visibility: hidden;
 }
 @keyframes slideDown {
     from {
