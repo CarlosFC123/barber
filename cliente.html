@@ -6685,24 +6685,153 @@ function iniciarLimpiezaAutomaticaBotones() {
             return;
         }
 
+        // 1. Obtener información de la cita
+        const { data: cita, error: errorCita } = await supabase
+            .from('citas')
+            .select('*')
+            .eq('id', citaId)
+            .single();
+
+        if (errorCita) throw errorCita;
+
+        console.log('🔍 Información de la cita a marcar como completada:');
+        console.log(`   - ID: ${cita.id}`);
+        console.log(`   - Hora: ${cita.hora}`);
+        console.log(`   - Duración: ${cita.duracion || 40} minutos`);
+        console.log(`   - Es bloque: ${cita.es_bloque}`);
+        console.log(`   - Hora principal: ${cita.hora_principal}`);
+        console.log(`   - Notas: ${cita.notas}`);
+
+        // 2. Buscar todas las citas relacionadas del bloque de 80 minutos
+        let todasLasCitasDelBloque = [cita];
+        
+        // CASO 1: Es hora principal (tiene duración 80 o notas indican que es bloque)
+        if ((cita.duracion || 40) === 80 || 
+            (cita.notas && cita.notas.includes('bloque de 80 minutos'))) {
+            
+            console.log('📦 Detectado como hora principal de bloque de 80 minutos');
+            
+            // Buscar las horas secundarias que tienen esta hora como hora_principal
+            const { data: horasSecundarias, error: errorSecundarias } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('fecha', cita.fecha)
+                .eq('hora_principal', cita.hora)
+                .eq('cliente_id', usuarioActual.id)
+                .in('estado', ['aceptada', 'pendiente', 'confirmada']);
+                
+            if (errorSecundarias) {
+                console.error('Error buscando horas secundarias:', errorSecundarias);
+            }
+            
+            if (horasSecundarias && horasSecundarias.length > 0) {
+                console.log(`✅ Encontradas ${horasSecundarias.length} horas secundarias del bloque`);
+                todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasSecundarias];
+            }
+        }
+        
+        // CASO 2: Es hora secundaria (tiene hora_principal)
+        if (cita.hora_principal || 
+            (cita.notas && cita.notas.includes('Parte de bloque de 80 minutos'))) {
+            
+            const horaPrincipal = cita.hora_principal;
+            console.log(`📦 Detectado como hora secundaria. Hora principal: ${horaPrincipal}`);
+            
+            if (horaPrincipal) {
+                // Buscar la hora principal
+                const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
+                    .from('citas')
+                    .select('*')
+                    .eq('fecha', cita.fecha)
+                    .eq('hora', horaPrincipal)
+                    .eq('cliente_id', usuarioActual.id)
+                    .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                    .maybeSingle();
+                    
+                if (errorPrincipal) {
+                    console.error('Error buscando hora principal:', errorPrincipal);
+                }
+                
+                if (horaPrincipalCita) {
+                    console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id})`);
+                    
+                    // Verificar que no esté ya en el array
+                    const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
+                    if (!yaExiste) {
+                        todasLasCitasDelBloque.push(horaPrincipalCita);
+                    }
+                    
+                    // Buscar otras horas secundarias del mismo bloque
+                    const { data: otrasHorasBloque, error: errorOtras } = await supabase
+                        .from('citas')
+                        .select('*')
+                        .eq('fecha', cita.fecha)
+                        .eq('hora_principal', horaPrincipal)
+                        .eq('cliente_id', usuarioActual.id)
+                        .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                        .neq('id', cita.id); // Excluir la cita actual
+                        
+                    if (errorOtras) {
+                        console.error('Error buscando otras horas del bloque:', errorOtras);
+                    }
+                    
+                    if (otrasHorasBloque && otrasHorasBloque.length > 0) {
+                        console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
+                        
+                        // Agregar solo las que no están ya en el array
+                        otrasHorasBloque.forEach(otraHora => {
+                            const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
+                            if (!yaExiste) {
+                                todasLasCitasDelBloque.push(otraHora);
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        // Eliminar duplicados
+        const idsUnicos = [...new Set(todasLasCitasDelBloque.map(c => c.id))];
+        todasLasCitasDelBloque = todasLasCitasDelBloque.filter((cita, index, self) => 
+            index === self.findIndex(c => c.id === cita.id)
+        );
+        
+        console.log(`📊 Citas únicas del bloque: ${todasLasCitasDelBloque.length}`);
+        todasLasCitasDelBloque.forEach((c, i) => {
+            console.log(`   ${i + 1}. ${c.hora} (ID: ${c.id}, es_bloque: ${c.es_bloque}, hora_principal: ${c.hora_principal})`);
+        });
+
+        // 3. Marcar TODAS las citas del bloque como completadas
+        const idsAMarcar = todasLasCitasDelBloque.map(c => c.id);
+        console.log(`🎯 IDs a marcar como completadas: ${idsAMarcar.join(', ')}`);
+        
         // IMPORTANTE: Solo actualizamos el estado
         // El trigger se encargará de establecer expira_en automáticamente
-        const { data: updatedCita, error } = await supabase
+        const { data: updatedCitas, error } = await supabase
             .from('citas')
             .update({ 
                 estado: 'completada'
                 // NOTA: NO establecemos expira_en ni actualizado_en aquí
                 // El trigger lo hará automáticamente
             })
-            .eq('id', citaId)
-            .select('estado, expira_en');
+            .in('id', idsAMarcar)
+            .select('id, hora, estado, expira_en');
 
         if (error) throw error;
 
-        console.log('✅ Cita marcada como completada - Trigger establecerá expira_en automáticamente');
+        console.log(`✅ ${updatedCitas?.length || 0} cita(s) marcada(s) como completadas`);
         
-        showAlert('✅ Cita marcada como completada. Se eliminará automáticamente en 2 horas.', 'success');
+        // Mostrar mensaje apropiado
+        if (idsAMarcar.length > 1) {
+            const horas = todasLasCitasDelBloque.map(c => c.hora).sort().join(', ');
+            showAlert(`✅ Bloque de 80 minutos marcado como completado. Se completaron las horas: ${horas}. Se eliminarán automáticamente en 2 horas.`, 'success');
+        } else {
+            showAlert('✅ Cita marcada como completada. Se eliminará automáticamente en 2 horas.', 'success');
+        }
         
+        // 4. Actualizar caché y recargar lista de citas
+        await limpiarCacheDespuesDeAgendar();
+        await precargarCitasFuturas();
         await cargarMisCitas();
         
         setTimeout(() => {
@@ -6710,8 +6839,8 @@ function iniciarLimpiezaAutomaticaBotones() {
         }, 500);
 
     } catch (error) {
-        console.error('Error marcando cita como completada:', error);
-        showAlert('❌ Error al marcar la cita como completada: ' + error.message, 'error');
+        console.error('Error marcando cita(s) como completada(s):', error);
+        showAlert('❌ Error al marcar la cita(s) como completada(s): ' + error.message, 'error');
     }
 }
 
@@ -7001,7 +7130,7 @@ function getYucatanTimePlusHours(hours) {
     }
 }
 
-    async function verificarCitasPasadas() {
+   async function verificarCitasPasadas() {
     try {
         // Obtener hora LOCAL actual
         const ahoraLocal = new Date();
@@ -7011,16 +7140,21 @@ function getYucatanTimePlusHours(hours) {
         // Buscar todas las citas activas del usuario
         const { data: citasActivas, error } = await supabase
             .from('citas')
-            .select('id, fecha, hora, estado')
+            .select('id, fecha, hora, estado, hora_principal, duracion, notas')
             .eq('cliente_id', usuarioActual.id)
             .in('estado', ['aceptada', 'pendiente', 'confirmada']);
             
         if (error) throw error;
         
         if (citasActivas && citasActivas.length > 0) {
-            const citasParaCompletar = [];
+            const citasYaProcesadas = new Set(); // Para evitar procesar la misma cita múltiples veces
             
             for (const cita of citasActivas) {
+                // Si ya procesamos esta cita (por ejemplo, como parte de un bloque), saltarla
+                if (citasYaProcesadas.has(cita.id)) {
+                    continue;
+                }
+                
                 // Convertir fecha/hora de la cita a objeto Date (ya está en hora local)
                 const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
                 
@@ -7032,27 +7166,56 @@ function getYucatanTimePlusHours(hours) {
                 // Verificar si la hora de la cita YA PASÓ (comparación LOCAL)
                 if (ahoraLocal > fechaCita) {
                     console.log(`✅ Cita ${cita.id} pasó: ${cita.fecha} ${cita.hora}`);
-                    citasParaCompletar.push(cita.id);
+                    
+                    // Buscar todas las citas del bloque si es parte de un bloque
+                    let todasCitasBloque = [cita];
+                    citasYaProcesadas.add(cita.id);
+                    
+                    // Si es hora principal de un bloque (duración 80 minutos)
+                    if ((cita.duracion || 40) === 80) {
+                        // Buscar horas secundarias
+                        for (const otraCita of citasActivas) {
+                            if (otraCita.hora_principal === cita.hora && 
+                                otraCita.fecha === cita.fecha &&
+                                !citasYaProcesadas.has(otraCita.id)) {
+                                todasCitasBloque.push(otraCita);
+                                citasYaProcesadas.add(otraCita.id);
+                            }
+                        }
+                    }
+                    // Si es hora secundaria
+                    else if (cita.hora_principal) {
+                        // Buscar la hora principal
+                        for (const otraCita of citasActivas) {
+                            if (otraCita.hora === cita.hora_principal && 
+                                otraCita.fecha === cita.fecha &&
+                                !citasYaProcesadas.has(otraCita.id)) {
+                                todasCitasBloque.push(otraCita);
+                                citasYaProcesadas.add(otraCita.id);
+                            }
+                        }
+                    }
+                    
+                    // Marcar todas las citas del bloque como completadas
+                    const idsAMarcar = todasCitasBloque.map(c => c.id);
+                    console.log(`📦 Marcando ${idsAMarcar.length} citas del bloque como completadas: ${idsAMarcar.join(', ')}`);
+                    
+                    // IMPORTANTE: Solo actualizamos el estado
+                    // El trigger se encargará de establecer expira_en automáticamente
+                    const { error: updateError } = await supabase
+                        .from('citas')
+                        .update({
+                            estado: 'completada'
+                        })
+                        .in('id', idsAMarcar);
+                        
+                    if (updateError) throw updateError;
+                    
+                    console.log(`✅ ${idsAMarcar.length} citas marcadas como completadas`);
                 }
             }
             
-            if (citasParaCompletar.length > 0) {
-                console.log(`📅 Marcando ${citasParaCompletar.length} citas como completadas automáticamente`);
-                
-                // IMPORTANTE: Solo actualizamos el estado
-                // El trigger se encargará de establecer expira_en automáticamente
-                const { error: updateError } = await supabase
-                    .from('citas')
-                    .update({
-                        estado: 'completada'
-                        // NOTA: NO establecemos expira_en ni actualizado_en aquí
-                        // El trigger lo hará automáticamente
-                    })
-                    .in('id', citasParaCompletar)
-                    .select('id, expira_en');
-                    
-                if (updateError) throw updateError;
-                
+            if (citasYaProcesadas.size > 0) {
                 console.log('✅ Citas marcadas como completadas - Trigger establecerá expira_en automáticamente');
                 
                 // Recargar citas y actualizar UI
