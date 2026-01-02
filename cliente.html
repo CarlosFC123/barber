@@ -1301,18 +1301,19 @@ h2 {
 <body>
 <div class="header" style="background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('img/fondo2.jpg') center/cover no-repeat;">
     <div class="header-top">
+        <!-- Título y mensaje a la izquierda -->
         <div class="header-left">
             <h1>BARBER-SHOP</h1>
-            <p style="color: #d4af37; font-size: 14px; margin-top: 5px;" id="welcomeMessage">
-                Cargando...
-            </p>
+            <p id="welcomeMessage">Cargando...</p>
         </div>
+        
+        <!-- Botón de perfil a la derecha -->
         <div class="header-right">
             <div class="user-profile-dropdown" id="userProfileDropdown">
                 <button class="profile-btn" id="profileBtn">
-                    <div class="profile-btn-content">
+                    <div class="profile-btn-inner">
                         <img id="userAvatar" src="" alt="Perfil">
-                        <span class="profile-btn-text" id="profileName">Perfil</span>
+                        <span class="profile-name" id="profileName">Perfil</span>
                     </div>
                     <span class="dropdown-arrow">▼</span>
                 </button>
@@ -1332,7 +1333,6 @@ h2 {
         </div>
     </div>
 </div>
-
     <div class="container">
         <div id="alert" class="alert"></div>
 
