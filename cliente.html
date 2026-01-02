@@ -2102,12 +2102,39 @@ async function sincronizarEstadosHoras() {
         
         // 8. Limpiar caché viejo
         limpiarCacheExpirado();
+        limpiarEstadosBloqueVisuales(fechaFormateada);
         
     } catch (error) {
         console.error('❌ Error sincronizando estados:', error);
     }
 }
-
+function limpiarEstadosBloqueVisuales(fecha) {
+    console.log(`🧹 Limpiando estados visuales de bloque para: ${fecha}`);
+    
+    const botones = document.querySelectorAll('.hora-btn.parte-bloque');
+    botones.forEach(btn => {
+        const fechaBtn = btn.dataset.fecha;
+        if (fechaBtn === fecha) {
+            // Verificar si realmente es parte de un bloque activo
+            const hora = btn.dataset.hora;
+            const clave = `${fecha}_${hora}`;
+            
+            // Si no hay reserva en memoria para esta hora, limpiar el estado visual
+            if (!solicitudesPendientes.has(clave)) {
+                console.log(`🧽 Limpiando estado visual de bloque para: ${hora}`);
+                btn.classList.remove('parte-bloque', 'mi-reserva-activa');
+                btn.innerHTML = btn.innerHTML.replace(/⭐ Bloque/g, '');
+                
+                // Reconfigurar el botón según su estado real
+                setTimeout(() => {
+                    const duracionInput = document.getElementById('servicioDuracion');
+                    const duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
+                    configurarBotonDisponible(btn, hora, fecha, duracionServicio);
+                }, 100);
+            }
+        }
+    });
+}
 // **NUEVA FUNCIÓN: Verificación específica para bloques de 80 minutos**
 async function verificarBloques80Minutos(fecha) {
     console.log(`🔍 Verificación específica para bloques de 80 minutos: ${fecha}`);
@@ -3117,7 +3144,7 @@ async function liberarReservaCompleta(fechaStr, horaStr, duracionServicio) {
         const horaIndex = parseInt(document.querySelector(`.hora-btn[data-fecha="${fechaStr}"][data-hora="${horaStr}"]`)?.dataset.index);
         
         if (!isNaN(horaIndex)) {
-            // Liberar todas las horas del bloque
+            // 1. Liberar todas las horas de la BD
             for (let i = 0; i < slotsNecesarios; i++) {
                 const siguienteIndex = horaIndex + i;
                 const siguienteBtn = document.querySelector(`.hora-btn[data-index="${siguienteIndex}"]`);
@@ -3141,72 +3168,88 @@ async function liberarReservaCompleta(fechaStr, horaStr, duracionServicio) {
                     solicitudesPendientes.delete(clave);
                     cacheEstadosHoras.delete(clave);
                     
-                    // IMPORTANTE: Restaurar UI correctamente
-                    console.log(`🔄 Restaurando UI para: ${siguienteHoraStr}`);
+                    console.log(`   - Liberada hora de BD: ${siguienteHoraStr}`);
+                }
+            }
+            
+            // 2. **ESCRITORIO DE ESTADOS: Restaurar UI de TODAS las horas del bloque**
+            setTimeout(() => {
+                for (let i = 0; i < slotsNecesarios; i++) {
+                    const siguienteIndex = horaIndex + i;
+                    const siguienteBtn = document.querySelector(`.hora-btn[data-index="${siguienteIndex}"]`);
                     
-                    // Si era parte de bloque, restaurar según su estado original
-                    if (siguienteBtn.classList.contains('parte-bloque')) {
-                        // Determinar el estado original de esta hora
+                    if (siguienteBtn) {
+                        const siguienteHoraStr = siguienteBtn.dataset.hora;
+                        
+                        // **LIMPIAR COMPLETAMENTE EL ESTADO VISUAL**
+                        siguienteBtn.className = 'hora-btn';
+                        siguienteBtn.style.cssText = '';
+                        siguienteBtn.disabled = false;
+                        
+                        // **ELIMINAR LAS CLASES DE BLOQUE**
+                        siguienteBtn.classList.remove('mi-reserva-activa', 'parte-bloque', 'selected');
+                        
+                        // **RESTABLECER EL BOTÓN SEGÚN SU ESTADO REAL**
                         const ahora = new Date();
                         const esHoy = selectedDate && selectedDate.toDateString() === ahora.toDateString();
                         const horaActual = ahora.getHours();
                         const minutosActual = ahora.getMinutes();
-                        
                         const [h, m] = siguienteHoraStr.split(':').map(Number);
-                        const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
                         
-                        if (horaPasada) {
-                            // Restaurar como hora pasada
+                        // Determinar el estado actual de esta hora
+                        if (esHoy && (h < horaActual || (h === horaActual && m <= minutosActual))) {
+                            // Hora pasada
                             configurarBotonPasado(siguienteBtn, siguienteHoraStr);
                         } else {
-                            // Verificar si es no-disponible (última hora del día)
-                            const duracionInput = document.getElementById('servicioDuracion');
-                            const duracionServicioActual = duracionInput ? parseInt(duracionInput.value) : 40;
+                            // Verificar si está ocupada
+                            const citaExistente = todasLasCitasFuturasCache.some(c => 
+                                c.fecha === fechaStr && c.hora === siguienteHoraStr
+                            );
                             
-                            // Si es la última hora (19:20) o no puede ser inicio de bloque
-                            const totalHoras = document.querySelectorAll('.hora-btn').length;
-                            const esUltimaHora = siguienteIndex >= totalHoras - 1;
-                            const noPuedeSerInicio = !verificarPuedeSerInicioBloque(siguienteIndex, fechaStr, duracionServicioActual);
-                            
-                            if (esUltimaHora || noPuedeSerInicio) {
-                                configurarBotonNoDisponible(siguienteBtn, siguienteHoraStr, duracionServicioActual);
+                            if (citaExistente) {
+                                // Está ocupada
+                                configurarBotonOcupada(siguienteBtn, siguienteHoraStr);
                             } else {
-                                // Restaurar como disponible
-                                configurarBotonDisponible(siguienteBtn, siguienteHoraStr, fechaStr, duracionServicioActual);
+                                // Verificar si es no-disponible (última hora del día)
+                                const duracionInput = document.getElementById('servicioDuracion');
+                                const duracionServicioActual = duracionInput ? parseInt(duracionInput.value) : 40;
+                                
+                                if (duracionServicioActual > 40) {
+                                    const puedeSerInicio = verificarPuedeSerInicioBloque(siguienteIndex, fechaStr, duracionServicioActual);
+                                    if (!puedeSerInicio) {
+                                        configurarBotonNoDisponible(siguienteBtn, siguienteHoraStr, duracionServicioActual);
+                                    } else {
+                                        configurarBotonDisponible(siguienteBtn, siguienteHoraStr, fechaStr, duracionServicioActual);
+                                    }
+                                } else {
+                                    configurarBotonDisponible(siguienteBtn, siguienteHoraStr, fechaStr, duracionServicioActual);
+                                }
                             }
                         }
+                        
+                        console.log(`   - UI restaurada para: ${siguienteHoraStr}`);
                     }
-                    
-                    console.log(`   - Liberada hora: ${siguienteHoraStr}`);
                 }
-            }
+            }, 100);
+            
         } else {
             // Fallback: liberar solo la hora principal
             await liberarReserva(fechaStr, horaStr);
         }
         
-        // Resetear UI de la hora principal
+        // 3. Resetear la hora principal
         const horaPrincipalBtn = document.querySelector(`.hora-btn[data-fecha="${fechaStr}"][data-hora="${horaStr}"]`);
         if (horaPrincipalBtn) {
             resetearUIReserva(horaPrincipalBtn, horaStr);
-            
-            // Aplicar lógica de no-disponible si corresponde
-            const duracionInput = document.getElementById('servicioDuracion');
-            const duracionServicioActual = duracionInput ? parseInt(duracionInput.value) : 40;
-            const horaIndexPrincipal = parseInt(horaPrincipalBtn.dataset.index);
-            const totalHoras = document.querySelectorAll('.hora-btn').length;
-            
-            if (duracionServicioActual > 40) {
-                const puedeSerInicio = verificarPuedeSerInicioBloque(horaIndexPrincipal, fechaStr, duracionServicioActual);
-                if (!puedeSerInicio) {
-                    configurarBotonNoDisponible(horaPrincipalBtn, horaStr, duracionServicioActual);
-                } else {
-                    configurarBotonDisponible(horaPrincipalBtn, horaStr, fechaStr, duracionServicioActual);
-                }
-            }
         }
         
         console.log(`✅ Bloque completo liberado: ${fechaStr} ${horaStr}`);
+        
+        // 4. Forzar actualización de estados después de liberar
+        setTimeout(() => {
+            forzarActualizacionEstadosDespuesDeLiberar(fechaStr);
+            sincronizarEstadosHoras();
+        }, 500);
         
     } catch (error) {
         console.error('❌ Error liberando bloque:', error);
@@ -3646,19 +3689,17 @@ async function forzarDisponibilidadHora(fecha, hora) {
     const intervalo = setInterval(actualizarContador, 1000);
     btn.dataset.intervaloContador = intervalo;
 }
-           function resetearUIReserva(btn, horaStr) {
+      function resetearUIReserva(btn, horaStr) {
     console.log('🔄 Reseteando UI de reserva');
     
-    btn.classList.remove('selected', 'mi-reserva-activa');
+    // Limpiar TODAS las clases relacionadas con reservas
+    btn.classList.remove('selected', 'mi-reserva-activa', 'parte-bloque', 'click-in-progress');
     
     // Restaurar estilos por defecto
-    btn.style.background = '';
-    btn.style.borderColor = '';
-    btn.style.color = '';
-    btn.style.boxShadow = '';
-    btn.style.fontWeight = '';
-    btn.style.transform = '';
+    btn.style.cssText = '';
+    btn.disabled = false;
     
+    // Restablecer el texto
     btn.textContent = horaStr;
     btn.title = 'Hora disponible';
     
@@ -3666,6 +3707,23 @@ async function forzarDisponibilidadHora(fecha, hora) {
     if (btn.dataset.intervaloContador) {
         clearInterval(btn.dataset.intervaloContador);
         delete btn.dataset.intervaloContador;
+    }
+    
+    // Limpiar eventos de clic anteriores
+    btn.onclick = null;
+    
+    // Configurar el botón según su estado actual
+    const duracionInput = document.getElementById('servicioDuracion');
+    const duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
+    const fecha = btn.dataset.fecha;
+    
+    // Verificar estado actual y configurar
+    if (btn.classList.contains('no-disponible')) {
+        // Mantener como no disponible si esa es su condición
+        configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+    } else {
+        // De lo contrario, configurar como disponible
+        configurarBotonDisponible(btn, horaStr, fecha, duracionServicio);
     }
     
     console.log('✅ UI reseteada correctamente');
