@@ -1852,47 +1852,29 @@ async function cargarDatosUsuarioDropdown() {
             
         if (error) throw error;
         
-        // Asegurarse de que los nombres no sean null/undefined
-        const nombre = (clienteData.nombre || '').trim();
-        const apellido = (clienteData.apellido || '').trim();
-        
-        const nombreCompleto = `${nombre} ${apellido}`.trim();
-        const email = clienteData.email || 'No disponible';
+        const nombreCompleto = `${clienteData.nombre} ${clienteData.apellido}`;
+        const email = clienteData.email;
         const avatarUrl = clienteData.avatar_url || 'https://via.placeholder.com/150';
-        
-        console.log('Datos del cliente:', { nombre, apellido, nombreCompleto }); // Para debug
         
         // Actualizar elementos del DOM
         document.getElementById('userAvatar').src = avatarUrl;
-        document.getElementById('userAvatar').alt = `Foto de ${nombreCompleto || 'Usuario'}`;
+        document.getElementById('userAvatar').alt = `Foto de ${nombreCompleto}`;
         
         // Actualizar mensaje de bienvenida en el header
         const welcomeMessage = document.getElementById('welcomeMessage');
         if (welcomeMessage) {
-            // Usar el nombre si existe, sino usar el email
-            const nombreParaSaludo = nombre || email.split('@')[0] || 'Usuario';
-            welcomeMessage.textContent = `¡Bienvenido, ${nombreParaSaludo}!`;
+            welcomeMessage.textContent = `¡Bienvenido, ${clienteData.nombre}!`;
         }
         
         // Actualizar dropdown
-        document.getElementById('dropdownName').textContent = nombreCompleto || email.split('@')[0] || 'Usuario';
+        document.getElementById('dropdownName').textContent = nombreCompleto;
         document.getElementById('dropdownEmail').textContent = email;
-        
-        // También actualizar el nombre en el botón si existe el elemento
-        const profileNameElement = document.getElementById('profileName');
-        if (profileNameElement && nombre) {
-            profileNameElement.textContent = nombre;
-        }
         
     } catch (error) {
         console.error('Error cargando datos del usuario:', error);
         
         // Usar datos básicos de auth si falla
-        const nombre = usuarioActual.user_metadata?.full_name || 
-                      usuarioActual.user_metadata?.name || 
-                      usuarioActual.email?.split('@')[0] || 
-                      'Usuario';
-        
+        const nombre = usuarioActual.user_metadata?.full_name || usuarioActual.email?.split('@')[0] || 'Usuario';
         const email = usuarioActual.email || 'No disponible';
         const avatarUrl = usuarioActual.user_metadata?.avatar_url || 'https://via.placeholder.com/150';
         
@@ -1905,12 +1887,6 @@ async function cargarDatosUsuarioDropdown() {
         
         document.getElementById('dropdownName').textContent = nombre;
         document.getElementById('dropdownEmail').textContent = email;
-        
-        // Actualizar botón también
-        const profileNameElement = document.getElementById('profileName');
-        if (profileNameElement) {
-            profileNameElement.textContent = nombre.split(' ')[0]; // Solo primer nombre
-        }
     }
 }
 // ============ SISTEMA DE DETECCIÓN DE ACTIVIDAD ============
