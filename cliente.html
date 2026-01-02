@@ -31,13 +31,223 @@ body {
     border-bottom: 3px solid #d4af37;
 }
 
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
 .header h1 {
     font-size: 28px;
     margin-bottom: 5px;
     font-weight: 700;
     letter-spacing: 1px;
 }
+.user-profile-dropdown {
+    position: relative;
+    z-index: 1000;
+}
 
+.profile-btn {
+    background: rgba(212, 175, 55, 0.1);
+    border: 2px solid #d4af37;
+    border-radius: 50px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #d4af37;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.profile-btn:hover {
+    background: rgba(212, 175, 55, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.profile-btn img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid #d4af37;
+    object-fit: cover;
+}
+.dropdown-arrow {
+    font-size: 10px;
+    transition: transform 0.3s ease;
+}
+
+.user-profile-dropdown.active .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+/* Dropdown menu */
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: #1a1a1a;
+    border: 2px solid #d4af37;
+    border-radius: 12px;
+    width: 320px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    display: none;
+    animation: fadeIn 0.2s ease;
+    overflow: hidden;
+}
+
+.user-profile-dropdown.active .dropdown-menu {
+    display: block;
+}
+
+.dropdown-header {
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: rgba(212, 175, 55, 0.05);
+    border-bottom: 1px solid #333;
+}
+
+#dropdownAvatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 3px solid #d4af37;
+    object-fit: cover;
+}
+
+.dropdown-user-info {
+    flex: 1;
+}
+
+.dropdown-user-info h3 {
+    color: #d4af37;
+    font-size: 18px;
+    margin-bottom: 5px;
+    font-weight: 700;
+}
+
+.dropdown-user-info p {
+    color: #cccccc;
+    font-size: 14px;
+    word-break: break-all;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: #333;
+    margin: 8px 0;
+}
+
+.dropdown-item {
+    width: 100%;
+    padding: 14px 20px;
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 15px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background: rgba(212, 175, 55, 0.1);
+    color: #d4af37;
+}
+
+.dropdown-icon {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+}
+
+.logout-item {
+    color: #ff6b6b;
+}
+
+.logout-item:hover {
+    background: rgba(255, 107, 107, 0.1);
+    color: #ff6b6b;
+}
+
+/* Ocultar el botón de cerrar sesión viejo */
+.user-info {
+    display: none;
+}
+
+/* Bienvenida en el header */
+.welcome-message {
+    text-align: center;
+    margin-top: 10px;
+    color: #d4af37;
+    font-size: 16px;
+    font-weight: 500;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================================== */
+/* ESTILOS RESPONSIVE PARA EL DROPDOWN */
+/* =========================================== */
+
+@media (max-width: 768px) {
+    .header-top {
+        flex-direction: column;
+        gap: 15px;
+        padding: 0 10px;
+    }
+    
+    .header h1 {
+        font-size: 24px;
+        text-align: center;
+    }
+    
+    .user-profile-dropdown {
+        width: 100%;
+    }
+    
+    .profile-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .dropdown-menu {
+        width: 100%;
+        position: fixed;
+        top: 120px;
+        left: 0;
+        right: 0;
+        margin: 0 10px;
+        width: calc(100% - 20px);
+    }
+}
+
+@media (max-width: 480px) {
+    .dropdown-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .dropdown-user-info h3 {
+        font-size: 16px;
+    }
+    
+    .dropdown-user-info p {
+        font-size: 12px;
+    }
+}
 .user-info {
     display: flex;
     justify-content: space-between;
@@ -1042,13 +1252,37 @@ h2 {
     </style>
 </head>
 <body>
-    <div class="header" style="background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('img/fondo2.jpg') center/cover no-repeat;">
-    <h1>BARBER-SHOP</h1>
-    
-    <div class="user-info">
-        
-        <button class="logout-btn" id="logoutBtn">Cerrar Sesión</button>
+<div class="header" style="background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('img/fondo2.jpg') center/cover no-repeat;">
+    <div class="header-top">
+        <h1>BARBER-SHOP</h1>
+        <div class="user-profile-dropdown" id="userProfileDropdown">
+            <button class="profile-btn" id="profileBtn">
+                <img id="userAvatar" src="" alt="Perfil">
+                <span id="userName">Cargando...</span>
+                <span class="dropdown-arrow">▼</span>
+            </button>
+            <div class="dropdown-menu" id="dropdownMenu">
+                <div class="dropdown-header">
+                    <img id="dropdownAvatar" src="" alt="Perfil">
+                    <div class="dropdown-user-info">
+                        <h3 id="dropdownName">Cargando...</h3>
+                        <p id="dropdownEmail">Cargando...</p>
+                    </div>
+                </div>
+                <div class="dropdown-divider"></div>
+                <!-- <button class="dropdown-item" onclick="app.cambiarPestana('perfil')">
+                    <span class="dropdown-icon">👤</span> Mi Perfil
+                </button> -->
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item logout-item" id="logoutBtn">
+                    <span class="dropdown-icon">🚪</span> Cerrar Sesión
+                </button>
+            </div>
+        </div>
     </div>
+    <p style="color: #d4af37; font-size: 14px; margin-top: 5px;">
+        Bienvenido a tu panel de control
+    </p>
 </div>
 
     <div class="container">
