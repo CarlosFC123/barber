@@ -35,12 +35,13 @@ body {
 .header-top {
     display: flex;
     justify-content: space-between;
-    align-items: center; /* Cambiado de flex-start a center */
+    align-items: center;
     max-width: 1200px;
     margin: 0 auto;
     position: relative;
     flex-wrap: nowrap;
-    width: 100%; /* Asegura que ocupe todo el ancho */
+    width: 100%;
+    overflow: visible; /* ← AÑADE ESTO */
 }
 /* Título a la izquierda - Ocupa el espacio disponible */
 .header-left {
@@ -72,12 +73,14 @@ body {
     text-overflow: ellipsis;
 }
 .header-right {
-    flex-shrink: 0; /* Evita que se reduzca */
+    flex-shrink: 0;
     display: flex;
-    align-items: flex-start; /* Alinear arriba */
-    margin-top: 5px; /* Alinear con el título */
+    align-items: flex-start;
+    margin-top: 5px;
+    position: relative;
+    /* Asegurar que el dropdown se muestre fuera del contenedor */
+    overflow: visible;
 }
-
 
 /* =========================================== */
 /* PERFIL DE USUARIO COMPACTO */
@@ -105,7 +108,10 @@ body {
     min-width: 120px;
     max-width: 160px;
     justify-content: space-between;
-    height: 40px; /* Altura fija */
+    height: 40px;
+    /* Prevenir que cause overflow horizontal */
+    box-sizing: border-box;
+    white-space: nowrap;
 }
 
 .profile-btn::before {
@@ -192,8 +198,11 @@ body {
     overflow: hidden;
     backdrop-filter: blur(10px);
     z-index: 1000;
+    /* Añade estos 3 estilos críticos: */
+    max-width: calc(100vw - 40px);
+    box-sizing: border-box;
+    visibility: hidden;
 }
-
 @keyframes slideDown {
     from {
         opacity: 0;
@@ -207,8 +216,8 @@ body {
 
 .user-profile-dropdown.active .dropdown-menu {
     display: block;
+    visibility: visible; /* ← Mostrar solo cuando está activo */
 }
-
 /* Header del dropdown compacto */
 .dropdown-header {
     padding: 20px;
