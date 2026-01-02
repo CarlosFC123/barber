@@ -62,8 +62,9 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.2;
-    max-width: calc(100% - 180px); /* ← Limita para dejar espacio al botón */
+    max-width: calc(100% - 280px); /* ← Reducir para dar más espacio al botón */
 }
+
 #welcomeMessage {
     color: #d4af37;
     font-size: 16px;
@@ -73,15 +74,14 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: calc(100% - 180px); /* ← Igual que el h1 */
+    max-width: calc(100% - 280px); /* ← Igual que el h1 */
 }
 .header-right {
     flex-shrink: 0;
     display: flex;
-    align-items: center; /* ← Cambiar de flex-start a center */
-    /* ELIMINAR margin-top que desalinea */
-    /* margin-top: 5px; ← COMENTAR O ELIMINAR */
+    align-items: center;
     position: relative;
+    max-width: 250px; /* ← Aumentar el espacio disponible */
 }
 
 /* =========================================== */
@@ -100,23 +100,23 @@ body {
     background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.05) 100%);
     border: 2px solid #d4af37;
     border-radius: 50px;
-    padding: 5px 8px 5px 6px;
+    padding: 5px 12px 5px 8px; /* ← Aumentar padding horizontal */
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px; /* ← Aumentar espacio entre elementos */
     cursor: pointer;
     transition: all 0.3s ease;
     color: #d4af37;
     font-weight: 600;
     font-size: 12px;
     width: auto;
-    min-width: 120px;
-    max-width: 160px;
+    min-width: 140px; /* ← Aumentar tamaño mínimo */
+    max-width: 220px; /* ← Aumentar tamaño máximo */
     justify-content: space-between;
     height: 40px;
-    position: relative; /* ← Añadir esto */
-    overflow: hidden; /* ← ¡IMPORTANTE! Esto contiene el efecto */
-    box-sizing: border-box; /* ← Asegurar que todo esté dentro */
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 .profile-btn::before {
     content: '';
@@ -146,18 +146,13 @@ body {
 .profile-btn-inner {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px; /* ← Aumentar espacio */
     flex: 1;
     min-width: 0;
-    position: relative; /* ← Para estar por encima del efecto */
-    z-index: 2; /* ← Encima del pseudo-elemento */
-}
-.profile-btn img,
-.profile-name,
-.dropdown-arrow {
     position: relative;
-    z-index: 2; /* ← Encima del efecto de brillo */
+    z-index: 2;
 }
+
 
 .profile-btn img {
     width: 28px;
@@ -172,13 +167,15 @@ body {
 }
 
 .profile-name {
-    font-size: 11px;
+    font-size: 12px; /* ← Aumentar tamaño */
     font-weight: 600;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 60px;
+    overflow: visible !important; /* ← Cambiar de hidden a visible */
+    text-overflow: clip !important; /* ← Cambiar de ellipsis a clip */
+    max-width: none !important; /* ← Eliminar max-width */
     text-align: left;
+    flex: 1; /* ← Ocupar espacio disponible */
+    min-width: 60px; /* ← Ancho mínimo */
 }
 
 .profile-btn:hover img {
@@ -188,12 +185,13 @@ body {
 }
 
 .dropdown-arrow {
-    font-size: 8px;
+    font-size: 10px; /* ← Aumentar tamaño */
     transition: transform 0.3s ease;
     color: #d4af37;
-    margin-left: 4px;
+    margin-left: 6px; /* ← Aumentar margen */
     flex-shrink: 0;
 }
+
 
 .user-profile-dropdown.active .dropdown-arrow {
     transform: rotate(180deg);
