@@ -5324,43 +5324,9 @@ function verificarPuedeSerInicioBloque(index, fecha, duracionServicio) {
     const horas = generarHorasDisponibles(duracionServicio);
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
     
-    // **VERIFICAR CASO ESPECÍFICO: 12:20 con servicio de 80 minutos**
-    if (duracionServicio === 80) {
-        // Obtener la hora en este índice
-        if (index < horas.length) {
-            const horaData = horas[index];
-            const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
-            
-            // **ESPECÍFICAMENTE: 12:20 NO puede ser inicio de bloque de 80 minutos**
-            if (horaStr === '12:20') {
-                console.log(`❌ 12:20 no puede ser inicio de bloque de 80 minutos - requiere slot en la tarde`);
-                return false;
-            }
-        }
-    }
-    
     // Verificar si hay suficientes horas consecutivas disponibles
     if (index + slotsNecesarios > horas.length) {
         return false; // No hay suficientes horas
-    }
-    
-    // **VERIFICAR RESTRICCIÓN DE MAÑANA/TARDE**
-    // Para servicios de 80 minutos que cruzan de mañana a tarde
-    if (duracionServicio === 80) {
-        const horaInicio = horas[index];
-        const horaFinIndex = index + 1; // Siguiente slot
-        if (horaFinIndex < horas.length) {
-            const horaFin = horas[horaFinIndex];
-            
-            // Verificar si son de periodos diferentes (mañana vs tarde)
-            const esMananaInicio = horaInicio.hora < 14; // Mañana: antes de las 14:00
-            const esMananaFin = horaFin.hora < 14; // Mañana: antes de las 14:00
-            
-            if (esMananaInicio !== esMananaFin) {
-                console.log(`❌ Bloque de 80 minutos no puede cruzar de mañana a tarde`);
-                return false;
-            }
-        }
     }
     
     // Obtener todas las horas del bloque
@@ -5483,16 +5449,6 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
     
-    // **Mensaje específico para 12:20 con servicio de 80 minutos**
-    let mensajeEspecifico = '';
-    if (horaStr === '12:20' && duracionServicio === 80) {
-        mensajeEspecifico = '⚠️ Última hora de la mañana - no disponible para servicio de 80 minutos';
-    } else if (duracionServicio > 40) {
-        mensajeEspecifico = `No hay ${slotsNecesarios} slots consecutivos disponibles`;
-    } else {
-        mensajeEspecifico = 'No disponible';
-    }
-    
     // **CORRECCIÓN: Usar formatearHoraAMPM para mostrar correctamente**
     const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
     
@@ -5500,12 +5456,8 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     btn.innerHTML = `
         ${horaFormateada}
         <br>
-        <small style="font-size: 9px; color: #999;">
-            ${periodo}
-        </small>
-        <br>
-        <small style="font-size: 10px; color: #ff6b6b; background: rgba(255, 107, 107, 0.1); padding: 2px 6px; border-radius: 4px; margin-top: 3px; display: inline-block; max-width: 100%; word-wrap: break-word;">
-            ❌ ${mensajeEspecifico}
+        <small style="font-size: 10px; color: #999; background: rgba(153, 153, 153, 0.1); padding: 2px 4px; border-radius: 3px; margin-top: 3px; display: inline-block;">
+            ❌ No disponible
         </small>
         ${duracionServicio > 40 ? `
         <br>
@@ -5525,8 +5477,27 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
         pointer-events: none !important;
     `;
     
-    btn.title = mensajeEspecifico;
+    btn.title = `No hay suficiente tiempo disponible para un servicio de ${duracionServicio} minutos`;
 }
+            function actualizarEstadoAgendamiento(horasDisponibles) {
+    const btnAgendar = document.getElementById('btnAgendarCita');
+    if (!btnAgendar) return;
+    
+    if (horasDisponibles === 0) {
+        btnAgendar.disabled = true;
+        btnAgendar.style.opacity = '0.6';
+        btnAgendar.style.cursor = 'not-allowed';
+        btnAgendar.title = 'No hay horas disponibles para esta fecha';
+        btnAgendar.innerHTML = '📅 Sin horas disponibles';
+    } else {
+        btnAgendar.disabled = false;
+        btnAgendar.style.opacity = '1';
+        btnAgendar.style.cursor = 'pointer';
+        btnAgendar.title = 'Agendar cita';
+        btnAgendar.innerHTML = 'Agendar Cita';
+    }
+}
+
             // ============ SISTEMA DE NOTIFICACIONES ============
 
            async function notificarCambioCita(fecha, hora, tipo = 'cita_agendada') {
