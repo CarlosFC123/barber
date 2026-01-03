@@ -5389,46 +5389,6 @@ function verificarPuedeSerInicioBloque(index, fecha, duracionServicio) {
     
     return true;
 }
-function verificarRestriccionesHorario(horaStr, duracionServicio) {
-    if (duracionServicio === 80) {
-        // Bloque de 80 minutos (2 slots de 40)
-        const [hora, minutos] = horaStr.split(':').map(Number);
-        
-        // Lista de horas que NO pueden ser inicio de bloque de 80 minutos
-        const horasNoPermitidas = [
-            '12:20',  // Última hora de la mañana
-            '19:20'   // Última hora de la tarde
-        ];
-        
-        if (horasNoPermitidas.includes(horaStr)) {
-            console.log(`❌ ${horaStr} no puede ser inicio de bloque de 80 minutos`);
-            return false;
-        }
-        
-        // También verificar si el segundo slot caería en periodo diferente
-        const horaPrincipalIndex = obtenerIndexHora(horaStr);
-        const siguienteSlotIndex = horaPrincipalIndex + 1;
-        
-        // Obtener hora del siguiente slot
-        const horasDisponibles = generarHorasDisponibles(duracionServicio);
-        const siguienteSlotHora = horasDisponibles[siguienteSlotIndex];
-        
-        if (siguienteSlotHora) {
-            const siguienteHoraStr = `${String(siguienteSlotHora.hora).padStart(2, '0')}:${String(siguienteSlotHora.minutos).padStart(2, '0')}`;
-            
-            // Verificar si ambos slots están en el mismo periodo (mañana o tarde)
-            const esMananaPrincipal = hora < 14;
-            const esMananaSiguiente = siguienteSlotHora.hora < 14;
-            
-            if (esMananaPrincipal !== esMananaSiguiente) {
-                console.log(`❌ Bloque no puede cruzar periodos: ${horaStr} -> ${siguienteHoraStr}`);
-                return false;
-            }
-        }
-    }
-    
-    return true;
-}
 async function resetearTodosLosBotones(fecha) {
     const horasGrid = document.getElementById('horasGrid');
     if (!horasGrid) return;
@@ -5567,7 +5527,6 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     
     btn.title = mensajeEspecifico;
 }
-
             // ============ SISTEMA DE NOTIFICACIONES ============
 
            async function notificarCambioCita(fecha, hora, tipo = 'cita_agendada') {
