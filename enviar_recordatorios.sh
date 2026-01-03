@@ -314,7 +314,7 @@ WhatsApp: 999-987-6543
 ¡Te esperamos pronto!
 
 ═══════════════════════════════════════════════════════════
-© 2025-2026 Waldos Barber Shop. Todos los derechos reservados.
+© 2026-2027 Waldos Barber Shop. Todos los derechos reservados.
 Este es un correo automático, por favor no respondas a este mensaje.
 ID de referencia: WB-${id}
 ═══════════════════════════════════════════════════════════
@@ -442,9 +442,9 @@ main() {
   echo "🔍 Buscando citas para hoy: $FECHA_HOY"
   echo "🕐 Hora actual: $HORA_ACTUAL_FULL"
   
-  # Obtener citas para hoy
+  # Obtener citas para hoy - SOLO HORAS PRINCIPALES (es_bloque = false o null)
   RESPONSE=$(curl -s -w "\n%{http_code}" \
-    -X GET "$SUPABASE_URL/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&or=(recordatorio_enviado.eq.false,recordatorio_enviado.is.null)&select=*" \
+    -X GET "$SUPABASE_URL/rest/v1/citas?fecha=eq.$FECHA_HOY&estado=in.(aceptada,pendiente,confirmada)&or=(recordatorio_enviado.eq.false,recordatorio_enviado.is.null)&or=(es_bloque.eq.false,es_bloque.is.null)&select=*" \
     -H "apikey: $SUPABASE_KEY" \
     -H "Authorization: Bearer $SUPABASE_KEY" \
     -H "Content-Type: application/json")
@@ -501,6 +501,12 @@ main() {
     echo "   Hora: $HORA_CITA"
     echo "   Recordatorio ya enviado? $RECORDATORIO_ENVIADO"
     
+    if [ "$ES_BLOQUE" = "true" ]; then
+        echo "   ⏭️  Es hora de bloque (es_bloque=true), saltando..."
+        TOTAL_SALTADOS=$((TOTAL_SALTADOS + 1))
+        echo "   ──────────────────────────────────────────"
+        continue
+    fi
     # Verificar si ya se envió recordatorio
     if [ "$RECORDATORIO_ENVIADO" = "true" ]; then
       echo "   ⏭️  Ya enviado, saltando..."
