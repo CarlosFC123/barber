@@ -4023,25 +4023,25 @@ async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaA
     
     console.log(`📊 Calculando estados: ${slotsNecesarios} slots necesarios para ${duracionServicio} minutos`);
     
-    // **MODIFICADO: Corregir índices para 12:20**
-    horas.forEach((h, i) => {
-        h.index = i; // Asegurar que cada hora tenga el índice correcto
-    });
-    
     // 1. Calcular estados individuales sin considerar duración
     for (let i = 0; i < horas.length; i++) {
-        const { hora: h, minutos: m } = horas[i];
+        const { hora: h, minutos: m, esManana } = horas[i];
         const horaStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
         
-        // **MODIFICADO: Lógica para horas pasadas que incluya 12:20**
         if (esHoy) {
-            const esHoraPasada = (h < horaActual) || (h === horaActual && m <= minutosActual);
-            
-            // La hora 12:20 es PM, pero cuando es hoy, aplicamos la regla normal
-            if (esHoraPasada) {
-                estados[i] = 'pasado';
-                console.log(`⏰ Hora pasada: ${horaStr} (${h}:${m} vs actual ${horaActual}:${minutosActual})`);
-                continue;
+            // Para horas antes de las 14:00 (mañana)
+            if (esManana) {
+                if (h < horaActual || (h === horaActual && m <= minutosActual)) {
+                    estados[i] = 'pasado';
+                    continue;
+                }
+            } 
+            // Para horas desde las 14:00 en adelante (tarde)
+            else {
+                if (h < horaActual || (h === horaActual && m <= minutosActual)) {
+                    estados[i] = 'pasado';
+                    continue;
+                }
             }
         }
         
@@ -4055,70 +4055,69 @@ async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaA
         return estados;
     }
     
-    // Para servicios largos, verificar bloques
+    // Para servicios largos (80 minutos = 2 slots), verificar disponibilidad de bloques
     const estadosFinal = [...estados];
     
-    console.log(`🔍 Verificando bloques para servicio de ${duracionServicio} minutos (${slotsNecesarios} slots)`);
-    
-    // **NUEVO: Primero, identificar TODAS las horas que son parte de bloques reservados**
-    const horasParteDeBloque = new Set();
-    
-    for (const [clave, reservaInfo] of solicitudesPendientes.entries()) {
-        const [reservaFecha, reservaHora] = clave.split('_');
+    // Primero, identificar horas que NO pueden ser inicio de bloque
+    for (let i = 0; i < horas.length; i++) {
+        const horaData = horas[i];
+        const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
+        const indexInicio = horaData.indexInicio;
         
-        if (reservaFecha === fecha && reservaInfo.duracionServicio > 40) {
-            const horaPrincipal = reservaInfo.horaPrincipal || reservaHora;
-            const horaPrincipalIndex = obtenerIndexHora(horaPrincipal);
-            const slotsReserva = Math.ceil(reservaInfo.duracionServicio / 40);
-            
-            if (!isNaN(horaPrincipalIndex)) {
-                for (let j = 0; j < slotsReserva; j++) {
-                    const horaIndex = horaPrincipalIndex + j;
-                    if (horaIndex < horas.length) {
-                        const horaData = horas[horaIndex];
-                        const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
-                        horasParteDeBloque.add(horaStr);
-                        
-                        console.log(`📌 ${horaStr} es parte del bloque de ${reservaInfo.duracionServicio} minutos que comienza en ${horaPrincipal}`);
-                        
-                        // Marcar como mi reserva activa si es mía
-                        if (reservaInfo.usuarioId === miUsuarioId) {
-                            estadosFinal[horaIndex] = 'mi-reserva-activa';
-                        } else {
-                            estadosFinal[horaIndex] = 'reservando-bloque';
-                        }
-                    }
-                }
+        // **VERIFICACIÓN ESPECIAL PARA 12:20 PM (última hora de la mañana)**
+        if (horaData.hora === 12 && horaData.minutos === 20 && duracionServicio > 40) {
+            console.log(`🚫 12:20 PM NO puede ser inicio para servicio de ${duracionServicio} minutos`);
+            if (estadosFinal[i] === 'disponible') {
+                estadosFinal[i] = 'no-disponible';
             }
-        }
-    }
-    
-    // **NUEVO: Para cada hora que puede ser inicio de bloque**
-    for (let i = 0; i <= horas.length - slotsNecesarios; i++) {
-        const horaStr = `${String(horas[i].hora).padStart(2, '0')}:${String(horas[i].minutos).padStart(2, '0')}`;
-        
-        // Si ya está marcada como parte de un bloque, no cambiar
-        if (horasParteDeBloque.has(horaStr)) {
-            console.log(`🛡️ ${horaStr} ya es parte de bloque - manteniendo estado`);
             continue;
         }
         
-        // Si ya está ocupada/reservando, no puede ser inicio
-        if (estados[i] !== 'disponible' && estados[i] !== 'mi-reserva-activa') {
+        // Verificar si esta hora ya es parte de un bloque reservado
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaStr}"]`);
+        if (horaBtn && horaBtn.classList.contains('parte-bloque') && horaBtn.classList.contains('mi-reserva-activa')) {
+            console.log(`🔒 Hora ${horaStr} es parte de bloque reservado`);
+            estadosFinal[i] = 'mi-reserva-activa';
             continue;
         }
         
-        // Verificar si hay bloque completo disponible
+        // Verificar si esta hora ya es mi reserva activa
+        if (estados[i] === 'mi-reserva-activa') {
+            estadosFinal[i] = 'mi-reserva-activa';
+            continue;
+        }
+        
+        // Solo considerar horas que están disponibles individualmente
+        if (estados[i] !== 'disponible') {
+            continue;
+        }
+        
+        // Verificar si hay suficiente tiempo continuo disponible
+        // (80 minutos necesita 2 slots consecutivos del mismo turno)
         let bloqueCompleto = true;
+        let incluyeCambioTurno = false;
+        
         for (let j = 0; j < slotsNecesarios; j++) {
-            const estadoSlot = estados[i + j];
+            const nextIndex = i + j;
             
+            // Verificar si estamos intentando cruzar de mañana a tarde
+            if (nextIndex >= horas.length) {
+                bloqueCompleto = false;
+                break;
+            }
+            
+            const nextHoraData = horas[nextIndex];
+            
+            // **NO PERMITIR BLOQUES QUE CRUCEN DE MAÑANA A TARDE**
+            if (nextHoraData.esManana !== horaData.esManana) {
+                bloqueCompleto = false;
+                incluyeCambioTurno = true;
+                break;
+            }
+            
+            const estadoSlot = estados[nextIndex];
             // Un slot es válido si está disponible o es mi reserva activa
-            const esSlotValido = estadoSlot === 'disponible' || 
-                               estadoSlot === 'mi-reserva-activa' || 
-                               estadoSlot === 'mi-reserva-activa-bloque';
-            
-            if (!esSlotValido) {
+            if (estadoSlot !== 'disponible' && estadoSlot !== 'mi-reserva-activa') {
                 bloqueCompleto = false;
                 break;
             }
@@ -4126,37 +4125,56 @@ async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaA
         
         // Si no hay bloque completo, esta hora no puede ser seleccionada
         if (!bloqueCompleto) {
-            estadosFinal[i] = 'no-disponible';
-            console.log(`❌ ${horaStr} NO puede ser inicio de bloque (falta slot)`);
-        } else {
-            console.log(`✅ ${horaStr} puede ser inicio de bloque de ${duracionServicio} minutos`);
+            if (estadosFinal[i] === 'disponible') {
+                estadosFinal[i] = 'no-disponible';
+                if (incluyeCambioTurno) {
+                    console.log(`🚫 ${horaStr} no puede iniciar bloque de ${duracionServicio}min - cruza turnos`);
+                }
+            }
         }
     }
     
-    // **NUEVO: Marcar horas que no pueden formar bloque completo (finales del día)**
+    // Marcar horas de la tarde que no pueden formar bloque si son las últimas
     for (let i = horas.length - slotsNecesarios + 1; i < horas.length; i++) {
-        const horaStr = `${String(horas[i].hora).padStart(2, '0')}:${String(horas[i].minutos).padStart(2, '0')}`;
-        
-        // Solo marcar como no-disponible si no es parte de bloque y no está ya ocupada
-        if (!horasParteDeBloque.has(horaStr) && 
-            estadosFinal[i] !== 'ocupada' && 
-            estadosFinal[i] !== 'reservando' &&
-            estadosFinal[i] !== 'reservando-bloque' &&
-            estadosFinal[i] !== 'mi-reserva-activa' &&
-            estadosFinal[i] !== 'mi-reserva-activa-bloque') {
-            
+        if (estadosFinal[i] === 'disponible' && duracionServicio > 40) {
             estadosFinal[i] = 'no-disponible';
-            console.log(`🔚 ${horaStr} no puede formar bloque (final del día)`);
+            console.log(`🚫 ${horas[i].hora}:${String(horas[i].minutos).padStart(2, '0')} - última hora del turno`);
         }
     }
-    
-    console.log('📊 Resumen de estados calculados:');
-    horas.forEach((h, i) => {
-        const horaStr = `${String(h.hora).padStart(2, '0')}:${String(h.minutos).padStart(2, '0')}`;
-        console.log(`   ${i+1}. ${horaStr}: ${estadosFinal[i]}`);
-    });
     
     return estadosFinal;
+}
+function puedeIniciarBloqueEnHora(horaData, duracionServicio, horas) {
+    const slotsNecesarios = Math.ceil(duracionServicio / 40);
+    
+    // 12:20 PM nunca puede iniciar un bloque de más de 40 minutos
+    if (horaData.hora === 12 && horaData.minutos === 20 && duracionServicio > 40) {
+        return false;
+    }
+    
+    // Verificar si hay suficientes slots consecutivos en el mismo turno
+    const horaIndex = horas.findIndex(h => 
+        h.hora === horaData.hora && h.minutos === horaData.minutos
+    );
+    
+    if (horaIndex === -1) return false;
+    
+    for (let i = 0; i < slotsNecesarios; i++) {
+        const nextIndex = horaIndex + i;
+        
+        if (nextIndex >= horas.length) {
+            return false; // No hay suficientes horas
+        }
+        
+        const nextHora = horas[nextIndex];
+        
+        // No permitir cruzar de mañana a tarde
+        if (nextHora.esManana !== horaData.esManana) {
+            return false;
+        }
+    }
+    
+    return true;
 }
 function esParteDeBloqueReservado(fecha, horaStr) {
     const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaStr}"]`);
@@ -4174,7 +4192,6 @@ function determinarEstadoHoraBasico(fecha, hora) {
     );
     
     if (citaExistente) {
-        console.log(`🔒 ${hora} ya está ocupada en caché`);
         return 'ocupada';
     }
     
@@ -4205,7 +4222,7 @@ function determinarEstadoHoraBasico(fecha, hora) {
         }
         
         // Si es de OTRO usuario
-        console.log(`⏳ ${hora} está siendo reservada por otro usuario`);
+        console.log(`⏳ DETERMINADO: ${hora} está siendo reservada por otro usuario`);
         
         // **MODIFICADO: Si es parte de un bloque de otro usuario**
         if (reservaInfo.esBloque || (reservaInfo.duracionServicio && reservaInfo.duracionServicio > 40)) {
@@ -4219,8 +4236,7 @@ function determinarEstadoHoraBasico(fecha, hora) {
         const [reservaFecha, reservaHora] = claveMap.split('_');
         
         if (reservaFecha === fecha && reserva.duracionServicio > 40) {
-            const horaPrincipal = reserva.horaPrincipal || reservaHora;
-            const horaPrincipalIndex = obtenerIndexHora(horaPrincipal);
+            const horaPrincipalIndex = obtenerIndexHora(reserva.horaPrincipal || reservaHora);
             const horaActualIndex = obtenerIndexHora(hora);
             
             if (!isNaN(horaPrincipalIndex) && !isNaN(horaActualIndex)) {
@@ -4230,7 +4246,7 @@ function determinarEstadoHoraBasico(fecha, hora) {
                 if (horaActualIndex >= horaPrincipalIndex && 
                     horaActualIndex < horaPrincipalIndex + slotsNecesarios) {
                     
-                    console.log(`🔗 ${hora} está dentro del bloque que comienza en ${horaPrincipal} (${reserva.duracionServicio} minutos)`);
+                    console.log(`🔗 ${hora} está dentro del bloque que comienza en ${reserva.horaPrincipal || reservaHora} (${reserva.duracionServicio} minutos)`);
                     
                     if (reserva.usuarioId !== miUsuarioId) {
                         return 'reservando-bloque';
@@ -5422,51 +5438,57 @@ function generarHorasDisponibles(duracionServicio = 40) {
     
     // Horas específicas en la mañana (9:00 AM - 12:20 PM)
     const horasManana = [
-        { hora: 9, minutos: 0 },   // 9:00 AM
-        { hora: 9, minutos: 40 },  // 9:40 AM
-        { hora: 10, minutos: 20 }, // 10:20 AM
-        { hora: 11, minutos: 0 },  // 11:00 AM
-        { hora: 11, minutos: 40 }, // 11:40 AM
-        { hora: 12, minutos: 20 }  // 12:20 PM
+        { hora: 9, minutos: 0, periodo: 'AM', indexInicio: 0 },    // 9:00 AM
+        { hora: 9, minutos: 40, periodo: 'AM', indexInicio: 1 },   // 9:40 AM
+        { hora: 10, minutos: 20, periodo: 'AM', indexInicio: 2 },  // 10:20 AM
+        { hora: 11, minutos: 0, periodo: 'AM', indexInicio: 3 },   // 11:00 AM
+        { hora: 11, minutos: 40, periodo: 'AM', indexInicio: 4 },  // 11:40 AM
+        { hora: 12, minutos: 20, periodo: 'PM', indexInicio: 5 }   // 12:20 PM
     ];
     
     // Horas específicas en la tarde (2:40 PM - 7:20 PM)
     const horasTarde = [
-        { hora: 14, minutos: 40 }, // 2:40 PM
-        { hora: 15, minutos: 20 }, // 3:20 PM
-        { hora: 16, minutos: 0 },  // 4:00 PM
-        { hora: 16, minutos: 40 }, // 4:40 PM
-        { hora: 17, minutos: 20 }, // 5:20 PM
-        { hora: 18, minutos: 0 },  // 6:00 PM
-        { hora: 18, minutos: 40 }, // 6:40 PM
-        { hora: 19, minutos: 20 }  // 7:20 PM
+        { hora: 14, minutos: 40, periodo: 'PM', indexInicio: 6 },  // 2:40 PM
+        { hora: 15, minutos: 20, periodo: 'PM', indexInicio: 7 },  // 3:20 PM
+        { hora: 16, minutos: 0, periodo: 'PM', indexInicio: 8 },   // 4:00 PM
+        { hora: 16, minutos: 40, periodo: 'PM', indexInicio: 9 },  // 4:40 PM
+        { hora: 17, minutos: 20, periodo: 'PM', indexInicio: 10 }, // 5:20 PM
+        { hora: 18, minutos: 0, periodo: 'PM', indexInicio: 11 },  // 6:00 PM
+        { hora: 18, minutos: 40, periodo: 'PM', indexInicio: 12 }, // 6:40 PM
+        { hora: 19, minutos: 20, periodo: 'PM', indexInicio: 13 }  // 7:20 PM
     ];
     
     // Agregar horas de la mañana
     horasManana.forEach(horaData => {
-        horas.push({ hora: horaData.hora, minutos: horaData.minutos, index });
+        horas.push({ 
+            hora: horaData.hora, 
+            minutos: horaData.minutos, 
+            index,
+            periodo: horaData.periodo,
+            indexInicio: horaData.indexInicio,
+            esManana: true
+        });
         index++;
     });
     
     // Agregar horas de la tarde
     horasTarde.forEach(horaData => {
-        horas.push({ hora: horaData.hora, minutos: horaData.minutos, index });
+        horas.push({ 
+            hora: horaData.hora, 
+            minutos: horaData.minutos, 
+            index,
+            periodo: horaData.periodo,
+            indexInicio: horaData.indexInicio,
+            esManana: false
+        });
         index++;
     });
     
     console.log(`📊 Total horas generadas: ${horas.length}`);
     
-    // Mostrar todas las horas generadas para depuración
-    console.log('📋 Horas generadas:');
-    horas.forEach((h, i) => {
-        const horaStr = `${String(h.hora).padStart(2, '0')}:${String(h.minutos).padStart(2, '0')}`;
-        const periodo = h.hora < 12 ? 'AM' : (h.hora < 18 ? 'PM' : 'PM');
-        const hora12 = h.hora % 12 || 12;
-        console.log(`   ${i+1}. ${hora12}:${String(h.minutos).padStart(2, '0')} ${periodo} (${horaStr})`);
-    });
-    
     return horas;
 }
+
 function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     // Limpiar completamente el botón primero
     btn.className = 'hora-btn';
@@ -5480,21 +5502,30 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
     btn.classList.add('no-disponible');
     
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
-    
-    // **CORRECCIÓN: Usar formatearHoraAMPM para mostrar correctamente**
     const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
+    
+    // Mensaje específico para 12:20 PM con servicio de 80 minutos
+    let mensajeEspecial = '';
+    if (horaStr === '12:20' && duracionServicio === 80) {
+        mensajeEspecial = '<br><small style="font-size: 8px; color: #ff6b6b;">(Fin del turno mañana)</small>';
+    }
     
     // Establecer HTML con texto claro
     btn.innerHTML = `
         ${horaFormateada}
         <br>
-        <small style="font-size: 10px; color: #999; background: rgba(153, 153, 153, 0.1); padding: 2px 4px; border-radius: 3px; margin-top: 3px; display: inline-block;">
+        <small style="font-size: 8px; color: #999; margin-top: 2px;">
+            ${periodo}
+        </small>
+        <br>
+        <small style="font-size: 10px; color: #ff6b6b; background: rgba(255, 107, 107, 0.1); padding: 3px 6px; border-radius: 4px; margin-top: 3px; display: inline-block;">
             ❌ No disponible
+            ${mensajeEspecial}
         </small>
         ${duracionServicio > 40 ? `
         <br>
-        <small style="font-size: 8px; color: #666;">
-            (Requiere ${duracionServicio} min)
+        <small style="font-size: 8px; color: #999; margin-top: 2px;">
+            (Requiere ${slotsNecesarios} slots consecutivos)
         </small>
         ` : ''}
     `;
@@ -5507,28 +5538,34 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
         cursor: not-allowed !important;
         opacity: 0.7 !important;
         pointer-events: none !important;
+        min-height: 70px !important;
+        padding: 8px 4px !important;
     `;
     
-    btn.title = `No hay suficiente tiempo disponible para un servicio de ${duracionServicio} minutos`;
+    btn.title = `No hay suficiente tiempo disponible para un servicio de ${duracionServicio} minutos${
+        horaStr === '12:20' && duracionServicio === 80 ? ' (última hora del turno de la mañana)' : ''
+    }`;
 }
+
+
             function actualizarEstadoAgendamiento(horasDisponibles) {
-    const btnAgendar = document.getElementById('btnAgendarCita');
-    if (!btnAgendar) return;
-    
-    if (horasDisponibles === 0) {
-        btnAgendar.disabled = true;
-        btnAgendar.style.opacity = '0.6';
-        btnAgendar.style.cursor = 'not-allowed';
-        btnAgendar.title = 'No hay horas disponibles para esta fecha';
-        btnAgendar.innerHTML = '📅 Sin horas disponibles';
-    } else {
-        btnAgendar.disabled = false;
-        btnAgendar.style.opacity = '1';
-        btnAgendar.style.cursor = 'pointer';
-        btnAgendar.title = 'Agendar cita';
-        btnAgendar.innerHTML = 'Agendar Cita';
-    }
-}
+                const btnAgendar = document.getElementById('btnAgendarCita');
+                if (!btnAgendar) return;
+                
+                if (horasDisponibles === 0) {
+                    btnAgendar.disabled = true;
+                    btnAgendar.style.opacity = '0.6';
+                    btnAgendar.style.cursor = 'not-allowed';
+                    btnAgendar.title = 'No hay horas disponibles para esta fecha';
+                    btnAgendar.innerHTML = '📅 Sin horas disponibles';
+                } else {
+                    btnAgendar.disabled = false;
+                    btnAgendar.style.opacity = '1';
+                    btnAgendar.style.cursor = 'pointer';
+                    btnAgendar.title = 'Agendar cita';
+                    btnAgendar.innerHTML = 'Agendar Cita';
+                }
+            }
 
             // ============ SISTEMA DE NOTIFICACIONES ============
 
