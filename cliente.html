@@ -6817,14 +6817,22 @@ async function agendarCita(e) {
             }
 
             // Primero crear el encabezado
-            let htmlContent = `
-                <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
-                    <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
-                    <button class="btn btn-primary" id="btnAgregarCitaDesdeLista" style="font-size: 16px; padding: 12px 24px;">
-                        📅 Agendar Nueva Cita
-                    </button>
-                </div>
-            `;
+            let htmlContent = '';
+
+            // **MODIFICADO: Mostrar encabezado solo si hay citas canceladas o completadas**
+            const hayCitasCanceladasOCompletadas = citas.some(c => c.estado === 'cancelada' || c.estado === 'completada');
+
+            if (hayCitasCanceladasOCompletadas) {
+                htmlContent = `
+                    <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
+                        <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
+                        <p style="color: #ccc; margin-bottom: 15px;">Ya has completado o cancelado una cita anterior</p>
+                        <button class="btn btn-primary" id="btnAgregarCitaDesdeLista" style="font-size: 16px; padding: 12px 24px;">
+                            📅 Agendar Nueva Cita
+                        </button>
+                    </div>
+                `;
+            }
             
             // Luego agregar cada cita o bloque agrupado
             Object.values(citasAgrupadas).forEach((grupo, index) => {
