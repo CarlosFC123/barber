@@ -7649,7 +7649,7 @@ async function cancelarCita(citaId) {
         // 1. Obtener TODA la información de la cita
         const { data: cita, error: errorCita } = await supabase
             .from('citas')
-            .select('*') // Obtener todos los campos
+            .select('*')
             .eq('id', citaId)
             .single();
 
@@ -7657,27 +7657,36 @@ async function cancelarCita(citaId) {
 
         // Verificar estado
         if (cita.estado === 'cancelada') {
-            showAlert('ℹ️ Esta cita ya está cancelada', 'info');
+            showAlert(
+                '📭 Cita ya cancelada', 
+                'Esta cita ya se encuentra cancelada previamente.', 
+                'info',
+                { icon: 'info-circle', timer: 3000 }
+            );
             return;
         }
 
         if (cita.estado === 'completada') {
-            showAlert('ℹ️ No se puede cancelar una cita completada', 'info');
+            showAlert(
+                '🏁 Cita completada', 
+                'Las citas completadas no pueden ser canceladas.', 
+                'warning',
+                { icon: 'check-circle', timer: 4000 }
+            );
             return;
         }
 
         if (!cita.fecha || !cita.hora) {
-            showAlert('❌ Error: No se encontraron datos de fecha/hora de la cita', 'error');
+            showAlert(
+                '❓ Datos incompletos', 
+                'No se encontraron los datos de fecha y hora de la cita.', 
+                'error',
+                { icon: 'exclamation-triangle', timer: 5000 }
+            );
             return;
         }
         
-        console.log('🔍 Información de la cita a cancelar:');
-        console.log(`   - ID: ${cita.id}`);
-        console.log(`   - Hora: ${cita.hora}`);
-        console.log(`   - es_bloque: ${cita.es_bloque}`);
-        console.log(`   - hora_principal: ${cita.hora_principal}`);
-        console.log(`   - duración: ${cita.duracion || 40} minutos`);
-        console.log(`   - notas: ${cita.notas}`);
+        console.log('🔍 Información de la cita a cancelar:', cita);
         
         // 2. Determinar si es parte de un bloque de 80 minutos
         let todasLasCitasDelBloque = [cita];
@@ -7704,18 +7713,11 @@ async function cancelarCita(citaId) {
             if (horasSecundarias && horasSecundarias.length > 0) {
                 console.log(`✅ Encontradas ${horasSecundarias.length} horas secundarias del bloque`);
                 todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasSecundarias];
-                
-                // DEBUG: Mostrar las horas encontradas
-                horasSecundarias.forEach((horaSec, index) => {
-                    console.log(`   ${index + 1}. Hora secundaria: ${horaSec.hora} (ID: ${horaSec.id})`);
-                });
             }
         }
         
-        // CASO 2: Es hora secundaria (tiene hora_principal y notas indican que es parte de bloque)
-        if (cita.hora_principal || 
-            (cita.notas && cita.notas.includes('Parte de bloque de 80 minutos'))) {
-            
+        // CASO 2: Es hora secundaria (tiene hora_principal)
+        if (cita.hora_principal) {
             const horaPrincipal = cita.hora_principal;
             console.log(`📦 Detectado como hora secundaria. Hora principal: ${horaPrincipal}`);
             
@@ -7743,7 +7745,7 @@ async function cancelarCita(citaId) {
                         todasLasCitasDelBloque.push(horaPrincipalCita);
                     }
                     
-                    // Buscar otras horas secundarias del mismo bloque (excluyendo la actual)
+                    // Buscar otras horas secundarias del mismo bloque
                     const { data: otrasHorasBloque, error: errorOtras } = await supabase
                         .from('citas')
                         .select('*')
@@ -7751,7 +7753,7 @@ async function cancelarCita(citaId) {
                         .eq('hora_principal', horaPrincipal)
                         .eq('cliente_id', usuarioActual.id)
                         .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                        .neq('id', cita.id); // Excluir la cita actual
+                        .neq('id', cita.id);
                         
                     if (errorOtras) {
                         console.error('Error buscando otras horas del bloque:', errorOtras);
@@ -7760,7 +7762,6 @@ async function cancelarCita(citaId) {
                     if (otrasHorasBloque && otrasHorasBloque.length > 0) {
                         console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
                         
-                        // Agregar solo las que no están ya en el array
                         otrasHorasBloque.forEach(otraHora => {
                             const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
                             if (!yaExiste) {
@@ -7772,12 +7773,10 @@ async function cancelarCita(citaId) {
             }
         }
         
-        // CASO 3: Buscar por fecha y hora similar (para casos donde no hay hora_principal)
-        // Si todavía tenemos solo 1 cita, buscar otras citas en la misma fecha con tiempos similares
+        // CASO 3: Buscar por fecha y hora similar
         if (todasLasCitasDelBloque.length === 1) {
             console.log('🔍 Buscando citas relacionadas por tiempo...');
             
-            // Buscar todas las citas del mismo usuario en la misma fecha
             const { data: todasCitasFecha, error: errorTodas } = await supabase
                 .from('citas')
                 .select('*')
@@ -7787,13 +7786,11 @@ async function cancelarCita(citaId) {
                 .neq('id', cita.id);
                 
             if (!errorTodas && todasCitasFecha && todasCitasFecha.length > 0) {
-                // Buscar patrones de bloque (ej: 10:20 y 11:00, diferencia de 40 minutos)
                 const horaActualIndex = obtenerIndexHora(cita.hora);
                 
                 todasCitasFecha.forEach(citaFecha => {
                     const otraHoraIndex = obtenerIndexHora(citaFecha.hora);
                     
-                    // Si son horas consecutivas (diferencia de 1 slot = 40 minutos)
                     if (Math.abs(otraHoraIndex - horaActualIndex) === 1) {
                         console.log(`🤝 Encontrada cita relacionada: ${citaFecha.hora} (ID: ${citaFecha.id})`);
                         todasLasCitasDelBloque.push(citaFecha);
@@ -7803,15 +7800,11 @@ async function cancelarCita(citaId) {
         }
         
         // Eliminar duplicados
-        const idsUnicos = [...new Set(todasLasCitasDelBloque.map(c => c.id))];
         todasLasCitasDelBloque = todasLasCitasDelBloque.filter((cita, index, self) => 
             index === self.findIndex(c => c.id === cita.id)
         );
         
         console.log(`📊 Citas únicas del bloque: ${todasLasCitasDelBloque.length}`);
-        todasLasCitasDelBloque.forEach((c, i) => {
-            console.log(`   ${i + 1}. ${c.hora} (ID: ${c.id}, es_bloque: ${c.es_bloque}, hora_principal: ${c.hora_principal})`);
-        });
         
         // 3. Verificar permisos de cancelación para TODAS las citas del bloque
         let todasPuedenCancelar = true;
@@ -7821,8 +7814,12 @@ async function cancelarCita(citaId) {
             const fechaCita = getYucatanDateTime(citaDelBloque.fecha, citaDelBloque.hora);
             
             if (!(fechaCita instanceof Date) || isNaN(fechaCita.getTime())) {
-                console.error('❌ fechaCita no es válido:', fechaCita);
-                showAlert('❌ Error en los datos de fecha/hora de la cita', 'error');
+                showAlert(
+                    '⚠️ Error en fecha',
+                    'Los datos de fecha/hora de la cita no son válidos.',
+                    'error',
+                    { icon: 'calendar-times', timer: 5000 }
+                );
                 return;
             }
             
@@ -7830,79 +7827,145 @@ async function cancelarCita(citaId) {
             
             if (!puedeCancelar) {
                 todasPuedenCancelar = false;
-                citasNoCancelables.push(citaDelBloque.hora);
+                citasNoCancelables.push({
+                    hora: citaDelBloque.hora,
+                    minutos: Math.max(0, Math.floor((fechaCita - new Date()) / (1000 * 60)))
+                });
             }
         }
         
         if (!todasPuedenCancelar) {
-            const horasNoCancelables = citasNoCancelables.join(', ');
+            const mensajeBloque = citasNoCancelables.map(c => 
+                `<strong>${c.hora}</strong> (en ${c.minutos} minutos)`
+            ).join('<br>');
             
-            // Usar el nuevo diseño mejorado
-            showCancelationAlert(
-                'Cancelación Parcial No Permitida',
-                `<div class="space-y-4">
-                    <div class="text-center">
-                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 mb-4">
-                            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-bold text-white mb-2">Restricción de Cancelación</h3>
-                        <p class="text-gray-300">No puedes cancelar el bloque completo porque algunas horas tienen restricciones.</p>
+            showAlert(
+                '⏰ Cancelación no disponible',
+                `<div style="text-align: left;">
+                    <p>No puedes cancelar el bloque completo porque algunas horas están muy próximas:</p>
+                    <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                        ${mensajeBloque}
                     </div>
-                    
-                    <div class="bg-gray-800/50 rounded-xl p-4 border-l-4 border-amber-500">
-                        <h4 class="font-semibold text-amber-300 mb-3 flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                            </svg>
-                            Horas No Cancelables
-                        </h4>
-                        <div class="space-y-2">
-                            ${horasNoCancelables.split(', ').map(hora => `
-                                <div class="flex items-center justify-between bg-gray-900/70 rounded-lg p-3">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
-                                        <span class="font-mono text-gray-300">${hora}</span>
-                                    </div>
-                                    <span class="px-3 py-1 bg-amber-900/30 text-amber-400 text-sm rounded-full">
-                                        Menos de 1 hora
-                                    </span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    
-                    <div class="bg-gray-800/30 rounded-lg p-4">
-                        <p class="text-sm text-gray-400">
-                            <span class="font-semibold text-amber-400">Nota:</span> Las citas con menos de 1 hora para su inicio no pueden cancelarse según nuestra política.
-                        </p>
-                    </div>
+                    <small>Las citas solo pueden cancelarse con al menos 1 hora de anticipación.</small>
                 </div>`,
-                'warning'
+                'warning',
+                { 
+                    icon: 'clock',
+                    timer: 8000,
+                    html: true,
+                    showCloseButton: true
+                }
             );
-            
             await cargarMisCitas();
             return;
         }
         
-        // 4. Confirmación de cancelación
+        // 4. Confirmación de cancelación (con SweetAlert2 o similar)
         const esBloqueCompleto = todasLasCitasDelBloque.length > 1;
         const horasBloque = todasLasCitasDelBloque.map(c => c.hora).sort();
         
-        // Usar el nuevo diseño de confirmación
-        const confirmed = await showCancelationConfirm(
-            esBloqueCompleto,
-            esBloqueCompleto ? horasBloque : []
-        );
-        
-        if (!confirmed) {
-            return;
+        if (esBloqueCompleto) {
+            // Confirmación para bloque de citas
+            const { isConfirmed } = await Swal.fire({
+                title: '🗓️ Cancelar bloque de citas',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 10px;">
+                            <i class="fas fa-calendar-times"></i>
+                        </div>
+                        <p>Estás a punto de cancelar un <strong>bloque de ${todasLasCitasDelBloque.length} citas</strong>.</p>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                            <p style="margin: 5px 0;"><strong>Horas a cancelar:</strong></p>
+                            <p style="margin: 5px 0; color: #495057; font-weight: 500;">
+                                ${horasBloque.join(', ')}
+                            </p>
+                        </div>
+                        <p style="color: #dc3545; font-size: 0.9em;">
+                            <i class="fas fa-exclamation-circle"></i> Esta acción no se puede deshacer
+                        </p>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Sí, cancelar bloque',
+                cancelButtonText: 'No, conservar citas',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                showCloseButton: true,
+                reverseButtons: true,
+                backdrop: 'rgba(0,0,0,0.4)',
+                width: '500px'
+            });
+            
+            if (!isConfirmed) {
+                showAlert(
+                    '👌 Cancelación interrumpida',
+                    'Las citas se mantienen activas.',
+                    'info',
+                    { icon: 'check', timer: 3000 }
+                );
+                return;
+            }
+        } else {
+            // Confirmación para cita individual
+            const { isConfirmed } = await Swal.fire({
+                title: '📅 Cancelar cita',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 10px;">
+                            <i class="fas fa-calendar-minus"></i>
+                        </div>
+                        <p>¿Cancelar la cita de las <strong>${cita.hora}</strong>?</p>
+                        <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin: 15px 0;">
+                            <p style="margin: 5px 0;"><strong>Fecha:</strong> ${cita.fecha}</p>
+                            <p style="margin: 5px 0;"><strong>Hora:</strong> ${cita.hora}</p>
+                        </div>
+                        <p style="color: #dc3545; font-size: 0.9em;">
+                            <i class="fas fa-info-circle"></i> La cita se eliminará automáticamente en 2 horas
+                        </p>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Sí, cancelar cita',
+                cancelButtonText: 'No, mantener cita',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                showCloseButton: true,
+                reverseButtons: true,
+                backdrop: 'rgba(0,0,0,0.4)',
+                width: '450px'
+            });
+            
+            if (!isConfirmed) {
+                showAlert(
+                    '👍 Acción cancelada',
+                    'Tu cita sigue activa.',
+                    'info',
+                    { icon: 'calendar-check', timer: 3000 }
+                );
+                return;
+            }
         }
         
         // 5. Cancelar TODAS las citas del bloque
         const idsACancelar = todasLasCitasDelBloque.map(c => c.id);
         console.log(`🎯 IDs a cancelar: ${idsACancelar.join(', ')}`);
+        
+        // Mostrar loader mientras se procesa
+        Swal.fire({
+            title: '🔄 Cancelando...',
+            html: `
+                <div style="text-align: center;">
+                    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p style="margin-top: 15px;">Procesando la cancelación...</p>
+                    <small>${esBloqueCompleto ? `Cancelando ${todasLasCitasDelBloque.length} citas...` : 'Cancelando cita...'}</small>
+                </div>
+            `,
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            willOpen: () => Swal.showLoading()
+        });
         
         const { data: updatedCitas, error } = await supabase
             .from('citas')
@@ -7917,96 +7980,59 @@ async function cancelarCita(citaId) {
 
         console.log(`✅ ${updatedCitas?.length || 0} cita(s) cancelada(s)`);
         
-        // 6. Mostrar mensaje de éxito con el nuevo diseño
+        // Cerrar loader
+        Swal.close();
+        
+        // 6. Mostrar mensaje de éxito
         if (esBloqueCompleto) {
-            showCancelationAlert(
-                '📦 Bloque Completamente Cancelado',
-                `<div class="space-y-5">
-                    <div class="flex items-center justify-center">
-                        <div class="relative">
-                            <div class="w-24 h-24 bg-indigo-500/20 rounded-full animate-ping"></div>
-                            <div class="absolute inset-0 flex items-center justify-center">
-                                <div class="bg-gradient-to-br from-indigo-600 to-purple-700 p-4 rounded-2xl shadow-xl">
-                                    <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
+            showAlert(
+                '✅ Bloque cancelado exitosamente',
+                `<div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #28a745; margin-bottom: 10px;">
+                        <i class="fas fa-calendar-check"></i>
                     </div>
-                    
-                    <div class="text-center">
-                        <h3 class="text-xl font-bold text-white mb-2">¡Bloque de 80 Minutos Cancelado!</h3>
-                        <p class="text-gray-300">Se han cancelado ${horasBloque.length} horas del bloque.</p>
+                    <p>Se cancelaron <strong>${todasLasCitasDelBloque.length} citas</strong></p>
+                    <div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                        <p style="margin: 5px 0;"><strong>Horas liberadas:</strong></p>
+                        <p style="margin: 5px 0;">${horasBloque.join(', ')}</p>
                     </div>
-                    
-                    <div class="bg-gray-800/50 rounded-xl p-4">
-                        <h4 class="font-semibold text-indigo-300 mb-3 flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
-                            </svg>
-                            Horas Canceladas
-                        </h4>
-                        <div class="grid grid-cols-2 gap-2">
-                            ${horasBloque.map((hora, index) => `
-                                <div class="bg-gray-900/70 rounded-lg p-3 flex items-center gap-2">
-                                    <span class="text-indigo-400 font-bold">${index + 1}.</span>
-                                    <span class="font-mono text-gray-300">${hora}</span>
-                                    <div class="ml-auto w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    
-                    <div class="flex items-center justify-between text-sm">
-                        <span class="text-gray-400">Eliminación automática en:</span>
-                        <div class="flex items-center gap-2">
-                            <div class="px-3 py-1 bg-indigo-900/50 rounded-full">
-                                <span class="font-mono text-indigo-300">2 horas</span>
-                            </div>
-                        </div>
-                    </div>
+                    <small style="color: #6c757d;">
+                        <i class="fas fa-clock"></i> Se eliminarán automáticamente en 2 horas
+                    </small>
                 </div>`,
                 'success',
                 {
-                    showConfirmButton: false,
-                    timer: 5000
+                    icon: false,
+                    timer: 6000,
+                    html: true,
+                    showConfirmButton: true,
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#28a745'
                 }
             );
         } else {
-            showCancelationAlert(
-                '✅ Cita Cancelada',
-                `<div class="space-y-4">
-                    <div class="flex items-center justify-center">
-                        <div class="relative">
-                            <div class="w-20 h-20 bg-emerald-500/20 rounded-full animate-ping"></div>
-                            <div class="absolute inset-0 flex items-center justify-center">
-                                <svg class="w-10 h-10 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                                </svg>
-                            </div>
-                        </div>
+            showAlert(
+                '✨ Cita cancelada',
+                `<div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #28a745; margin-bottom: 10px;">
+                        <i class="fas fa-check-circle"></i>
                     </div>
-                    
-                    <div class="text-center space-y-2">
-                        <h3 class="text-xl font-bold text-white">¡Cancelación Exitosa!</h3>
-                        <p class="text-gray-300">Tu cita ha sido cancelada correctamente.</p>
+                    <p>Tu cita de las <strong>${cita.hora}</strong> ha sido cancelada</p>
+                    <div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                        <p style="margin: 5px 0;">La hora ha sido liberada para nuevos agendamientos</p>
                     </div>
-                    
-                    <div class="bg-gray-800/50 rounded-lg p-4">
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-400">Eliminación automática:</span>
-                            <div class="flex items-center gap-2">
-                                <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                                <span class="font-mono text-emerald-300">2 horas</span>
-                            </div>
-                        </div>
-                    </div>
+                    <small style="color: #6c757d;">
+                        <i class="fas fa-info-circle"></i> Se eliminará automáticamente de tu historial en 2 horas
+                    </small>
                 </div>`,
                 'success',
                 {
-                    showConfirmButton: false,
-                    timer: 4000
+                    icon: false,
+                    timer: 5000,
+                    html: true,
+                    showConfirmButton: true,
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#28a745'
                 }
             );
         }
@@ -8029,356 +8055,33 @@ async function cancelarCita(citaId) {
         
     } catch (error) {
         console.error('❌ Error cancelando cita:', error);
-        showCancelationAlert(
-            'Error en la Cancelación',
-            `<div class="space-y-4">
-                <div class="text-center">
-                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-rose-600 to-red-700 mb-4">
-                        <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold text-white mb-2">Error al Cancelar</h3>
-                    <p class="text-gray-300">Ocurrió un problema al intentar cancelar la cita.</p>
+        
+        // Mostrar error con diseño mejorado
+        showAlert(
+            '😔 Error al cancelar',
+            `<div style="text-align: center;">
+                <div style="font-size: 4rem; color: #dc3545; margin-bottom: 10px;">
+                    <i class="fas fa-exclamation-triangle"></i>
                 </div>
-                
-                <div class="bg-gray-800/50 rounded-lg p-4 border-l-4 border-rose-500">
-                    <p class="text-rose-300 font-mono text-sm">${error.message || 'Error desconocido'}</p>
+                <p>No pudimos procesar la cancelación</p>
+                <div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                    <p style="margin: 5px 0;">${error.message || 'Error desconocido'}</p>
                 </div>
-                
-                <p class="text-sm text-gray-400">Por favor, intenta nuevamente o contacta con soporte si el problema persiste.</p>
+                <small>Por favor, intenta nuevamente o contacta con soporte</small>
             </div>`,
-            'error'
+            'error',
+            {
+                icon: false,
+                timer: 7000,
+                html: true,
+                showConfirmButton: true,
+                confirmButtonText: 'Reintentar',
+                confirmButtonColor: '#dc3545',
+                showCloseButton: true
+            }
         );
     }
 }
-
-// Función mejorada para mostrar alertas de cancelación
-function showCancelationAlert(title, message, type = 'info', options = {}) {
-    // Si tenemos SweetAlert2, usarlo
-    if (window.Swal) {
-        const defaultOptions = {
-            icon: type,
-            title: title,
-            html: message,
-            showConfirmButton: true,
-            confirmButtonText: 'Aceptar',
-            confirmButtonColor: '#3085d6',
-            background: '#1a1a2e',
-            color: '#fff',
-            backdrop: 'rgba(0, 0, 0, 0.8)',
-            allowOutsideClick: false,
-            customClass: {
-                popup: 'animated fadeInDown faster',
-                title: 'text-xl font-bold',
-                confirmButton: 'px-6 py-3 rounded-lg font-medium shadow-lg transition-all hover:scale-105'
-            }
-        };
-
-        // Configuración por tipo
-        const typeConfigs = {
-            success: {
-                icon: 'success',
-                iconColor: '#10b981',
-                confirmButtonColor: '#10b981',
-                background: '#0f172a'
-            },
-            error: {
-                icon: 'error',
-                iconColor: '#ef4444',
-                confirmButtonColor: '#ef4444',
-                background: '#1f2937'
-            },
-            info: {
-                icon: 'info',
-                iconColor: '#3b82f6',
-                confirmButtonColor: '#3b82f6',
-                background: '#1e293b'
-            },
-            warning: {
-                icon: 'warning',
-                iconColor: '#f59e0b',
-                confirmButtonColor: '#f59e0b',
-                background: '#292524'
-            }
-        };
-
-        return Swal.fire({ ...defaultOptions, ...typeConfigs[type], ...options });
-    }
-    
-    // Si no tenemos SweetAlert2, usar alertas nativas mejoradas
-    return showCustomAlert(title, message, type);
-}
-
-// Función para confirmación de cancelación
-async function showCancelationConfirm(esBloqueCompleto, horasBloque = []) {
-    const message = esBloqueCompleto 
-        ? `<div class="space-y-5">
-            <div class="text-center">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 mb-4">
-                    <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                    </svg>
-                </div>
-                <h3 class="text-2xl font-bold text-white mb-2">¿Cancelar Bloque Completo?</h3>
-                <p class="text-gray-300">Se cancelarán ${horasBloque.length} horas consecutivas:</p>
-            </div>
-            
-            <div class="bg-gray-800/50 rounded-xl p-4">
-                <div class="flex flex-wrap gap-2 justify-center">
-                    ${horasBloque.map(hora => `
-                        <span class="px-3 py-2 bg-gradient-to-r from-amber-900/30 to-orange-900/30 rounded-lg border border-amber-700/50">
-                            <span class="font-mono text-amber-300">${hora}</span>
-                        </span>
-                    `).join('')}
-                </div>
-            </div>
-            
-            <div class="text-center space-y-3">
-                <p class="text-gray-400 text-sm">Esta acción no se puede deshacer. Las horas serán liberadas para otros clientes.</p>
-                <p class="text-amber-400 font-semibold">¿Estás seguro de continuar?</p>
-            </div>
-        </div>`
-        : `<div class="space-y-5">
-            <div class="text-center">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-rose-500 to-pink-600 mb-4">
-                    <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                    </svg>
-                </div>
-                <h3 class="text-2xl font-bold text-white mb-2">¿Cancelar Cita?</h3>
-                <p class="text-gray-300">Estás a punto de cancelar tu cita programada.</p>
-            </div>
-            
-            <div class="bg-gray-800/50 rounded-xl p-4 border-l-4 border-rose-500">
-                <div class="flex items-center justify-between">
-                    <span class="text-gray-400">Esta acción:</span>
-                    <div class="space-y-1 text-right">
-                        <div class="text-rose-300 text-sm flex items-center gap-1">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                            </svg>
-                            Liberará la hora
-                        </div>
-                        <div class="text-rose-300 text-sm flex items-center gap-1">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                            </svg>
-                            No se puede deshacer
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="text-center">
-                <p class="text-rose-400 font-semibold">¿Estás seguro de continuar?</p>
-            </div>
-        </div>`;
-
-    if (window.Swal) {
-        const result = await Swal.fire({
-            title: '',
-            html: message,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Sí, cancelar',
-            cancelButtonText: 'No, mantener',
-            confirmButtonColor: esBloqueCompleto ? '#f59e0b' : '#ef4444',
-            cancelButtonColor: '#6b7280',
-            background: '#1e293b',
-            color: '#fff',
-            customClass: {
-                popup: 'animated fadeInDown faster',
-                confirmButton: 'px-6 py-3 rounded-lg font-medium shadow-lg transition-all hover:scale-105',
-                cancelButton: 'px-6 py-3 rounded-lg font-medium shadow-lg transition-all hover:scale-105'
-            },
-            buttonsStyling: false,
-            reverseButtons: true
-        });
-        
-        return result.isConfirmed;
-    }
-    
-    // Fallback a confirm nativo
-    return confirm(esBloqueCompleto 
-        ? `¿Estás seguro de que quieres cancelar el bloque de 80 minutos? Se cancelarán ${horasBloque.length} horas: ${horasBloque.join(', ')}`
-        : '¿Estás seguro de que quieres cancelar esta cita?'
-    );
-}
-
-// Función para alertas personalizadas (fallback)
-function showCustomAlert(title, message, type = 'info') {
-    // Crear overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm';
-    
-    // Colores por tipo
-    const typeStyles = {
-        success: {
-            bg: 'bg-gradient-to-br from-emerald-500 to-green-600',
-            border: 'border-emerald-600',
-            icon: `<svg class="w-12 h-12 text-emerald-100" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-            </svg>`
-        },
-        error: {
-            bg: 'bg-gradient-to-br from-rose-600 to-red-700',
-            border: 'border-rose-700',
-            icon: `<svg class="w-12 h-12 text-rose-100" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-            </svg>`
-        },
-        info: {
-            bg: 'bg-gradient-to-br from-blue-600 to-indigo-700',
-            border: 'border-blue-700',
-            icon: `<svg class="w-12 h-12 text-blue-100" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-            </svg>`
-        },
-        warning: {
-            bg: 'bg-gradient-to-br from-amber-500 to-orange-600',
-            border: 'border-amber-600',
-            icon: `<svg class="w-12 h-12 text-amber-100" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-            </svg>`
-        }
-    };
-
-    const style = typeStyles[type] || typeStyles.info;
-
-    // Crear modal
-    overlay.innerHTML = `
-        <div class="relative w-full max-w-md">
-            <div class="relative ${style.bg} ${style.border} rounded-2xl p-8 shadow-2xl transform transition-all duration-300 scale-100">
-                <div class="absolute -top-6 left-1/2 transform -translate-x-1/2">
-                    <div class="p-3 rounded-full ${style.bg} border-4 border-gray-900 shadow-xl">
-                        ${style.icon}
-                    </div>
-                </div>
-                
-                <div class="mt-8 text-center">
-                    <h3 class="text-2xl font-bold text-white mb-3">${title}</h3>
-                    <div class="text-gray-200 text-lg leading-relaxed mb-6">
-                        ${message}
-                    </div>
-                    
-                    <button onclick="this.closest('.fixed').remove()" 
-                            class="px-8 py-3 bg-white/20 hover:bg-white/30 text-white font-semibold rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">
-                        Aceptar
-                    </button>
-                </div>
-                
-                <!-- Decoración -->
-                <div class="absolute top-0 right-0 -mt-2 -mr-2">
-                    <div class="w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-                </div>
-                <div class="absolute bottom-0 left-0 -mb-2 -ml-2">
-                    <div class="w-20 h-20 bg-white/5 rounded-full blur-xl"></div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(overlay);
-    
-    // Auto-remover si es success
-    if (type === 'success') {
-        setTimeout(() => {
-            if (overlay.parentNode) {
-                overlay.remove();
-            }
-        }, 5000);
-    }
-
-    return new Promise(resolve => {
-        overlay.querySelector('button').onclick = () => {
-            overlay.remove();
-            resolve(true);
-        };
-    });
-}
-
-// También necesitas actualizar los showAlert originales en otras partes del código:
-function showAlert(message, type = 'info') {
-    // Mantener compatibilidad con alertas antiguas mientras migras
-    const titleMap = {
-        'info': 'ℹ️ Información',
-        'success': '✅ Éxito',
-        'error': '❌ Error',
-        'warning': '⚠️ Advertencia'
-    };
-    
-    const iconMap = {
-        'info': 'info',
-        'success': 'success',
-        'error': 'error',
-        'warning': 'warning'
-    };
-    
-    showCancelationAlert(titleMap[type], `<p class="text-gray-300">${message}</p>`, iconMap[type]);
-}
-
-
-// Estilos CSS necesarios para las animaciones
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes fadeInDown {
-        from {
-            opacity: 0;
-            transform: translateY(-20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    @keyframes pulse {
-        0%, 100% {
-            opacity: 1;
-        }
-        50% {
-            opacity: 0.5;
-        }
-    }
-    
-    .animated {
-        animation-duration: 0.3s;
-        animation-fill-mode: both;
-    }
-    
-    .fadeInDown {
-        animation-name: fadeInDown;
-    }
-    
-    .faster {
-        animation-duration: 0.2s;
-    }
-    
-    .animate-pulse {
-        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-    
-    .animate-ping {
-        animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-    }
-    
-    @keyframes ping {
-        0% {
-            transform: scale(1);
-            opacity: 1;
-        }
-        75%, 100% {
-            transform: scale(2);
-            opacity: 0;
-        }
-    }
-    
-    .backdrop-blur-sm {
-        backdrop-filter: blur(4px);
-    }
-`;
-document.head.appendChild(style);
 
    async function verificarCitasPasadas() {
     try {
