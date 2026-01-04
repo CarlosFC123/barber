@@ -8510,7 +8510,7 @@ async function cancelarCita(citaId) {
             console.error('Error verificando timestamps:', error);
         }
     }
-            async function eliminarCita(citaId) {
+async function eliminarCita(citaId) {
     try {
         console.log('🗑️ Iniciando eliminación de cita:', citaId);
         
@@ -8525,7 +8525,32 @@ async function cancelarCita(citaId) {
 
         // Verificar que la cita pueda ser eliminada
         if (cita.estado !== 'completada' && cita.estado !== 'cancelada') {
-            showAlert('❌ Solo se pueden eliminar citas completadas o canceladas', 'error');
+            Swal.fire({
+                title: '❌ Eliminación no permitida',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
+                            <i class="fas fa-ban"></i>
+                        </div>
+                        <p style="color: #ffffff; margin-bottom: 15px;">
+                            Solo se pueden eliminar permanentemente las citas que estén en estado <strong style="color: #d4af37;">"completada"</strong> o <strong style="color: #d4af37;">"cancelada"</strong>.
+                        </p>
+                        <div style="background: rgba(255, 107, 107, 0.1); border: 1px solid #ff6b6b; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                            <p style="margin: 5px 0; color: #d4af37;"><strong>Estado actual:</strong> <span style="color: ${cita.estado === 'pendiente' ? '#d4af37' : cita.estado === 'confirmada' ? '#28a745' : '#ff6b6b'}">${cita.estado}</span></p>
+                            <p style="margin: 5px 0; color: #d4af37;"><strong>Fecha:</strong> ${cita.fecha}</p>
+                            <p style="margin: 5px 0; color: #d4af37;"><strong>Hora:</strong> ${cita.hora}</p>
+                        </div>
+                    </div>
+                `,
+                icon: false,
+                background: '#1a1a1a',
+                color: '#ffffff',
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: '#ff6b6b',
+                customClass: {
+                    popup: 'sweet-alert-custom'
+                }
+            });
             return;
         }
 
@@ -8638,17 +8663,184 @@ async function cancelarCita(citaId) {
         const esBloqueCompleto = todasLasCitasDelBloque.length > 1;
         const horasBloque = todasLasCitasDelBloque.map(c => c.hora).sort();
         
-        const mensajeConfirmacion = esBloqueCompleto 
-            ? `¿Estás seguro de que quieres eliminar permanentemente el bloque de 80 minutos? Se eliminarán ${todasLasCitasDelBloque.length} horas: ${horasBloque.join(', ')}`
-            : '¿Estás seguro de que quieres eliminar permanentemente esta cita?';
+        if (esBloqueCompleto) {
+            // Confirmación para bloque completo
+            const { isConfirmed } = await Swal.fire({
+                title: '⚠️ Eliminar bloque de 80 minutos',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
+                            <i class="fas fa-trash-alt"></i>
+                        </div>
+                        <p style="color: #ffffff; margin-bottom: 15px;">
+                            Estás a punto de eliminar permanentemente un <strong style="color: #ff6b6b;">bloque de ${todasLasCitasDelBloque.length} citas</strong>.
+                        </p>
+                        <div style="background: rgba(255, 107, 107, 0.1); border: 1px solid #ff6b6b; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                            <p style="margin: 10px 0; color: #d4af37;"><strong>Horas a eliminar:</strong></p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
+                                ${horasBloque.map(hora => `
+                                    <span style="background: linear-gradient(135deg, #ff6b6b 0%, #dc3545 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
+                                        ${hora}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <div style="background: rgba(212, 175, 55, 0.05); border: 1px solid #d4af37; border-radius: 8px; padding: 12px; margin: 15px 0;">
+                            <p style="color: #d4af37; font-size: 0.9em; margin: 5px 0;">
+                                <i class="fas fa-exclamation-triangle"></i> 
+                                <strong>Atención:</strong> Esta acción es permanente y no se puede deshacer.
+                            </p>
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar bloque',
+                cancelButtonText: 'No, conservar citas',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                background: '#1a1a1a',
+                color: '#ffffff',
+                showCloseButton: true,
+                reverseButtons: true,
+                backdrop: 'rgba(0,0,0,0.7)',
+                width: '500px',
+                customClass: {
+                    popup: 'sweet-alert-custom',
+                    confirmButton: 'btn-danger',
+                    cancelButton: 'btn-secondary'
+                }
+            });
             
-        if (!confirm(mensajeConfirmacion)) {
-            return;
+            if (!isConfirmed) {
+                Swal.fire({
+                    title: '👌 Eliminación cancelada',
+                    html: `
+                        <div style="text-align: center;">
+                            <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <p style="color: #ffffff; margin-bottom: 15px;">El bloque de citas se mantiene en tu historial.</p>
+                            <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px;">
+                                <p style="color: #d4af37; margin: 0;">No se realizaron cambios permanentes.</p>
+                            </div>
+                        </div>
+                    `,
+                    icon: false,
+                    background: '#1a1a1a',
+                    color: '#ffffff',
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#d4af37',
+                    timer: 3000,
+                    customClass: {
+                        popup: 'sweet-alert-custom'
+                    }
+                });
+                return;
+            }
+        } else {
+            // Confirmación para cita individual
+            const { isConfirmed } = await Swal.fire({
+                title: '⚠️ Eliminar cita permanentemente',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
+                            <i class="fas fa-trash"></i>
+                        </div>
+                        <p style="color: #ffffff; margin-bottom: 15px;">
+                            ¿Eliminar permanentemente la cita de las <strong style="color: #d4af37;">${cita.hora}</strong>?
+                        </p>
+                        <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                            <p style="margin: 8px 0; color: #d4af37;"><strong>Fecha:</strong> ${cita.fecha}</p>
+                            <p style="margin: 8px 0; color: #d4af37;"><strong>Hora:</strong> ${cita.hora}</p>
+                            <p style="margin: 8px 0; color: #d4af37;"><strong>Estado:</strong> <span style="color: ${cita.estado === 'completada' ? '#28a745' : '#ff6b6b'}">${cita.estado}</span></p>
+                        </div>
+                        <div style="background: rgba(255, 107, 107, 0.05); border: 1px solid #ff6b6b; border-radius: 8px; padding: 12px; margin: 15px 0;">
+                            <p style="color: #ff6b6b; font-size: 0.9em; margin: 5px 0;">
+                                <i class="fas fa-exclamation-circle"></i> 
+                                <strong>Importante:</strong> Esta acción borrará permanentemente la cita y no se puede recuperar.
+                            </p>
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'No, conservar',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                background: '#1a1a1a',
+                color: '#ffffff',
+                showCloseButton: true,
+                reverseButtons: true,
+                backdrop: 'rgba(0,0,0,0.7)',
+                width: '450px',
+                customClass: {
+                    popup: 'sweet-alert-custom',
+                    confirmButton: 'btn-danger',
+                    cancelButton: 'btn-secondary'
+                }
+            });
+            
+            if (!isConfirmed) {
+                Swal.fire({
+                    title: '👍 Acción cancelada',
+                    html: `
+                        <div style="text-align: center;">
+                            <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
+                                <i class="fas fa-times-circle"></i>
+                            </div>
+                            <p style="color: #ffffff; margin-bottom: 15px;">La cita se mantiene en tu historial.</p>
+                            <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px;">
+                                <p style="color: #d4af37; margin: 0;">No se realizó ninguna eliminación.</p>
+                            </div>
+                        </div>
+                    `,
+                    icon: false,
+                    background: '#1a1a1a',
+                    color: '#ffffff',
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#d4af37',
+                    timer: 3000,
+                    customClass: {
+                        popup: 'sweet-alert-custom'
+                    }
+                });
+                return;
+            }
         }
         
         // 4. Eliminar TODAS las citas del bloque
         const idsAEliminar = todasLasCitasDelBloque.map(c => c.id);
         console.log(`🎯 IDs a eliminar: ${idsAEliminar.join(', ')}`);
+        
+        // Mostrar loader durante la eliminación
+        Swal.fire({
+            title: '🗑️ Eliminando...',
+            html: `
+                <div style="text-align: center;">
+                    <div style="width: 50px; height: 50px; margin: 0 auto 20px; position: relative;">
+                        <div style="position: absolute; width: 100%; height: 100%; border: 3px solid rgba(255, 107, 107, 0.3); border-radius: 50%;"></div>
+                        <div style="position: absolute; width: 100%; height: 100%; border: 3px solid #ff6b6b; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite;"></div>
+                    </div>
+                    <p style="color: #ffffff; margin-bottom: 10px;">Eliminando permanentemente...</p>
+                    <small style="color: #d4af37;">
+                        ${esBloqueCompleto ? `Eliminando ${todasLasCitasDelBloque.length} citas` : 'Eliminando cita individual'}
+                    </small>
+                </div>
+                <style>
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                </style>
+            `,
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            background: '#1a1a1a',
+            color: '#ffffff',
+            customClass: {
+                popup: 'sweet-alert-custom'
+            }
+        });
         
         const { error } = await supabase
             .from('citas')
@@ -8659,11 +8851,77 @@ async function cancelarCita(citaId) {
 
         console.log(`✅ ${idsAEliminar.length} cita(s) eliminada(s) permanentemente`);
         
+        // Cerrar loader
+        Swal.close();
+        
         // 5. Mostrar mensaje de éxito
         if (esBloqueCompleto) {
-            showAlert(`✅ Bloque de 80 minutos eliminado permanentemente. Se eliminaron ${todasLasCitasDelBloque.length} horas.`, 'success');
+            Swal.fire({
+                title: '✨ Bloque eliminado permanentemente',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px;">
+                            <i class="fas fa-trash-restore"></i>
+                        </div>
+                        <p style="color: #ffffff; margin-bottom: 15px;">
+                            Se eliminaron permanentemente <strong style="color: #28a745;">${todasLasCitasDelBloque.length} citas</strong> del bloque de 80 minutos.
+                        </p>
+                        <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                            <p style="margin: 10px 0; color: #28a745;"><strong>Horas eliminadas:</strong></p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
+                                ${horasBloque.map(hora => `
+                                    <span style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
+                                        ${hora}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <p style="color: #cccccc; font-size: 0.85em;">
+                            <i class="fas fa-check-circle" style="color: #28a745;"></i> 
+                            Las citas han sido eliminadas permanentemente de tu historial.
+                        </p>
+                    </div>
+                `,
+                icon: false,
+                background: '#1a1a1a',
+                color: '#ffffff',
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: '#28a745',
+                showConfirmButton: true,
+                customClass: {
+                    popup: 'sweet-alert-custom'
+                }
+            });
         } else {
-            showAlert('✅ Cita eliminada permanentemente', 'success');
+            Swal.fire({
+                title: '✅ Cita eliminada permanentemente',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px;">
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                        <p style="color: #ffffff; margin-bottom: 15px;">
+                            La cita de las <strong style="color: #28a745;">${cita.hora}</strong> ha sido eliminada permanentemente.
+                        </p>
+                        <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                            <p style="color: #28a745; margin: 0;">La información de la cita ha sido completamente borrada.</p>
+                        </div>
+                        <p style="color: #cccccc; font-size: 0.85em;">
+                            <i class="fas fa-info-circle" style="color: #28a745;"></i> 
+                            Ya no aparecerá en tu historial de citas.
+                        </p>
+                    </div>
+                `,
+                icon: false,
+                background: '#1a1a1a',
+                color: '#ffffff',
+                confirmButtonText: 'Aceptar',
+                confirmButtonColor: '#28a745',
+                showConfirmButton: true,
+                customClass: {
+                    popup: 'sweet-alert-custom'
+                }
+            });
         }
         
         // 6. Actualizar caché
@@ -8680,10 +8938,44 @@ async function cancelarCita(citaId) {
         
     } catch (error) {
         console.error('❌ Error eliminando cita:', error);
-        showAlert('❌ Error al eliminar la cita: ' + error.message, 'error');
+        
+        // Mostrar error con diseño elegante
+        Swal.fire({
+            title: '😔 Error al eliminar',
+            html: `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <p style="color: #ffffff; margin-bottom: 15px;">No pudimos eliminar la cita</p>
+                    <div style="background: rgba(255, 107, 107, 0.1); border: 1px solid #ff6b6b; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <p style="color: #ff6b6b; margin: 5px 0; font-size: 0.9em;">
+                            ${error.message || 'Error desconocido'}
+                        </p>
+                    </div>
+                    <p style="color: #cccccc; font-size: 0.85em;">
+                        Por favor, intenta nuevamente o contacta con soporte
+                    </p>
+                </div>
+            `,
+            icon: false,
+            background: '#1a1a1a',
+            color: '#ffffff',
+            confirmButtonText: 'Reintentar',
+            cancelButtonText: 'Cerrar',
+            showCancelButton: true,
+            confirmButtonColor: '#d4af37',
+            cancelButtonColor: '#6c757d',
+            customClass: {
+                popup: 'sweet-alert-custom'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                eliminarCita(citaId); // Reintentar
+            }
+        });
     }
 }
-
             // ============ FUNCIONES DE INTERFAZ ============
 
             function cambiarPestana(pestanaId) {
