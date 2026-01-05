@@ -54,6 +54,138 @@ body {
     overflow: hidden; /* Mantiene el texto dentro */
 }
 
+/* Estilos para panel de administración */
+.admin-panel {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 30px;
+    border: 2px solid #d4af37;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin: 25px 0;
+}
+
+.stat-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.stat-icon {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.stat-icon.total { color: #d4af37; }
+.stat-icon.today { color: #28a745; }
+.stat-icon.pending { color: #ffc107; }
+.stat-icon.confirmed { color: #17a2b8; }
+.stat-icon.canceled { color: #dc3545; }
+
+.stat-info h3 {
+    color: #ccc;
+    font-size: 14px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.stat-number {
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: bold;
+    margin: 0;
+}
+
+.admin-filters {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 25px 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    align-items: end;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-group label {
+    color: #d4af37;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.filter-select {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: white;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: #d4af37;
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
+/* Estilos para citas de admin */
+.admin-cita {
+    border-left: 4px solid #d4af37;
+}
+
+.admin-cita .cita-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.cliente-info {
+    color: #17a2b8;
+    font-size: 14px;
+    margin-top: 5px;
+}
+
+.badge-bloque {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-left: 10px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .admin-filters {
+        grid-template-columns: 1fr;
+    }
+}
+
 .header h1 {
     font-size: 32px;
     margin-bottom: 8px;
@@ -7246,17 +7378,53 @@ async function agendarCita(e) {
 
         async function cargarMisCitas() {
     try {
-        const { data: citas, error } = await supabase
-            .from('citas')
-            .select(`
-                *,
-                servicios(nombre, precio),
-                barberos(nombre)
-            `)
-            .eq('cliente_id', usuarioActual.id)
-            .order('fecha', { ascending: false });
+        let citas;
+        
+        // Verificar si el usuario es admin
+        const { data: userData, error: userError } = await supabase
+            .from('clientes')
+            .select('rol')
+            .eq('id', usuarioActual.id)
+            .single();
+            
+        const esAdmin = userData?.rol === 'admin';
+        
+        if (esAdmin) {
+            console.log('👑 Cargando citas como ADMIN (todas las citas)');
+            
+            // Obtener TODAS las citas del sistema
+            const { data: todasCitas, error } = await supabase
+                .from('citas')
+                .select(`
+                    *,
+                    servicios(nombre, precio),
+                    barberos(nombre),
+                    clientes(nombre, email, telefono)
+                `)
+                .order('fecha', { ascending: false })
+                .order('hora', { ascending: false });
+                
+            if (error) throw error;
+            
+            citas = todasCitas;
+        } else {
+            console.log('👤 Cargando citas como USUARIO normal');
+            
+            // Obtener solo las citas del usuario actual
+            const { data: misCitas, error } = await supabase
+                .from('citas')
+                .select(`
+                    *,
+                    servicios(nombre, precio),
+                    barberos(nombre)
+                `)
+                .eq('cliente_id', usuarioActual.id)
+                .order('fecha', { ascending: false });
 
-        if (error) throw error;
+            if (error) throw error;
+            
+            citas = misCitas;
+        }
 
         const listaCitas = document.getElementById('listaCitas');
         if (!listaCitas) return;
@@ -7265,110 +7433,187 @@ async function agendarCita(e) {
             listaCitas.innerHTML = `
                 <div class="empty-state">
                     <div>📅</div>
-                    <h3>No tienes citas agendadas</h3>
-                    <p>¡Agenda tu primera cita ahora!</p>
-                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
+                    <h3>No hay citas ${esAdmin ? 'en el sistema' : 'agendadas'}</h3>
+                    ${!esAdmin ? `<p>¡Agenda tu primera cita ahora!</p>
+                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>` : ''}
+                </div>
+            `;
+            return;
+        }
+        
+        // Si es admin, crear filtros y estadísticas
+        let htmlContent = '';
+        
+        if (esAdmin) {
+            // Estadísticas para admin
+            const totalCitas = citas.length;
+            const citasHoy = citas.filter(c => c.fecha === formatDate(new Date())).length;
+            const citasPendientes = citas.filter(c => c.estado === 'pendiente').length;
+            const citasConfirmadas = citas.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
+            const citasCanceladas = citas.filter(c => c.estado === 'cancelada').length;
+            
+            htmlContent = `
+                <div class="admin-panel">
+                    <h2 style="color: #d4af37; margin-bottom: 20px; border-bottom: 2px solid #d4af37; padding-bottom: 10px;">
+                        <i class="fas fa-crown"></i> Panel de Administración
+                    </h2>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon total">📊</div>
+                            <div class="stat-info">
+                                <h3>Total Citas</h3>
+                                <p class="stat-number">${totalCitas}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon today">📅</div>
+                            <div class="stat-info">
+                                <h3>Citas Hoy</h3>
+                                <p class="stat-number">${citasHoy}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon pending">⏳</div>
+                            <div class="stat-info">
+                                <h3>Pendientes</h3>
+                                <p class="stat-number">${citasPendientes}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon confirmed">✅</div>
+                            <div class="stat-info">
+                                <h3>Confirmadas</h3>
+                                <p class="stat-number">${citasConfirmadas}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon canceled">❌</div>
+                            <div class="stat-info">
+                                <h3>Canceladas</h3>
+                                <p class="stat-number">${citasCanceladas}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="admin-filters">
+                        <div class="filter-group">
+                            <label for="filterEstado"><i class="fas fa-filter"></i> Filtrar por estado:</label>
+                            <select id="filterEstado" class="filter-select" onchange="filtrarCitasAdmin()">
+                                <option value="todos">Todos los estados</option>
+                                <option value="pendiente">Pendientes</option>
+                                <option value="confirmada">Confirmadas</option>
+                                <option value="aceptada">Aceptadas</option>
+                                <option value="completada">Completadas</option>
+                                <option value="cancelada">Canceladas</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="filterFecha"><i class="fas fa-calendar-alt"></i> Filtrar por fecha:</label>
+                            <input type="date" id="filterFecha" class="filter-select" onchange="filtrarCitasAdmin()">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="filterCliente"><i class="fas fa-user"></i> Filtrar por cliente:</label>
+                            <input type="text" id="filterCliente" class="filter-select" placeholder="Nombre del cliente" onkeyup="filtrarCitasAdmin()">
+                        </div>
+                        
+                        <button class="btn btn-secondary" onclick="resetearFiltrosAdmin()">
+                            <i class="fas fa-redo"></i> Resetear filtros
+                        </button>
+                    </div>
+                    
+                    <h3 style="color: #ffffff; margin: 30px 0 15px 0;">
+                        <i class="fas fa-list"></i> Todas las citas (${totalCitas})
+                    </h3>
                 </div>
             `;
         } else {
-            // Agrupar citas por bloques
-            const citasAgrupadas = {};
+            // Para usuarios normales, mantener el encabezado existente
+            const hayCitasCanceladasOCompletadas = citas.some(c => c.estado === 'cancelada' || c.estado === 'completada');
+            const hayCitasActivas = citas.some(c => 
+                c.estado === 'aceptada' || 
+                c.estado === 'pendiente' || 
+                c.estado === 'confirmada'
+            );
             
-            citas.forEach(cita => {
-                // Identificar si es parte de un bloque
-                if (cita.es_bloque && cita.hora_principal) {
-                    // Es hora secundaria, agrupar bajo la hora principal
-                    const claveBloque = `${cita.fecha}_${cita.hora_principal}`;
-                    if (!citasAgrupadas[claveBloque]) {
-                        citasAgrupadas[claveBloque] = {
-                            es_bloque: true,
-                            hora_principal: cita.hora_principal,
-                            fecha: cita.fecha,
-                            citas: []
-                        };
-                    }
-                    citasAgrupadas[claveBloque].citas.push(cita);
-                } else if (cita.duracion && cita.duracion === 80) {
-                    // Es hora principal de bloque de 80 minutos
-                    const claveBloque = `${cita.fecha}_${cita.hora}`;
-                    if (!citasAgrupadas[claveBloque]) {
-                        citasAgrupadas[claveBloque] = {
-                            es_bloque: true,
-                            hora_principal: cita.hora,
-                            fecha: cita.fecha,
-                            citas: [cita]
-                        };
-                    }
-                } else {
-                    // Cita individual (no es bloque)
-                    const claveIndividual = `individual_${cita.id}`;
-                    citasAgrupadas[claveIndividual] = {
-                        es_bloque: false,
-                        cita: cita
+            if (hayCitasCanceladasOCompletadas && !hayCitasActivas) {
+                htmlContent = `
+                    <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
+                        <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
+                        <p style="color: #ccc; margin-bottom: 15px;">Ya has completado o cancelado una cita anterior</p>
+                        <button class="btn btn-primary" id="btnAgregarCitaDesdeLista" style="font-size: 16px; padding: 12px 24px;">
+                            📅 Agendar Nueva Cita
+                        </button>
+                    </div>
+                `;
+            }
+        }
+        
+        // Agrupar citas (para ambos admin y usuario)
+        const citasAgrupadas = {};
+        
+        citas.forEach(cita => {
+            // Para admin, también mostrar información del cliente
+            const infoCliente = esAdmin ? `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>` : '';
+            
+            if (cita.es_bloque && cita.hora_principal) {
+                const claveBloque = `${cita.fecha}_${cita.hora_principal}`;
+                if (!citasAgrupadas[claveBloque]) {
+                    citasAgrupadas[claveBloque] = {
+                        es_bloque: true,
+                        hora_principal: cita.hora_principal,
+                        fecha: cita.fecha,
+                        citas: []
                     };
                 }
-            });
-
-            // Buscar horas secundarias que no tengan su hora principal en el listado
-            for (const clave in citasAgrupadas) {
-                if (citasAgrupadas[clave].es_bloque) {
-                    // Buscar la hora principal en el array original si no está
-                    const horaPrincipalCita = citas.find(c => 
-                        c.fecha === citasAgrupadas[clave].fecha && 
-                        c.hora === citasAgrupadas[clave].hora_principal
-                    );
-                    
-                    if (horaPrincipalCita && !citasAgrupadas[clave].citas.some(c => c.id === horaPrincipalCita.id)) {
-                        citasAgrupadas[clave].citas.push(horaPrincipalCita);
-                    }
+                citasAgrupadas[claveBloque].citas.push({...cita, infoCliente});
+            } else if (cita.duracion && cita.duracion === 80) {
+                const claveBloque = `${cita.fecha}_${cita.hora}`;
+                if (!citasAgrupadas[claveBloque]) {
+                    citasAgrupadas[claveBloque] = {
+                        es_bloque: true,
+                        hora_principal: cita.hora,
+                        fecha: cita.fecha,
+                        citas: [{...cita, infoCliente}]
+                    };
                 }
+            } else {
+                const claveIndividual = `individual_${cita.id}`;
+                citasAgrupadas[claveIndividual] = {
+                    es_bloque: false,
+                    cita: {...cita, infoCliente}
+                };
             }
+        });
 
-            // Primero crear el encabezado
-let htmlContent = '';
-
-// **MODIFICADO: Mostrar encabezado solo si hay citas canceladas o completadas 
-// Y NO hay citas activas (aceptada, pendiente, confirmada)**
-const hayCitasCanceladasOCompletadas = citas.some(c => c.estado === 'cancelada' || c.estado === 'completada');
-const hayCitasActivas = citas.some(c => 
-    c.estado === 'aceptada' || 
-    c.estado === 'pendiente' || 
-    c.estado === 'confirmada'
-);
-
-// Solo mostrar si hay citas canceladas/completadas PERO NO hay citas activas
-if (hayCitasCanceladasOCompletadas && !hayCitasActivas) {
-    htmlContent = `
-        <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
-            <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
-            <p style="color: #ccc; margin-bottom: 15px;">Ya has completado o cancelado una cita anterior</p>
-            <button class="btn btn-primary" id="btnAgregarCitaDesdeLista" style="font-size: 16px; padding: 12px 24px;">
-                📅 Agendar Nueva Cita
-            </button>
-        </div>
-    `;
-}
-            // Luego agregar cada cita o bloque agrupado
-            Object.values(citasAgrupadas).forEach((grupo, index) => {
-                if (grupo.es_bloque && grupo.citas.length > 1) {
-                    // Mostrar bloque agrupado
-                    const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-                    const horasBloque = grupo.citas.map(c => c.hora).sort();
-                    
-                    htmlContent += generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque);
-                } else if (grupo.es_bloque && grupo.citas.length === 1) {
-                    // Si solo hay una cita en el "bloque", mostrarla como individual
-                    htmlContent += generarHTMLCitaIndividual(grupo.citas[0]);
-                } else {
-                    // Mostrar cita individual
-                    htmlContent += generarHTMLCitaIndividual(grupo.cita);
-                }
-            });
-            
-            listaCitas.innerHTML = htmlContent;
+        // Generar HTML para cada cita/bloque
+        Object.values(citasAgrupadas).forEach((grupo, index) => {
+            if (grupo.es_bloque && grupo.citas.length > 1) {
+                const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+                const horasBloque = grupo.citas.map(c => c.hora).sort();
+                
+                htmlContent += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+            } else if (grupo.es_bloque && grupo.citas.length === 1) {
+                htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+            } else {
+                htmlContent += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+            }
+        });
+        
+        listaCitas.innerHTML = htmlContent;
+        
+        // Si es admin, guardar las citas originales para filtros
+        if (esAdmin) {
+            window.adminCitasOriginales = citas;
         }
-
-        // Iniciar contadores después de cargar el HTML
+        
+        // Iniciar contadores
         setTimeout(() => {
             iniciarContadoresCitas();
         }, 100);
@@ -7380,141 +7625,112 @@ if (hayCitasCanceladasOCompletadas && !hayCitasActivas) {
             listaCitas.innerHTML = `
                 <div class="alert alert-error">
                     <h3>Error al cargar citas</h3>
-                    <p>${error.message || 'No se pudieron cargar tus citas. Por favor, recarga la página.'}</p>
+                    <p>${error.message || 'No se pudieron cargar las citas. Por favor, recarga la página.'}</p>
                     <button class="btn btn-primary" onclick="app.cargarMisCitas()">Reintentar</button>
                 </div>
             `;
         }
-        showAlert('Error al cargar tus citas', 'error');
+        showAlert('Error al cargar las citas', 'error');
     }
 }
 
+
 // Función auxiliar para generar HTML de bloque de citas
-function generarHTMLBloqueCita(citaPrincipal, grupo, horasBloque) {
+function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) {
     const fechaCitaYucatan = getYucatanDateTime(citaPrincipal.fecha, citaPrincipal.hora);
     const ahora = new Date();
     const citaPasada = fechaCitaYucatan < ahora;
     const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
     const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
     
-    // AGREGAR FECHA DE AGENDAMIENTO
-    let fechaAgendamientoHTML = '';
-    if (citaPrincipal.creado_en) {
-        const fechaAgendamiento = new Date(citaPrincipal.creado_en);
-        const opciones = { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false,
-            timeZone: 'America/Merida'  // Zona horaria de Yucatán
-        };
-        const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', opciones);
-        // Separar fecha y hora para mejor formato
-        const [fecha, hora] = fechaFormateada.split(', ');
-        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong>${hora}</p>`;
-    }
-    
-    // Formatear fecha de la cita para mostrar en Yucatán
-    const fechaCitaFormateada = fechaCitaYucatan.toLocaleString('es-MX', { 
-        timeZone: 'America/Merida',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-    
-    // Para eliminación, solo mostrar botón si está completada o cancelada
-    const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
-    
-    // Para cancelación
     const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
                         (citaPrincipal.estado === 'aceptada' || citaPrincipal.estado === 'pendiente' || citaPrincipal.estado === 'confirmada');
     
-    let mensajeCancelacionHTML = '';
-    if (!citaPasada && tiempoParaCita > 0 && faltaMenosDeUnaHora && citaPrincipal.estado !== 'cancelada') {
-        mensajeCancelacionHTML = `
-            <p class="mensaje-cancelacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                ⚠️ Ya no puedes cancelar este bloque (faltan menos de 1 hora)
-            </p>
-        `;
-    }
+    const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
     
     return `
-        <div class="cita-card bloque-cita ${citaPrincipal.estado}" 
+        <div class="cita-card bloque-cita ${citaPrincipal.estado} ${esAdmin ? 'admin-cita' : ''}" 
              data-cita-id="${citaPrincipal.id}" 
              data-fecha="${citaPrincipal.fecha}" 
              data-hora="${citaPrincipal.hora}"
              data-es-bloque="true"
-             data-horas-bloque="${horasBloque.join(',')}">
+             data-estado="${citaPrincipal.estado}"
+             data-cliente="${citaPrincipal.clientes?.nombre || ''}">
             <div class="cita-header">
-                <h3>${citaPrincipal.servicios.nombre}</h3>
+                <div>
+                    <h3>${citaPrincipal.servicios.nombre} <span class="badge-bloque">📦 Bloque</span></h3>
+                    ${esAdmin && citaPrincipal.infoCliente ? `<p class="cliente-info">${citaPrincipal.infoCliente}</p>` : ''}
+                </div>
                 <span class="cita-estado estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
             </div>
             <div class="cita-detalles">
-                <p><strong>📅 Fecha de la cita:</strong> ${fechaCitaFormateada}</p>
-                ${fechaAgendamientoHTML}
-                <p><strong>🕐 Hora principal:</strong> ${citaPrincipal.hora}</p>
-                <p><strong>⏱️ Duración total:</strong> 80 minutos</p>
+                <p><strong>📅 Fecha:</strong> ${citaPrincipal.fecha}</p>
                 <p><strong>🕐 Horas del bloque:</strong> ${horasBloque.join(', ')}</p>
+                <p><strong>⏱️ Duración total:</strong> 80 minutos</p>
                 <p><strong>👤 Barbero:</strong> ${citaPrincipal.barberos.nombre}</p>
                 <p><strong>💰 Precio total:</strong> $${citaPrincipal.servicios.precio}</p>
                 ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
                 <div id="contador-${citaPrincipal.id}" class="contador-cita"></div>
-                ${mensajeCancelacionHTML}
             </div>
             <div class="cita-acciones">
-                ${puedeCancelar ? `
-                    <button class="btn btn-danger" onclick="app.cancelarCita('${citaPrincipal.id}')">Cancelar Bloque Completo</button>
-                ` : ''}
-                ${!puedeCancelar && !citaPasada && (citaPrincipal.estado === 'aceptada' || citaPrincipal.estado === 'pendiente' || citaPrincipal.estado === 'confirmada') ? `
-                    <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
-                ` : ''}
-                ${puedeEliminar ? `
-                    <button class="btn btn-secondary" onclick="app.eliminarCita('${citaPrincipal.id}')">Eliminar bloque completo</button>
-                ` : ''}
+                ${esAdmin ? `
+                    <button class="btn btn-warning" onclick="cambiarEstadoCitaBloque('${citaPrincipal.id}')">
+                        <i class="fas fa-edit"></i> Cambiar Estado
+                    </button>
+                    <button class="btn btn-info" onclick="verDetallesBloque('${citaPrincipal.id}')">
+                        <i class="fas fa-info-circle"></i> Detalles
+                    </button>
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="cancelarBloqueAdmin('${citaPrincipal.id}')">
+                            <i class="fas fa-times"></i> Cancelar Bloque
+                        </button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="eliminarBloqueAdmin('${citaPrincipal.id}')">
+                            <i class="fas fa-trash"></i> Eliminar Bloque
+                        </button>
+                    ` : ''}
+                ` : `
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="app.cancelarCita('${citaPrincipal.id}')">Cancelar Bloque Completo</button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="app.eliminarCita('${citaPrincipal.id}')">Eliminar bloque completo</button>
+                    ` : ''}
+                `}
             </div>
         </div>
     `;
 }
 // Función auxiliar para generar HTML de cita individual
-function generarHTMLCitaIndividual(cita) {
+function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
     const fechaCitaYucatan = getYucatanDateTime(cita.fecha, cita.hora);
     const ahora = new Date();
     const citaPasada = fechaCitaYucatan < ahora;
     const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
     const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+    
     const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
                         (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
     
     const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
     
-    // FORMATAR FECHA DE AGENDAMIENTO - CORREGIDO
+    // Formatear fecha de agendamiento
     let fechaAgendamientoHTML = '';
     if (cita.creado_en) {
         const fechaAgendamiento = new Date(cita.creado_en);
-        const opciones = { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric',
+        const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', { 
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
             hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false,
-            timeZone: 'America/Merida'  // Zona horaria de Yucatán
-        };
-        const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', opciones);
-        // Separar fecha y hora para mejor formato
-        const [fecha, hora] = fechaFormateada.split(', ');
-        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong>${hora}</p>`;
+            minute: '2-digit'
+        });
+        fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fechaFormateada}</p>`;
     }
     
-    // Formatear fecha de la cita para mostrar en Yucatán
+    // Formatear fecha de la cita
     const fechaCitaFormateada = fechaCitaYucatan.toLocaleString('es-MX', { 
         timeZone: 'America/Merida',
         year: 'numeric',
@@ -7524,19 +7740,19 @@ function generarHTMLCitaIndividual(cita) {
         minute: '2-digit'
     });
     
-    let mensajeCancelacionHTML = '';
-    if (!citaPasada && tiempoParaCita > 0 && faltaMenosDeUnaHora && cita.estado !== 'cancelada') {
-        mensajeCancelacionHTML = `
-            <p class="mensaje-cancelacion" style="color: #dc3545; font-weight: bold; background: #f8d7da; padding: 8px; border-radius: 6px; text-align: center; margin-top: 10px;">
-                ⚠️ Ya no puedes cancelar esta cita (faltan menos de 1 hora)
-            </p>
-        `;
-    }
-    
     return `
-        <div class="cita-card ${cita.estado}" id="cita-${cita.id}" data-cita-id="${cita.id}" data-fecha="${cita.fecha}" data-hora="${cita.hora}">
+        <div class="cita-card ${cita.estado} ${esAdmin ? 'admin-cita' : ''}" 
+             id="cita-${cita.id}" 
+             data-cita-id="${cita.id}" 
+             data-fecha="${cita.fecha}" 
+             data-hora="${cita.hora}"
+             data-estado="${cita.estado}"
+             data-cliente="${cita.clientes?.nombre || ''}">
             <div class="cita-header">
-                <h3>${cita.servicios.nombre}</h3>
+                <div>
+                    <h3>${cita.servicios.nombre}</h3>
+                    ${esAdmin && cita.infoCliente ? `<p class="cliente-info">${cita.infoCliente}</p>` : ''}
+                </div>
                 <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
             </div>
             <div class="cita-detalles">
@@ -7546,23 +7762,324 @@ function generarHTMLCitaIndividual(cita) {
                 <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
                 ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
                 <div id="contador-${cita.id}" class="contador-cita"></div>
-                ${mensajeCancelacionHTML}
             </div>
             <div class="cita-acciones">
-                ${puedeCancelar ? `
-                    <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
-                ` : ''}
-                ${!puedeCancelar && !citaPasada && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
-                    <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
-                ` : ''}
-                ${puedeEliminar ? `
-                    <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
-                ` : ''}
+                ${esAdmin ? `
+                    <!-- Botones de administrador -->
+                    <button class="btn btn-warning" onclick="cambiarEstadoCita('${cita.id}')">
+                        <i class="fas fa-edit"></i> Cambiar Estado
+                    </button>
+                    <button class="btn btn-info" onclick="verDetallesCita('${cita.id}')">
+                        <i class="fas fa-info-circle"></i> Detalles
+                    </button>
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="cancelarCitaAdmin('${cita.id}')">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="eliminarCitaAdmin('${cita.id}')">
+                            <i class="fas fa-trash"></i> Eliminar
+                        </button>
+                    ` : ''}
+                ` : `
+                    <!-- Botones de usuario normal -->
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
+                    ` : ''}
+                    ${!puedeCancelar && !citaPasada && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
+                        <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
+                    ` : ''}
+                `}
             </div>
         </div>
     `;
 }
-            async function limpiarCacheDespuesDeAgendar() {
+
+// Funciones de filtrado para admin
+function filtrarCitasAdmin() {
+    if (!window.adminCitasOriginales) return;
+    
+    const filtroEstado = document.getElementById('filterEstado').value;
+    const filtroFecha = document.getElementById('filterFecha').value;
+    const filtroCliente = document.getElementById('filterCliente').value.toLowerCase();
+    
+    const citasFiltradas = window.adminCitasOriginales.filter(cita => {
+        // Filtrar por estado
+        if (filtroEstado !== 'todos' && cita.estado !== filtroEstado) {
+            return false;
+        }
+        
+        // Filtrar por fecha
+        if (filtroFecha && cita.fecha !== filtroFecha) {
+            return false;
+        }
+        
+        // Filtrar por cliente
+        if (filtroCliente) {
+            const nombreCliente = cita.clientes?.nombre?.toLowerCase() || '';
+            const emailCliente = cita.clientes?.email?.toLowerCase() || '';
+            if (!nombreCliente.includes(filtroCliente) && !emailCliente.includes(filtroCliente)) {
+                return false;
+            }
+        }
+        
+        return true;
+    });
+    
+    // Actualizar estadísticas
+    actualizarEstadisticasAdmin(citasFiltradas);
+    
+    // Actualizar lista de citas
+    actualizarListaCitasFiltradas(citasFiltradas);
+}
+
+function actualizarEstadisticasAdmin(citas) {
+    const totalCitas = citas.length;
+    const citasHoy = citas.filter(c => c.fecha === formatDate(new Date())).length;
+    const citasPendientes = citas.filter(c => c.estado === 'pendiente').length;
+    const citasConfirmadas = citas.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
+    const citasCanceladas = citas.filter(c => c.estado === 'cancelada').length;
+    
+    // Actualizar números en las tarjetas
+    document.querySelectorAll('.stat-number')[0].textContent = totalCitas;
+    document.querySelectorAll('.stat-number')[1].textContent = citasHoy;
+    document.querySelectorAll('.stat-number')[2].textContent = citasPendientes;
+    document.querySelectorAll('.stat-number')[3].textContent = citasConfirmadas;
+    document.querySelectorAll('.stat-number')[4].textContent = citasCanceladas;
+    
+    // Actualizar título
+    const titulo = document.querySelector('.admin-panel h3');
+    if (titulo) {
+        titulo.innerHTML = `<i class="fas fa-list"></i> Citas filtradas (${totalCitas})`;
+    }
+}
+
+function actualizarListaCitasFiltradas(citas) {
+    // Eliminar las citas actuales
+    const citasCards = document.querySelectorAll('.cita-card');
+    citasCards.forEach(card => {
+        if (card.closest('.admin-panel')) {
+            card.remove();
+        }
+    });
+    
+    // Agrupar citas filtradas
+    const citasAgrupadas = {};
+    
+    citas.forEach(cita => {
+        if (cita.es_bloque && cita.hora_principal) {
+            const claveBloque = `${cita.fecha}_${cita.hora_principal}`;
+            if (!citasAgrupadas[claveBloque]) {
+                citasAgrupadas[claveBloque] = {
+                    es_bloque: true,
+                    hora_principal: cita.hora_principal,
+                    fecha: cita.fecha,
+                    citas: []
+                };
+            }
+            citasAgrupadas[claveBloque].citas.push(cita);
+        } else if (cita.duracion && cita.duracion === 80) {
+            const claveBloque = `${cita.fecha}_${cita.hora}`;
+            if (!citasAgrupadas[claveBloque]) {
+                citasAgrupadas[claveBloque] = {
+                    es_bloque: true,
+                    hora_principal: cita.hora,
+                    fecha: cita.fecha,
+                    citas: [cita]
+                };
+            }
+        } else {
+            const claveIndividual = `individual_${cita.id}`;
+            citasAgrupadas[claveIndividual] = {
+                es_bloque: false,
+                cita: cita
+            };
+        }
+    });
+    
+    // Generar HTML para cada cita filtrada
+    let htmlContent = '';
+    Object.values(citasAgrupadas).forEach(grupo => {
+        if (grupo.es_bloque && grupo.citas.length > 1) {
+            const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+            const horasBloque = grupo.citas.map(c => c.hora).sort();
+            htmlContent += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, true);
+        } else if (grupo.es_bloque && grupo.citas.length === 1) {
+            htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], true);
+        } else {
+            htmlContent += generarHTMLCitaIndividualAdmin(grupo.cita, true);
+        }
+    });
+    
+    // Insertar después del panel de filtros
+    const adminPanel = document.querySelector('.admin-panel');
+    if (adminPanel) {
+        const titulo = adminPanel.querySelector('h3');
+        if (titulo && titulo.nextSibling) {
+            titulo.nextSibling.remove(); // Eliminar contenido anterior
+        }
+        titario.insertAdjacentHTML('afterend', htmlContent);
+    }
+}
+
+function resetearFiltrosAdmin() {
+    document.getElementById('filterEstado').value = 'todos';
+    document.getElementById('filterFecha').value = '';
+    document.getElementById('filterCliente').value = '';
+    filtrarCitasAdmin();
+}
+
+// Funciones de administración de citas
+async function cambiarEstadoCita(citaId) {
+    try {
+        const { data: cita, error } = await supabase
+            .from('citas')
+            .select('*')
+            .eq('id', citaId)
+            .single();
+            
+        if (error) throw error;
+        
+        const { value: nuevoEstado } = await Swal.fire({
+            title: '🔄 Cambiar estado de la cita',
+            html: `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
+                        <i class="fas fa-exchange-alt"></i>
+                    </div>
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        Estado actual: <span class="estado-${cita.estado}">${cita.estado}</span>
+                    </p>
+                    <select id="estadoSelect" class="swal2-select" style="width: 100%; padding: 10px; border-radius: 6px; background: #2a2a2a; color: white; border: 1px solid #d4af37;">
+                        <option value="pendiente">⏳ Pendiente</option>
+                        <option value="confirmada">✅ Confirmada</option>
+                        <option value="aceptada">👍 Aceptada</option>
+                        <option value="completada">🏁 Completada</option>
+                        <option value="cancelada">❌ Cancelada</option>
+                    </select>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Cambiar estado',
+            cancelButtonText: 'Cancelar',
+            preConfirm: () => {
+                return document.getElementById('estadoSelect').value;
+            },
+            background: '#1a1a1a',
+            color: '#ffffff'
+        });
+        
+        if (!nuevoEstado) return;
+        
+        // Actualizar estado en la base de datos
+        const { error: updateError } = await supabase
+            .from('citas')
+            .update({ estado: nuevoEstado })
+            .eq('id', citaId);
+            
+        if (updateError) throw updateError;
+        
+        showAlert(`✅ Estado cambiado a: ${nuevoEstado}`, 'success');
+        await cargarMisCitas(); // Recargar la lista
+        
+    } catch (error) {
+        console.error('Error cambiando estado:', error);
+        showAlert('❌ Error al cambiar estado', 'error');
+    }
+}
+
+async function verDetallesCita(citaId) {
+    try {
+        const { data: cita, error } = await supabase
+            .from('citas')
+            .select(`
+                *,
+                servicios(nombre, precio, descripcion),
+                barberos(nombre, especialidad),
+                clientes(nombre, email, telefono)
+            `)
+            .eq('id', citaId)
+            .single();
+            
+        if (error) throw error;
+        
+        const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
+        const fechaFormateada = fechaCita.toLocaleString('es-MX', { 
+            timeZone: 'America/Merida',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        await Swal.fire({
+            title: '📋 Detalles completos de la cita',
+            html: `
+                <div style="text-align: left; max-height: 60vh; overflow-y: auto; padding-right: 10px;">
+                    <div style="background: rgba(212, 175, 55, 0.1); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                        <h3 style="color: #d4af37; margin-bottom: 15px;">Información de la cita</h3>
+                        <p><strong>📅 Fecha y hora:</strong> ${fechaFormateada}</p>
+                        <p><strong>📊 Estado:</strong> <span class="estado-${cita.estado}">${cita.estado}</span></p>
+                        <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
+                        ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                        <p><strong>🆔 ID de cita:</strong> ${cita.id}</p>
+                    </div>
+                    
+                    <div style="background: rgba(0, 123, 255, 0.1); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                        <h3 style="color: #007bff; margin-bottom: 15px;">Información del cliente</h3>
+                        <p><strong>👤 Nombre:</strong> ${cita.clientes.nombre}</p>
+                        <p><strong>📧 Email:</strong> ${cita.clientes.email}</p>
+                        ${cita.clientes.telefono ? `<p><strong>📱 Teléfono:</strong> ${cita.clientes.telefono}</p>` : ''}
+                        <p><strong>🆔 ID de cliente:</strong> ${cita.cliente_id}</p>
+                    </div>
+                    
+                    <div style="background: rgba(40, 167, 69, 0.1); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                        <h3 style="color: #28a745; margin-bottom: 15px;">Información del servicio</h3>
+                        <p><strong>✂️ Servicio:</strong> ${cita.servicios.nombre}</p>
+                        <p><strong>📋 Descripción:</strong> ${cita.servicios.descripcion || 'Sin descripción'}</p>
+                        <p><strong>⏱️ Duración:</strong> ${cita.duracion || 40} minutos</p>
+                    </div>
+                    
+                    <div style="background: rgba(108, 117, 125, 0.1); border-radius: 8px; padding: 20px;">
+                        <h3 style="color: #6c757d; margin-bottom: 15px;">Información del barbero</h3>
+                        <p><strong>💈 Barbero:</strong> ${cita.barberos.nombre}</p>
+                        <p><strong>⭐ Especialidad:</strong> ${cita.barberos.especialidad || 'Sin especialidad'}</p>
+                    </div>
+                </div>
+            `,
+            width: '600px',
+            showConfirmButton: true,
+            confirmButtonText: 'Cerrar',
+            background: '#1a1a1a',
+            color: '#ffffff'
+        });
+        
+    } catch (error) {
+        console.error('Error obteniendo detalles:', error);
+        showAlert('❌ Error al obtener detalles', 'error');
+    }
+}
+
+// Funciones específicas para admin
+async function cancelarCitaAdmin(citaId) {
+    if (confirm('¿Cancelar esta cita como administrador?')) {
+        await cancelarCita(citaId);
+    }
+}
+
+async function eliminarCitaAdmin(citaId) {
+    if (confirm('¿Eliminar permanentemente esta cita?')) {
+        await eliminarCita(citaId);
+    }
+}
+
+    async function limpiarCacheDespuesDeAgendar() {
         // Limpiar caché de citas futuras
         todasLasCitasFuturasCache = [];
         cacheEstadosHoras.clear();
@@ -9449,6 +9966,23 @@ async function eliminarCita(citaId) {
             usuarioActual = session.user;
             miUsuarioId = usuarioActual.id;
 
+            const { data: userData, error: userError } = await supabase
+            .from('clientes')
+            .select('rol')
+            .eq('id', usuarioActual.id)
+            .single();
+            
+        const esAdmin = userData?.rol === 'admin';
+
+        if (esAdmin) {
+            console.log('👑 Usuario identificado como ADMIN');
+            // Opcional: mostrar algún indicador visual
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            if (welcomeMessage) {
+                welcomeMessage.innerHTML += ' <span class="admin-badge">👑 Admin</span>';
+            }
+        }
+
             console.log('🌍 Información de zona horaria:');
             console.log('   - Zona horaria del navegador:', Intl.DateTimeFormat().resolvedOptions().timeZone);
             console.log('   - Hora actual navegador:', new Date().toLocaleString('es-MX'));
@@ -9623,7 +10157,11 @@ if (logoutBtn) {
                     }, 100);
                 },
                 refrescarContadores,
-                marcarComoCompletada
+                marcarComoCompletada,
+                filtrarCitasAdmin,
+                resetearFiltrosAdmin,
+                cambiarEstadoCita,
+                verDetallesCita
             };
 
             // ============ EJECUCIÓN ============
