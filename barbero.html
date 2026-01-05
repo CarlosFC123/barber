@@ -7390,258 +7390,236 @@ async function agendarCita(e) {
         const esAdmin = userData?.rol === 'admin';
         
         if (esAdmin) {
-            console.log('👑 Cargando citas como ADMIN (todas las citas)');
+    // Para las estadísticas, necesitamos contar correctamente:
+    // - Citas individuales de 40 min: 1 cita
+    // - Citas VIP de 80 min (2 horas): 1 cita
+    // - Bloques de 2 citas de 40 min: 1 cita (como bloque)
+    
+    const bloquesUnicos = new Set();
+    const citasHoySet = new Set();
+    const citasPendientesSet = new Set();
+    const citasConfirmadasSet = new Set();
+    const citasCanceladasSet = new Set();
+    
+    // Agrupar citas para identificar unidades únicas
+    const citasAgrupadasTemp = {};
+    citas.forEach(cita => {
+        // Cita VIP de 80 minutos (puede tener múltiples registros)
+        if (cita.duracion === 80) {
+            const claveVIP = cita.hora_principal ? 
+                `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}_vip` : 
+                `${cita.fecha}_${cita.hora}_${cita.cliente_id}_vip`;
             
-            // Obtener TODAS las citas del sistema
-            const { data: todasCitas, error } = await supabase
-                .from('citas')
-                .select(`
-                    *,
-                    servicios(nombre, precio),
-                    barberos(nombre),
-                    clientes(nombre, email, telefono)
-                `)
-                .order('fecha', { ascending: false })
-                .order('hora', { ascending: false });
-                
-            if (error) throw error;
-            
-            citas = todasCitas;
-        } else {
-            console.log('👤 Cargando citas como USUARIO normal');
-            
-            // Obtener solo las citas del usuario actual
-            const { data: misCitas, error } = await supabase
-                .from('citas')
-                .select(`
-                    *,
-                    servicios(nombre, precio),
-                    barberos(nombre)
-                `)
-                .eq('cliente_id', usuarioActual.id)
-                .order('fecha', { ascending: false });
-
-            if (error) throw error;
-            
-            citas = misCitas;
-        }
-
-        const listaCitas = document.getElementById('listaCitas');
-        if (!listaCitas) return;
-        
-        if (!citas || citas.length === 0) {
-            listaCitas.innerHTML = `
-                <div class="empty-state">
-                    <div>📅</div>
-                    <h3>No hay citas ${esAdmin ? 'en el sistema' : 'agendadas'}</h3>
-                    ${!esAdmin ? `<p>¡Agenda tu primera cita ahora!</p>
-                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>` : ''}
-                </div>
-            `;
-            return;
-        }
-        
-        // Si es admin, crear filtros y estadísticas
-        let htmlContent = '';
-        
-        if (esAdmin) {
-            // Para las estadísticas, necesitamos contar los bloques como 1 cita, no todas sus horas
-            
-            // Primero, agrupar las citas para identificar bloques únicos
-            const bloquesUnicos = new Set();
-            const citasHoySet = new Set();
-            const citasPendientesSet = new Set();
-            const citasConfirmadasSet = new Set();
-            const citasCanceladasSet = new Set();
-            
-            // Agrupar citas por bloque
-            const citasAgrupadasTemp = {};
-            citas.forEach(cita => {
-                if (cita.es_bloque && cita.hora_principal) {
-                    const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}`;
-                    if (!citasAgrupadasTemp[claveBloque]) {
-                        citasAgrupadasTemp[claveBloque] = {
-                            citas: []
-                        };
-                    }
-                    citasAgrupadasTemp[claveBloque].citas.push(cita);
-                } else {
-                    // Cita individual - clave única
-                    const claveIndividual = `individual_${cita.id}`;
-                    citasAgrupadasTemp[claveIndividual] = {
-                        citas: [cita]
-                    };
-                }
-            });
-            
-            // Contar cada grupo como 1 cita para estadísticas
-            Object.values(citasAgrupadasTemp).forEach(grupo => {
-                const citaPrincipal = grupo.citas[0]; // Tomamos la primera como representativa
-                const claveBloque = citaPrincipal.es_bloque ? 
-                    `${citaPrincipal.fecha}_${citaPrincipal.hora_principal}_${citaPrincipal.cliente_id}` : 
-                    `individual_${citaPrincipal.id}`;
-                
-                // Contar en Total Citas (cada bloque o cita individual cuenta como 1)
-                bloquesUnicos.add(claveBloque);
-                
-                // Contar citas de hoy (usando fecha actual)
-                const hoy = formatDate(new Date());
-                if (citaPrincipal.fecha === hoy) {
-                    citasHoySet.add(claveBloque);
-                }
-                
-                // Contar por estado
-                if (citaPrincipal.estado === 'pendiente') {
-                    citasPendientesSet.add(claveBloque);
-                } else if (citaPrincipal.estado === 'confirmada' || citaPrincipal.estado === 'aceptada') {
-                    citasConfirmadasSet.add(claveBloque);
-                } else if (citaPrincipal.estado === 'cancelada') {
-                    citasCanceladasSet.add(claveBloque);
-                }
-            });
-            
-            // Obtener los conteos
-            const totalCitas = bloquesUnicos.size; // Cada bloque cuenta como 1
-            const citasHoy = citasHoySet.size;
-            const citasPendientes = citasPendientesSet.size;
-            const citasConfirmadas = citasConfirmadasSet.size;
-            const citasCanceladas = citasCanceladasSet.size;
-            
-            // NOTA: Mantenemos el total de registros individuales para mostrar en el título
-            const totalRegistrosIndividuales = citas.length;
-            
-            htmlContent = `
-                <div class="admin-panel">
-                    <h2 style="color: #d4af37; margin-bottom: 20px; border-bottom: 2px solid #d4af37; padding-bottom: 10px;">
-                        <i class="fas fa-crown"></i> Panel de Administración
-                    </h2>
-                    
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon total">📊</div>
-                            <div class="stat-info">
-                                <h3>Total Citas</h3>
-                                <p class="stat-number">${totalCitas}</p>
-                                <small style="color: #aaa; font-size: 0.8em;">
-                                    (${totalRegistrosIndividuales} horas individuales)
-                                </small>
-                            </div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon today">📅</div>
-                            <div class="stat-info">
-                                <h3>Citas Hoy</h3>
-                                <p class="stat-number">${citasHoy}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon pending">⏳</div>
-                            <div class="stat-info">
-                                <h3>Pendientes</h3>
-                                <p class="stat-number">${citasPendientes}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon confirmed">✅</div>
-                            <div class="stat-info">
-                                <h3>Confirmadas</h3>
-                                <p class="stat-number">${citasConfirmadas}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon canceled">❌</div>
-                            <div class="stat-info">
-                                <h3>Canceladas</h3>
-                                <p class="stat-number">${citasCanceladas}</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="admin-filters">
-                        <div class="filter-group">
-                            <label for="filterEstado"><i class="fas fa-filter"></i> Filtrar por estado:</label>
-                            <select id="filterEstado" class="filter-select" onchange="filtrarCitasAdmin()">
-                                <option value="todos">Todos los estados</option>
-                                <option value="pendiente">Pendientes</option>
-                                <option value="confirmada">Confirmadas</option>
-                                <option value="aceptada">Aceptadas</option>
-                                <option value="completada">Completadas</option>
-                                <option value="cancelada">Canceladas</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="filterFecha"><i class="fas fa-calendar-alt"></i> Filtrar por fecha:</label>
-                            <input type="date" id="filterFecha" class="filter-select" onchange="filtrarCitasAdmin()">
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="filterCliente"><i class="fas fa-user"></i> Filtrar por cliente:</label>
-                            <input type="text" id="filterCliente" class="filter-select" placeholder="Nombre del cliente" onkeyup="filtrarCitasAdmin()">
-                        </div>
-                        
-                        <button class="btn btn-secondary" onclick="resetearFiltrosAdmin()">
-                            <i class="fas fa-redo"></i> Resetear filtros
-                        </button>
-                    </div>
-                    
-                    <h3 style="color: #ffffff; margin: 30px 0 15px 0;">
-                        <i class="fas fa-list"></i> Todas las citas (${totalCitas} citas - ${totalRegistrosIndividuales} horas)
-                    </h3>
-                </div>
-            `;
-        } else {
-            // Para usuarios normales, mantener el encabezado existente
-            const hayCitasCanceladasOCompletadas = citas.some(c => c.estado === 'cancelada' || c.estado === 'completada');
-            const hayCitasActivas = citas.some(c => 
-                c.estado === 'aceptada' || 
-                c.estado === 'pendiente' || 
-                c.estado === 'confirmada'
-            );
-            
-            if (hayCitasCanceladasOCompletadas && !hayCitasActivas) {
-                htmlContent = `
-                    <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
-                        <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
-                        <p style="color: #ccc; margin-bottom: 15px;">Ya has completado o cancelado una cita anterior</p>
-                        <button class="btn btn-primary" id="btnAgregarCitaDesdeLista" style="font-size: 16px; padding: 12px 24px;">
-                            📅 Agendar Nueva Cita
-                        </button>
-                    </div>
-                `;
+            if (!citasAgrupadasTemp[claveVIP]) {
+                citasAgrupadasTemp[claveVIP] = {
+                    tipo: 'vip',
+                    citas: []
+                };
+            }
+            // Solo agregar la primera cita del bloque VIP
+            if (citasAgrupadasTemp[claveVIP].citas.length === 0) {
+                citasAgrupadasTemp[claveVIP].citas.push(cita);
             }
         }
+        // Bloque de 2 citas de 40 min
+        else if (cita.es_bloque && cita.hora_principal) {
+            const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}_bloque`;
+            if (!citasAgrupadasTemp[claveBloque]) {
+                citasAgrupadasTemp[claveBloque] = {
+                    tipo: 'bloque',
+                    citas: []
+                };
+            }
+            citasAgrupadasTemp[claveBloque].citas.push(cita);
+        }
+        // Cita individual
+        else {
+            const claveIndividual = `individual_${cita.id}`;
+            citasAgrupadasTemp[claveIndividual] = {
+                tipo: 'individual',
+                citas: [cita]
+            };
+        }
+    });
+    
+    // Contar cada grupo como 1 cita para estadísticas
+    Object.values(citasAgrupadasTemp).forEach(grupo => {
+        const citaPrincipal = grupo.citas[0];
+        let claveUnica = '';
+        
+        if (grupo.tipo === 'vip') {
+            claveUnica = `vip_${citaPrincipal.fecha}_${citaPrincipal.hora_principal || citaPrincipal.hora}_${citaPrincipal.cliente_id}`;
+        } else if (grupo.tipo === 'bloque') {
+            claveUnica = `bloque_${citaPrincipal.fecha}_${citaPrincipal.hora_principal}_${citaPrincipal.cliente_id}`;
+        } else {
+            claveUnica = `individual_${citaPrincipal.id}`;
+        }
+        
+        // Contar en Total Citas (cada grupo cuenta como 1)
+        bloquesUnicos.add(claveUnica);
+        
+        // Contar citas de hoy (usando fecha actual)
+        const hoy = formatDate(new Date());
+        if (citaPrincipal.fecha === hoy) {
+            citasHoySet.add(claveUnica);
+        }
+        
+        // Contar por estado
+        if (citaPrincipal.estado === 'pendiente') {
+            citasPendientesSet.add(claveUnica);
+        } else if (citaPrincipal.estado === 'confirmada' || citaPrincipal.estado === 'aceptada') {
+            citasConfirmadasSet.add(claveUnica);
+        } else if (citaPrincipal.estado === 'cancelada') {
+            citasCanceladasSet.add(claveUnica);
+        }
+    });
+    
+    // Obtener los conteos
+    const totalCitas = bloquesUnicos.size; // Cada VIP/bloque cuenta como 1 cita
+    const citasHoy = citasHoySet.size;
+    const citasPendientes = citasPendientesSet.size;
+    const citasConfirmadas = citasConfirmadasSet.size;
+    const citasCanceladas = citasCanceladasSet.size;
+    
+    // Contar registros individuales en BD para mostrar en subtítulo
+    const totalRegistrosBD = citas.length;
+    
+    htmlContent = `
+        <div class="admin-panel">
+            <h2 style="color: #d4af37; margin-bottom: 20px; border-bottom: 2px solid #d4af37; padding-bottom: 10px;">
+                <i class="fas fa-crown"></i> Panel de Administración
+            </h2>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon total">📊</div>
+                    <div class="stat-info">
+                        <h3>Total Citas</h3>
+                        <p class="stat-number">${totalCitas}</p>
+                        <small style="color: #aaa; font-size: 0.8em;">
+                            (${totalRegistrosBD} registros en BD)
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon today">📅</div>
+                    <div class="stat-info">
+                        <h3>Citas Hoy</h3>
+                        <p class="stat-number">${citasHoy}</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon pending">⏳</div>
+                    <div class="stat-info">
+                        <h3>Pendientes</h3>
+                        <p class="stat-number">${citasPendientes}</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon confirmed">✅</div>
+                    <div class="stat-info">
+                        <h3>Confirmadas</h3>
+                        <p class="stat-number">${citasConfirmadas}</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon canceled">❌</div>
+                    <div class="stat-info">
+                        <h3>Canceladas</h3>
+                        <p class="stat-number">${citasCanceladas}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="admin-filters">
+                <div class="filter-group">
+                    <label for="filterEstado"><i class="fas fa-filter"></i> Filtrar por estado:</label>
+                    <select id="filterEstado" class="filter-select" onchange="filtrarCitasAdmin()">
+                        <option value="todos">Todos los estados</option>
+                        <option value="pendiente">Pendientes</option>
+                        <option value="confirmada">Confirmadas</option>
+                        <option value="aceptada">Aceptadas</option>
+                        <option value="completada">Completadas</option>
+                        <option value="cancelada">Canceladas</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="filterFecha"><i class="fas fa-calendar-alt"></i> Filtrar por fecha:</label>
+                    <input type="date" id="filterFecha" class="filter-select" onchange="filtrarCitasAdmin()">
+                </div>
+                
+                <div class="filter-group">
+                    <label for="filterCliente"><i class="fas fa-user"></i> Filtrar por cliente:</label>
+                    <input type="text" id="filterCliente" class="filter-select" placeholder="Nombre del cliente" onkeyup="filtrarCitasAdmin()">
+                </div>
+                
+                <button class="btn btn-secondary" onclick="resetearFiltrosAdmin()">
+                    <i class="fas fa-redo"></i> Resetear filtros
+                </button>
+            </div>
+            
+            <h3 style="color: #ffffff; margin: 30px 0 15px 0;">
+                <i class="fas fa-list"></i> Todas las citas (${totalCitas} citas)
+                <small style="color: #aaa; font-size: 0.8em; margin-left: 10px;">
+                    ${totalRegistrosBD} registros individuales en base de datos
+                </small>
+            </h3>
+        </div>
+    `;
+}
         
         // Agrupar citas (para ambos admin y usuario)
         // Agrupar citas (para ambos admin y usuario)
+// Agrupar citas (para ambos admin y usuario)
 const citasAgrupadas = {};
 
 citas.forEach(cita => {
     // Para admin, también mostrar información del cliente
     const infoCliente = esAdmin ? `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>` : '';
     
-    // CASO 1: Cita VIP de 2 horas (duración 80 minutos) - NO es un bloque, es una sola cita larga
+    // CASO 1: Cita VIP de 2 horas (duración 80 minutos) - ES UN BLOQUE pero contamos como 1 cita
     if (cita.duracion === 80 && !cita.es_bloque) {
         const claveVIP = `vip_${cita.fecha}_${cita.hora}_${cita.cliente_id}`;
         if (!citasAgrupadas[claveVIP]) {
             citasAgrupadas[claveVIP] = {
                 es_vip: true,
                 es_bloque: false,
+                duracion_total: 80, // Marcamos como duración total de 80 min
                 cita: {...cita, infoCliente}
             };
         }
     }
-    // CASO 2: Bloque de citas (múltiples horas - es_bloque = true)
-    else if (cita.es_bloque && cita.hora_principal) {
+    // CASO 2: Cita VIP de 2 horas marcada como bloque (tiene hora_principal)
+    else if (cita.es_bloque && cita.duracion === 80) {
+        const claveBloqueVIP = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}_vip`;
+        if (!citasAgrupadas[claveBloqueVIP]) {
+            citasAgrupadas[claveBloqueVIP] = {
+                es_vip: true,
+                es_bloque: true,
+                duracion_total: 80,
+                hora_principal: cita.hora_principal,
+                fecha: cita.fecha,
+                citas: []
+            };
+        }
+        // Solo agregar la primera hora del bloque VIP
+        if (citasAgrupadas[claveBloqueVIP].citas.length === 0) {
+            citasAgrupadas[claveBloqueVIP].citas.push({...cita, infoCliente});
+        }
+    }
+    // CASO 3: Bloque normal de citas (múltiples horas para servicio de 40 min)
+    else if (cita.es_bloque && cita.hora_principal && cita.duracion === 40) {
         const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}_bloque`;
         if (!citasAgrupadas[claveBloque]) {
             citasAgrupadas[claveBloque] = {
                 es_bloque: true,
                 es_vip: false,
+                duracion_total: 80, // Dos citas de 40 min = 80 min total
                 hora_principal: cita.hora_principal,
                 fecha: cita.fecha,
                 citas: []
@@ -7649,12 +7627,13 @@ citas.forEach(cita => {
         }
         citasAgrupadas[claveBloque].citas.push({...cita, infoCliente});
     }
-    // CASO 3: Cita individual normal (40 minutos)
+    // CASO 4: Cita individual normal (40 minutos)
     else {
         const claveIndividual = `individual_${cita.id}`;
         citasAgrupadas[claveIndividual] = {
             es_bloque: false,
             es_vip: false,
+            duracion_total: 40,
             cita: {...cita, infoCliente}
         };
     }
@@ -7663,24 +7642,25 @@ citas.forEach(cita => {
 // Generar HTML para cada cita/bloque
 Object.values(citasAgrupadas).forEach((grupo, index) => {
     if (grupo.es_vip) {
-        // Mostrar como cita VIP de 2 horas - usar horasBloque como array con una sola hora
-        const horasBloque = [grupo.cita.hora];
-        htmlContent += generarHTMLBloqueCitaAdmin(grupo.cita, grupo, horasBloque, esAdmin);
+        // Cita VIP de 2 horas - mostrar como una sola cita
+        if (grupo.es_bloque && grupo.citas.length > 0) {
+            // VIP con múltiples registros en BD pero contamos como 1
+            const citaPrincipal = grupo.citas[0];
+            htmlContent += generarHTMLCitaVIPAdmin(citaPrincipal, grupo, esAdmin);
+        } else if (grupo.cita) {
+            // VIP con un solo registro en BD
+            htmlContent += generarHTMLCitaVIPAdmin(grupo.cita, grupo, esAdmin);
+        }
     }
     else if (grupo.es_bloque && grupo.citas.length > 1) {
+        // Bloque normal de 2 citas de 40 min
         const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
         const horasBloque = grupo.citas.map(c => c.hora).sort();
-        
         htmlContent += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
     }
     else if (grupo.es_bloque && grupo.citas.length === 1) {
-        // Si por alguna razón hay un bloque con solo una cita, mostrar como VIP si es de 80 min
-        if (grupo.citas[0].duracion === 80) {
-            const horasBloque = [grupo.citas[0].hora];
-            htmlContent += generarHTMLBloqueCitaAdmin(grupo.citas[0], grupo, horasBloque, esAdmin);
-        } else {
-            htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
-        }
+        // Si por alguna razón hay un bloque con solo una cita, mostrar como individual
+        htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
     }
     else {
         htmlContent += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
@@ -7713,6 +7693,90 @@ Object.values(citasAgrupadas).forEach((grupo, index) => {
         }
         showAlert('Error al cargar las citas', 'error');
     }
+}
+
+// Función auxiliar para generar HTML de cita VIP (80 minutos - 2 horas)
+function generarHTMLCitaVIPAdmin(citaPrincipal, grupo, esAdmin) {
+    const fechaCitaYucatan = getYucatanDateTime(citaPrincipal.fecha, citaPrincipal.hora);
+    const ahora = new Date();
+    const citaPasada = fechaCitaYucatan < ahora;
+    const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+    const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+    
+    const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
+                        (citaPrincipal.estado === 'aceptada' || citaPrincipal.estado === 'pendiente' || citaPrincipal.estado === 'confirmada');
+    
+    const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
+    
+    // Para citas VIP, mostramos solo la hora de inicio
+    const horaFin = calcularHoraFin(citaPrincipal.hora, 80);
+    
+    return `
+        <div class="cita-card vip-cita ${citaPrincipal.estado} ${esAdmin ? 'admin-cita' : ''}" 
+             data-cita-id="${citaPrincipal.id}" 
+             data-fecha="${citaPrincipal.fecha}" 
+             data-hora="${citaPrincipal.hora}"
+             data-duracion="80"
+             data-es-vip="true"
+             data-estado="${citaPrincipal.estado}"
+             data-cliente="${citaPrincipal.clientes?.nombre || ''}">
+            <div class="cita-header">
+                <div>
+                    <h3>${citaPrincipal.servicios.nombre} <span class="badge-vip">⭐ VIP</span></h3>
+                    ${esAdmin && citaPrincipal.infoCliente ? `<p class="cliente-info">${citaPrincipal.infoCliente}</p>` : ''}
+                </div>
+                <span class="cita-estado estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
+            </div>
+            <div class="cita-detalles">
+                <p><strong>📅 Fecha:</strong> ${citaPrincipal.fecha}</p>
+                <p><strong>🕐 Horario:</strong> ${citaPrincipal.hora} - ${horaFin} (2 horas)</p>
+                <p><strong>⏱️ Duración:</strong> 80 minutos (VIP)</p>
+                <p><strong>👤 Barbero:</strong> ${citaPrincipal.barberos.nombre}</p>
+                <p><strong>💰 Precio:</strong> $${citaPrincipal.servicios.precio}</p>
+                ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
+                <div id="contador-${citaPrincipal.id}" class="contador-cita"></div>
+            </div>
+            <div class="cita-acciones">
+                ${esAdmin ? `
+                    <button class="btn btn-warning" onclick="cambiarEstadoCita('${citaPrincipal.id}')">
+                        <i class="fas fa-edit"></i> Cambiar Estado
+                    </button>
+                    <button class="btn btn-info" onclick="verDetallesVIP('${citaPrincipal.id}')">
+                        <i class="fas fa-info-circle"></i> Detalles
+                    </button>
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="cancelarCitaVIPAdmin('${citaPrincipal.id}')">
+                            <i class="fas fa-times"></i> Cancelar Cita VIP
+                        </button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="eliminarCitaVIPAdmin('${citaPrincipal.id}')">
+                            <i class="fas fa-trash"></i> Eliminar VIP
+                        </button>
+                    ` : ''}
+                ` : `
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="cancelarCitaVIP('${citaPrincipal.id}')">Cancelar Cita VIP</button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="eliminarCitaVIP('${citaPrincipal.id}')">Eliminar VIP</button>
+                    ` : ''}
+                `}
+            </div>
+        </div>
+    `;
+}
+
+// Función para calcular la hora final
+function calcularHoraFin(horaInicio, duracionMinutos) {
+    const [horas, minutos] = horaInicio.split(':').map(Number);
+    const fecha = new Date();
+    fecha.setHours(horas, minutos, 0, 0);
+    fecha.setMinutes(fecha.getMinutes() + duracionMinutos);
+    
+    const horaFinHoras = fecha.getHours().toString().padStart(2, '0');
+    const horaFinMinutos = fecha.getMinutes().toString().padStart(2, '0');
+    return `${horaFinHoras}:${horaFinMinutos}`;
 }
 
 // Función auxiliar para generar HTML de bloque de citas
@@ -7916,57 +7980,82 @@ function filtrarCitasAdmin() {
     actualizarListaCitasFiltradas(citasFiltradas);
 }
 
+// Modificar la función actualizarEstadisticasAdmin:
+
 function actualizarEstadisticasAdmin(citas) {
-    // Agrupar citas para contar bloques como 1
+    // Agrupar citas para contar correctamente
     const bloquesUnicos = new Set();
     const citasHoySet = new Set();
     const citasPendientesSet = new Set();
     const citasConfirmadasSet = new Set();
     const citasCanceladasSet = new Set();
     
-    // Agrupar citas por bloque
+    // Agrupar citas por tipo
     const citasAgrupadasTemp = {};
     citas.forEach(cita => {
-        if (cita.es_bloque && cita.hora_principal) {
-            const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}`;
+        // Cita VIP de 80 minutos
+        if (cita.duracion === 80) {
+            const claveVIP = cita.hora_principal ? 
+                `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}_vip` : 
+                `${cita.fecha}_${cita.hora}_${cita.cliente_id}_vip`;
+            
+            if (!citasAgrupadasTemp[claveVIP]) {
+                citasAgrupadasTemp[claveVIP] = {
+                    tipo: 'vip',
+                    citas: []
+                };
+            }
+            if (citasAgrupadasTemp[claveVIP].citas.length === 0) {
+                citasAgrupadasTemp[claveVIP].citas.push(cita);
+            }
+        }
+        // Bloque normal
+        else if (cita.es_bloque && cita.hora_principal) {
+            const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}_bloque`;
             if (!citasAgrupadasTemp[claveBloque]) {
                 citasAgrupadasTemp[claveBloque] = {
+                    tipo: 'bloque',
                     citas: []
                 };
             }
             citasAgrupadasTemp[claveBloque].citas.push(cita);
-        } else {
-            // Cita individual - clave única
+        }
+        // Individual
+        else {
             const claveIndividual = `individual_${cita.id}`;
             citasAgrupadasTemp[claveIndividual] = {
+                tipo: 'individual',
                 citas: [cita]
             };
         }
     });
     
-    // Contar cada grupo como 1 cita para estadísticas
+    // Contar cada grupo como 1 cita
     Object.values(citasAgrupadasTemp).forEach(grupo => {
         const citaPrincipal = grupo.citas[0];
-        const claveBloque = citaPrincipal.es_bloque ? 
-            `${citaPrincipal.fecha}_${citaPrincipal.hora_principal}_${citaPrincipal.cliente_id}` : 
-            `individual_${citaPrincipal.id}`;
+        let claveUnica = '';
         
-        // Contar en Total Citas
-        bloquesUnicos.add(claveBloque);
-        
-        // Contar citas de hoy
-        const hoy = formatDate(new Date());
-        if (citaPrincipal.fecha === hoy) {
-            citasHoySet.add(claveBloque);
+        if (grupo.tipo === 'vip') {
+            claveUnica = `vip_${citaPrincipal.fecha}_${citaPrincipal.hora_principal || citaPrincipal.hora}_${citaPrincipal.cliente_id}`;
+        } else if (grupo.tipo === 'bloque') {
+            claveUnica = `bloque_${citaPrincipal.fecha}_${citaPrincipal.hora_principal}_${citaPrincipal.cliente_id}`;
+        } else {
+            claveUnica = `individual_${citaPrincipal.id}`;
         }
         
-        // Contar por estado
+        bloquesUnicos.add(claveUnica);
+        
+        const hoy = formatDate(new Date());
+        if (citaPrincipal.fecha === hoy) {
+            citasHoySet.add(claveUnica);
+        }
+        
         if (citaPrincipal.estado === 'pendiente') {
-            citasPendientesSet.add(claveBloque);
+            citasPendientesSet.add(claveUnica);
         } else if (citaPrincipal.estado === 'confirmada' || citaPrincipal.estado === 'aceptada') {
-            citasConfirmadasSet.add(claveBloque);
+            citasConfirmadasSet.add(claveUnica);
         } else if (citaPrincipal.estado === 'cancelada') {
-            citasCanceladasSet.add(claveBloque);
+            citasCanceladasSet.add(claveUnica);
         }
     });
     
@@ -7975,9 +8064,9 @@ function actualizarEstadisticasAdmin(citas) {
     const citasPendientes = citasPendientesSet.size;
     const citasConfirmadas = citasConfirmadasSet.size;
     const citasCanceladas = citasCanceladasSet.size;
-    const totalRegistrosIndividuales = citas.length;
+    const totalRegistrosBD = citas.length;
     
-    // Actualizar números en las tarjetas
+    // Actualizar números
     const statNumbers = document.querySelectorAll('.stat-number');
     if (statNumbers.length >= 5) {
         statNumbers[0].textContent = totalCitas;
@@ -7986,24 +8075,21 @@ function actualizarEstadisticasAdmin(citas) {
         statNumbers[3].textContent = citasConfirmadas;
         statNumbers[4].textContent = citasCanceladas;
         
-        // Actualizar el subtítulo de Total Citas si existe
         const totalCitasCard = document.querySelector('.stat-card:nth-child(1) .stat-info');
         if (totalCitasCard) {
-            // Buscar y actualizar el elemento small si existe, si no, crearlo
             let smallElement = totalCitasCard.querySelector('small');
             if (!smallElement) {
                 smallElement = document.createElement('small');
                 smallElement.style.cssText = 'color: #aaa; font-size: 0.8em; display: block;';
                 totalCitasCard.appendChild(smallElement);
             }
-            smallElement.textContent = `(${totalRegistrosIndividuales} horas individuales)`;
+            smallElement.textContent = `(${totalRegistrosBD} registros en BD)`;
         }
     }
     
-    // Actualizar título
     const titulo = document.querySelector('.admin-panel h3');
     if (titulo) {
-        titulo.innerHTML = `<i class="fas fa-list"></i> Citas filtradas (${totalCitas} citas - ${totalRegistrosIndividuales} horas)`;
+        titulo.innerHTML = `<i class="fas fa-list"></i> Citas filtradas (${totalCitas} citas)`;
     }
 }
 
