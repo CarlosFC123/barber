@@ -1433,7 +1433,17 @@ h2 {
 .swal2-show {
     animation: slideInDown 0.3s ease !important;
 }
+/* Estilos para la barra de progreso del timer */
+.swal2-timer-progress-bar-custom {
+    background: linear-gradient(90deg, #d4af37 0%, #f4e4a6 100%);
+    height: 4px;
+    border-radius: 0 0 8px 8px;
+}
 
+/* Asegurar que el popup no tenga overflow oculto */
+.sweet-alert-custom {
+    overflow: visible !important;
+}
 
 .hora-btn.selected:not(.mi-reserva-activa) {
     background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%) !important;
@@ -6693,6 +6703,70 @@ async function agendarCita(e) {
 
         console.log('✅ Creando cita(s) en la base de datos...');
 
+        // Mostrar loader durante el agendamiento
+        const loaderSwal = Swal.fire({
+            title: '📝 Agendando tu cita...',
+            html: `
+                <div style="text-align: center;">
+                    <div style="width: 50px; height: 50px; margin: 0 auto 20px; position: relative;">
+                        <div style="position: absolute; width: 100%; height: 100%; border: 3px solid rgba(212, 175, 55, 0.3); border-radius: 50%;"></div>
+                        <div style="position: absolute; width: 100%; height: 100%; border: 3px solid #d4af37; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite;"></div>
+                    </div>
+                    <p style="color: #ffffff; margin-bottom: 10px;">Procesando tu reserva...</p>
+                    <div style="display: flex; justify-content: center; gap: 15px; margin-top: 15px;">
+                        <div style="text-align: center;">
+                            <div style="background: rgba(212, 175, 55, 0.2); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px;">
+                                <i class="fas fa-check" style="color: #d4af37; font-size: 12px;"></i>
+                            </div>
+                            <span style="color: #d4af37; font-size: 12px;">Validación</span>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="background: rgba(212, 175, 55, 0.2); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px;">
+                                <div style="width: 12px; height: 12px; border: 2px solid #d4af37; border-top-color: transparent; border-radius: 50%; animation: mini-spin 1s linear infinite;"></div>
+                            </div>
+                            <span style="color: #d4af37; font-size: 12px;">Procesando</span>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="background: rgba(212, 175, 55, 0.1); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px;">
+                                <i class="fas fa-clock" style="color: #888; font-size: 12px;"></i>
+                            </div>
+                            <span style="color: #888; font-size: 12px;">Confirmación</span>
+                        </div>
+                    </div>
+                    <small style="color: #d4af37; display: block; margin-top: 15px;">
+                        ${duracionServicio > 40 ? 
+                            `Agendando ${slotsNecesarios} hora(s) consecutivas` : 
+                            'Agendando cita individual'}
+                    </small>
+                </div>
+                <style>
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    @keyframes mini-spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                </style>
+            `,
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            background: '#1a1a1a',
+            color: '#ffffff',
+            customClass: {
+                popup: 'sweet-alert-custom'
+            },
+            didOpen: () => {
+                // Iniciar el contador de 3 segundos
+                Swal.showLoading();
+            }
+        });
+
+        // Iniciar el temporizador de mínimo 3 segundos
+        const inicioProceso = Date.now();
+        const tiempoMinimo = 3000; // 3 segundos
+
         // Crear las citas para todas las horas del bloque
         const citasACrear = [];
         
@@ -6716,36 +6790,6 @@ async function agendarCita(e) {
                 });
             }
         }
-
-        // Mostrar loader durante el agendamiento
-        Swal.fire({
-            title: '📝 Creando cita...',
-            html: `
-                <div style="text-align: center;">
-                    <div style="width: 50px; height: 50px; margin: 0 auto 20px; position: relative;">
-                        <div style="position: absolute; width: 100%; height: 100%; border: 3px solid rgba(212, 175, 55, 0.3); border-radius: 50%;"></div>
-                        <div style="position: absolute; width: 100%; height: 100%; border: 3px solid #d4af37; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite;"></div>
-                    </div>
-                    <p style="color: #ffffff; margin-bottom: 10px;">Procesando tu cita...</p>
-                    <small style="color: #d4af37;">
-                        ${duracionServicio > 40 ? `Agendando ${slotsNecesarios} horas consecutivas` : 'Agendando cita individual'}
-                    </small>
-                </div>
-                <style>
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                </style>
-            `,
-            showConfirmButton: false,
-            allowOutsideClick: false,
-            background: '#1a1a1a',
-            color: '#ffffff',
-            customClass: {
-                popup: 'sweet-alert-custom'
-            }
-        });
 
         // Insertar todas las citas del bloque
         const { data, error } = await supabase
@@ -6802,6 +6846,15 @@ async function agendarCita(e) {
         }
 
         console.log(`✅ ${citasACrear.length} cita(s) agendada(s) exitosamente`);
+        
+        // Calcular cuánto tiempo ha pasado y esperar si es necesario para completar 3 segundos
+        const tiempoTranscurrido = Date.now() - inicioProceso;
+        const tiempoRestante = tiempoMinimo - tiempoTranscurrido;
+        
+        if (tiempoRestante > 0) {
+            console.log(`⏱️ Esperando ${tiempoRestante}ms para completar los 3 segundos mínimos...`);
+            await new Promise(resolve => setTimeout(resolve, tiempoRestante));
+        }
         
         // Cerrar loader
         Swal.close();
@@ -6881,36 +6934,63 @@ async function agendarCita(e) {
         // 11. Mostrar mensaje de éxito
         const mensajeDuracion = duracionServicio > 40 ? 
             `<div style="background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%); border: 1px solid #d4af37; border-radius: 8px; padding: 10px; margin: 15px 0;">
-                <p style="color: #d4af37; margin: 5px 0;"><strong>Duración:</strong> ${duracionServicio} minutos</p>
-                <p style="color: #d4af37; margin: 5px 0;"><strong>Horas agendadas:</strong> ${slotsNecesarios}</p>
+                <p style="color: #d4af37; margin: 5px 0;"><i class="fas fa-clock"></i> <strong>Duración:</strong> ${duracionServicio} minutos</p>
+                <p style="color: #d4af37; margin: 5px 0;"><i class="fas fa-layer-group"></i> <strong>Horas agendadas:</strong> ${slotsNecesarios}</p>
             </div>` : '';
+        
+        // Agregar una pequeña animación de transición antes de mostrar el éxito
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         if (correoEnviado) {
             Swal.fire({
                 title: '✨ ¡Cita agendada exitosamente!',
                 html: `
                     <div style="text-align: center;">
-                        <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px;">
+                        <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px; animation: pulse 2s infinite;">
                             <i class="fas fa-calendar-check"></i>
                         </div>
-                        <p style="color: #ffffff; margin-bottom: 15px;">
-                            Tu cita ha sido confirmada exitosamente
+                        <p style="color: #ffffff; margin-bottom: 15px; font-size: 18px; font-weight: 600;">
+                            Tu cita ha sido confirmada
                         </p>
                         ${mensajeDuracion}
                         <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <p style="color: #28a745; margin: 5px 0;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 10px;">
+                                <i class="fas fa-calendar-alt" style="color: #d4af37; font-size: 20px;"></i>
+                                <span style="color: #d4af37; font-size: 16px; font-weight: 600;">${fechaFormateada}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+                                <i class="fas fa-clock" style="color: #d4af37; font-size: 20px;"></i>
+                                <span style="color: #d4af37; font-size: 16px; font-weight: 600;">${hora}</span>
+                            </div>
+                        </div>
+                        <div style="background: rgba(33, 150, 243, 0.1); border: 1px solid #2196F3; border-radius: 8px; padding: 12px; margin: 15px 0;">
+                            <p style="color: #2196F3; margin: 5px 0;">
                                 <i class="fas fa-envelope"></i> Se ha enviado una confirmación a tu correo
                             </p>
                         </div>
+                        <p style="color: #cccccc; font-size: 0.85em; margin-top: 15px;">
+                            Serás redirigido a "Mis Citas" en unos segundos...
+                        </p>
                     </div>
+                    <style>
+                        @keyframes pulse {
+                            0% { transform: scale(1); opacity: 1; }
+                            50% { transform: scale(1.05); opacity: 0.9; }
+                            100% { transform: scale(1); opacity: 1; }
+                        }
+                    </style>
                 `,
                 icon: false,
                 background: '#1a1a1a',
                 color: '#ffffff',
                 confirmButtonText: 'Ver mis citas',
                 confirmButtonColor: '#28a745',
+                showConfirmButton: true,
+                timer: 5000,
+                timerProgressBar: true,
                 customClass: {
-                    popup: 'sweet-alert-custom'
+                    popup: 'sweet-alert-custom',
+                    timerProgressBar: 'swal2-timer-progress-bar-custom'
                 }
             });
         } else {
@@ -6918,30 +6998,47 @@ async function agendarCita(e) {
                 title: '✅ ¡Cita agendada exitosamente!',
                 html: `
                     <div style="text-align: center;">
-                        <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px;">
+                        <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px; animation: bounceIn 0.5s ease;">
                             <i class="fas fa-check-circle"></i>
                         </div>
-                        <p style="color: #ffffff; margin-bottom: 15px;">
-                            Tu cita ha sido confirmada exitosamente
+                        <p style="color: #ffffff; margin-bottom: 15px; font-size: 18px; font-weight: 600;">
+                            Tu cita ha sido confirmada
                         </p>
                         ${mensajeDuracion}
                         <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-                                <i class="fas fa-calendar-alt" style="color: #d4af37;"></i>
-                                <span style="color: #d4af37;">${fechaFormateada}</span>
-                                <i class="fas fa-clock" style="color: #d4af37;"></i>
-                                <span style="color: #d4af37;">${hora}</span>
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 10px;">
+                                <i class="fas fa-calendar-alt" style="color: #d4af37; font-size: 20px;"></i>
+                                <span style="color: #d4af37; font-size: 16px; font-weight: 600;">${fechaFormateada}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+                                <i class="fas fa-clock" style="color: #d4af37; font-size: 20px;"></i>
+                                <span style="color: #d4af37; font-size: 16px; font-weight: 600;">${hora}</span>
                             </div>
                         </div>
+                        <p style="color: #cccccc; font-size: 0.85em; margin-top: 15px;">
+                            Serás redirigido a "Mis Citas" en unos segundos...
+                        </p>
                     </div>
+                    <style>
+                        @keyframes bounceIn {
+                            0% { transform: scale(0.3); opacity: 0; }
+                            50% { transform: scale(1.05); }
+                            70% { transform: scale(0.9); }
+                            100% { transform: scale(1); opacity: 1; }
+                        }
+                    </style>
                 `,
                 icon: false,
                 background: '#1a1a1a',
                 color: '#ffffff',
                 confirmButtonText: 'Ver mis citas',
                 confirmButtonColor: '#28a745',
+                showConfirmButton: true,
+                timer: 5000,
+                timerProgressBar: true,
                 customClass: {
-                    popup: 'sweet-alert-custom'
+                    popup: 'sweet-alert-custom',
+                    timerProgressBar: 'swal2-timer-progress-bar-custom'
                 }
             });
         }
@@ -6990,7 +7087,6 @@ async function agendarCita(e) {
         });
     }
 }
-
     async function limpiarSolicitudesCorruptas() {
         try {
             console.log('🧹 Limpiando solicitudes temporales corruptas...');
