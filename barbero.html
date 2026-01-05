@@ -1591,7 +1591,26 @@ h2 {
     animation: pulse 0.5s ease;
     box-shadow: 0 0 15px rgba(212, 175, 55, 0.5) !important;
 }
+/* Agregar en tu CSS */
+.badge-vip {
+    background: linear-gradient(135deg, #FFD700 0%, #DAA520 100%);
+    color: #000;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-left: 8px;
+    border: 1px solid #DAA520;
+}
 
+.bloque-vip {
+    border-left: 4px solid #FFD700;
+    background: linear-gradient(to right, rgba(255, 215, 0, 0.05), transparent);
+}
+
+.bloque-vip .cita-header h3 {
+    color: #FFD700;
+}
 .hora-btn.no-disponible {
     background: #555 !important;
     border-color: #444 !important;
@@ -7401,6 +7420,7 @@ async function agendarCita(e) {
                     barberos(nombre),
                     clientes(nombre, email, telefono)
                 `)
+                .eq('es_bloque', false) // ← SOLO obtener citas que NO sean bloques
                 .order('fecha', { ascending: false })
                 .order('hora', { ascending: false });
                 
@@ -7419,6 +7439,7 @@ async function agendarCita(e) {
                     barberos(nombre)
                 `)
                 .eq('cliente_id', usuarioActual.id)
+                .eq('es_bloque', false) // ← SOLO obtener citas que NO sean bloques
                 .order('fecha', { ascending: false });
 
             if (error) throw error;
@@ -7446,11 +7467,8 @@ async function agendarCita(e) {
         
         if (esAdmin) {
             // Estadísticas para admin
-            const totalCitas = citas.length;
-            const citasHoy = citas.filter(c => c.fecha === formatDate(new Date())).length;
-            const citasPendientes = citas.filter(c => c.estado === 'pendiente').length;
-            const citasConfirmadas = citas.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
-            const citasCanceladas = citas.filter(c => c.estado === 'cancelada').length;
+            const stats = calcularEstadisticasAdmin(citas);
+
             
             htmlContent = `
                 <div class="admin-panel">
@@ -7463,7 +7481,7 @@ async function agendarCita(e) {
                             <div class="stat-icon total">📊</div>
                             <div class="stat-info">
                                 <h3>Total Citas</h3>
-                                <p class="stat-number">${totalCitas}</p>
+                                <p class="stat-number">${stats.totalCitas}</p>
                             </div>
                         </div>
                         
@@ -7471,7 +7489,7 @@ async function agendarCita(e) {
                             <div class="stat-icon today">📅</div>
                             <div class="stat-info">
                                 <h3>Citas Hoy</h3>
-                                <p class="stat-number">${citasHoy}</p>
+                                <p class="stat-number">${stats.citasHoy}</p>
                             </div>
                         </div>
                         
@@ -7479,7 +7497,7 @@ async function agendarCita(e) {
                             <div class="stat-icon pending">⏳</div>
                             <div class="stat-info">
                                 <h3>Pendientes</h3>
-                                <p class="stat-number">${citasPendientes}</p>
+                                <p class="stat-number">${stats.citasPendientes}</p>
                             </div>
                         </div>
                         
@@ -7487,7 +7505,7 @@ async function agendarCita(e) {
                             <div class="stat-icon confirmed">✅</div>
                             <div class="stat-info">
                                 <h3>Confirmadas</h3>
-                                <p class="stat-number">${citasConfirmadas}</p>
+                                <p class="stat-number">${stats.citasConfirmadas}</p>
                             </div>
                         </div>
                         
@@ -7495,7 +7513,7 @@ async function agendarCita(e) {
                             <div class="stat-icon canceled">❌</div>
                             <div class="stat-info">
                                 <h3>Canceladas</h3>
-                                <p class="stat-number">${citasCanceladas}</p>
+                                <p class="stat-number">${stats.citasCanceladas}</p>
                             </div>
                         </div>
                     </div>
@@ -7529,7 +7547,7 @@ async function agendarCita(e) {
                     </div>
                     
                     <h3 style="color: #ffffff; margin: 30px 0 15px 0;">
-                        <i class="fas fa-list"></i> Todas las citas (${totalCitas})
+                        <i class="fas fa-list"></i> Todas las citas (${stats.totalCitas})
                     </h3>
                 </div>
             `;
@@ -7634,6 +7652,80 @@ async function agendarCita(e) {
     }
 }
 
+// Función mejorada para generar HTML de bloque VIP
+function generarHTMLBloqueVIP(citaPrincipal, esAdmin) {
+    const fechaCitaYucatan = getYucatanDateTime(citaPrincipal.fecha, citaPrincipal.hora);
+    const ahora = new Date();
+    const citaPasada = fechaCitaYucatan < ahora;
+    
+    // Determinar si es un bloque VIP (80 minutos)
+    const esVip = (citaPrincipal.duracion || 40) === 80 || 
+                  (citaPrincipal.notas && citaPrincipal.notas.includes('bloque de 80 minutos'));
+    
+    // Calcular la hora final para VIP
+    const horaInicio = citaPrincipal.hora;
+    const horaFin = esVip ? calcularHoraFin(citaPrincipal.hora, 80) : citaPrincipal.hora;
+    
+    return `
+        <div class="cita-card bloque-vip ${citaPrincipal.estado} ${esAdmin ? 'admin-cita' : ''}" 
+             data-cita-id="${citaPrincipal.id}" 
+             data-fecha="${citaPrincipal.fecha}" 
+             data-hora="${citaPrincipal.hora}"
+             data-es-vip="${esVip}"
+             data-estado="${citaPrincipal.estado}">
+            <div class="cita-header">
+                <div>
+                    <h3>${citaPrincipal.servicios.nombre} 
+                        ${esVip ? '<span class="badge-vip">✨ VIP (2h)</span>' : ''}
+                    </h3>
+                    ${esAdmin && citaPrincipal.infoCliente ? `<p class="cliente-info">${citaPrincipal.infoCliente}</p>` : ''}
+                </div>
+                <span class="cita-estado estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
+            </div>
+            <div class="cita-detalles">
+                <p><strong>📅 Fecha:</strong> ${citaPrincipal.fecha}</p>
+                <p><strong>🕐 Horario:</strong> ${horaInicio} ${esVip ? `a ${horaFin} (2 horas)` : ''}</p>
+                ${esVip ? `<p><strong>⏱️ Duración:</strong> 80 minutos (Bloque VIP)</p>` : ''}
+                <p><strong>👤 Barbero:</strong> ${citaPrincipal.barberos.nombre}</p>
+                <p><strong>💰 Precio:</strong> $${citaPrincipal.servicios.precio}</p>
+                ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
+                <div id="contador-${citaPrincipal.id}" class="contador-cita"></div>
+            </div>
+            <!-- ... botones de acción ... -->
+        </div>
+    `;
+}
+
+// Función auxiliar para calcular hora final
+function calcularHoraFin(horaInicio, duracionMinutos) {
+    const [hora, minutos] = horaInicio.split(':').map(Number);
+    const totalMinutos = hora * 60 + minutos + duracionMinutos;
+    const horaFin = Math.floor(totalMinutos / 60);
+    const minutosFin = totalMinutos % 60;
+    return `${horaFin.toString().padStart(2, '0')}:${minutosFin.toString().padStart(2, '0')}`;
+}
+
+function calcularEstadisticasAdmin(citas) {
+    // Filtrar solo las citas principales (es_bloque = false)
+    const citasPrincipales = citas.filter(c => c.es_bloque === false);
+    
+    const totalCitas = citasPrincipales.length;
+    const hoy = formatDate(new Date());
+    const citasHoy = citasPrincipales.filter(c => c.fecha === hoy).length;
+    const citasPendientes = citasPrincipales.filter(c => c.estado === 'pendiente').length;
+    const citasConfirmadas = citasPrincipales.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
+    const citasCanceladas = citasPrincipales.filter(c => c.estado === 'cancelada').length;
+    const citasCompletadas = citasPrincipales.filter(c => c.estado === 'completada').length;
+    
+    return {
+        totalCitas,
+        citasHoy,
+        citasPendientes,
+        citasConfirmadas,
+        citasCanceladas,
+        citasCompletadas
+    };
+}
 
 // Función auxiliar para generar HTML de bloque de citas
 function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) {
@@ -7806,18 +7898,22 @@ function filtrarCitasAdmin() {
     const filtroFecha = document.getElementById('filterFecha').value;
     const filtroCliente = document.getElementById('filterCliente').value.toLowerCase();
     
+    // Filtrar primero excluyendo las citas de bloque
     const citasFiltradas = window.adminCitasOriginales.filter(cita => {
-        // Filtrar por estado
+        // Excluir citas que son bloques (es_bloque = true)
+        if (cita.es_bloque === true) {
+            return false;
+        }
+        
+        // Resto de los filtros...
         if (filtroEstado !== 'todos' && cita.estado !== filtroEstado) {
             return false;
         }
         
-        // Filtrar por fecha
         if (filtroFecha && cita.fecha !== filtroFecha) {
             return false;
         }
         
-        // Filtrar por cliente
         if (filtroCliente) {
             const nombreCliente = cita.clientes?.nombre?.toLowerCase() || '';
             const emailCliente = cita.clientes?.email?.toLowerCase() || '';
@@ -7829,31 +7925,71 @@ function filtrarCitasAdmin() {
         return true;
     });
     
-    // Actualizar estadísticas
+    // Actualizar estadísticas con citas filtradas
     actualizarEstadisticasAdmin(citasFiltradas);
     
     // Actualizar lista de citas
     actualizarListaCitasFiltradas(citasFiltradas);
 }
+// Modificar las funciones de cancelación para manejar bloques VIP
+async function cancelarBloqueVIP(citaId) {
+    try {
+        // Primero obtener la cita principal
+        const { data: citaPrincipal, error } = await supabase
+            .from('citas')
+            .select('*')
+            .eq('id', citaId)
+            .single();
+            
+        if (error) throw error;
+        
+        // Buscar todas las citas del bloque VIP (hora principal y secundaria)
+        const { data: citasBloque, error: errorBloque } = await supabase
+            .from('citas')
+            .select('*')
+            .or(`id.eq.${citaId},hora_principal.eq.${citaPrincipal.hora}`)
+            .eq('fecha', citaPrincipal.fecha)
+            .eq('cliente_id', citaPrincipal.cliente_id);
+            
+        if (errorBloque) throw errorBloque;
+        
+        // Cancelar todas las citas del bloque
+        const idsACancelar = citasBloque.map(c => c.id);
+        
+        const { error: updateError } = await supabase
+            .from('citas')
+            .update({ estado: 'cancelada' })
+            .in('id', idsACancelar);
+            
+        if (updateError) throw updateError;
+        
+        console.log(`✅ Bloque VIP cancelado: ${idsACancelar.length} citas`);
+        
+    } catch (error) {
+        console.error('Error cancelando bloque VIP:', error);
+    }
+}
 
 function actualizarEstadisticasAdmin(citas) {
-    const totalCitas = citas.length;
-    const citasHoy = citas.filter(c => c.fecha === formatDate(new Date())).length;
-    const citasPendientes = citas.filter(c => c.estado === 'pendiente').length;
-    const citasConfirmadas = citas.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
-    const citasCanceladas = citas.filter(c => c.estado === 'cancelada').length;
+    // Filtrar solo citas principales para estadísticas
+    const citasPrincipales = citas.filter(c => c.es_bloque === false);
+    const stats = calcularEstadisticasAdmin(citasPrincipales);
     
     // Actualizar números en las tarjetas
-    document.querySelectorAll('.stat-number')[0].textContent = totalCitas;
-    document.querySelectorAll('.stat-number')[1].textContent = citasHoy;
-    document.querySelectorAll('.stat-number')[2].textContent = citasPendientes;
-    document.querySelectorAll('.stat-number')[3].textContent = citasConfirmadas;
-    document.querySelectorAll('.stat-number')[4].textContent = citasCanceladas;
+    document.querySelectorAll('.stat-number')[0].textContent = stats.totalCitas;
+    document.querySelectorAll('.stat-number')[1].textContent = stats.citasHoy;
+    document.querySelectorAll('.stat-number')[2].textContent = stats.citasPendientes;
+    document.querySelectorAll('.stat-number')[3].textContent = stats.citasConfirmadas;
+    document.querySelectorAll('.stat-number')[4].textContent = stats.citasCanceladas;
+    // Si tienes la sexta tarjeta de completadas:
+    if (document.querySelectorAll('.stat-number')[5]) {
+        document.querySelectorAll('.stat-number')[5].textContent = stats.citasCompletadas;
+    }
     
     // Actualizar título
     const titulo = document.querySelector('.admin-panel h3');
     if (titulo) {
-        titulo.innerHTML = `<i class="fas fa-list"></i> Citas filtradas (${totalCitas})`;
+        titulo.innerHTML = `<i class="fas fa-list"></i> Citas Principales (${stats.totalCitas})`;
     }
 }
 
