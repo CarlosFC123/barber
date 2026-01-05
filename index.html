@@ -313,61 +313,6 @@
             }
         }
 
-        // Función para guardar usuario en la tabla clientes
-        async function saveUserToClients(userData) {
-            try {
-                const { data: existingUser } = await supabaseClient
-                    .from('clientes')
-                    .select('id')
-                    .eq('email', userData.email)
-                    .single();
-
-                if (!existingUser) {
-                    const { error: insertError } = await supabaseClient
-                        .from('clientes')
-                        .insert([{
-                            id: userData.id,
-                            nombre: userData.nombre,
-                            apellido: userData.apellido,
-                            email: userData.email,
-                            rol: 'cliente',
-                            proveedor: userData.proveedor || 'google',
-                            avatar_url: userData.avatar_url,
-                            email_confirmado: true, // Con Google ya está confirmado
-                            creado_en: new Date().toISOString(),
-                            ultimo_login: new Date().toISOString()
-                        }]);
-
-                    if (insertError && insertError.code !== '23505') {
-                        console.error('Error insertando cliente:', insertError);
-                        return false;
-                    } else {
-                        console.log('✅ Usuario guardado en clientes:', userData.email);
-                        return true;
-                    }
-                } else {
-                    // Actualizar último login
-                    const { error: updateError } = await supabaseClient
-                        .from('clientes')
-                        .update({
-                            ultimo_login: new Date().toISOString(),
-                            avatar_url: userData.avatar_url
-                        })
-                        .eq('email', userData.email);
-
-                    if (updateError) {
-                        console.error('Error actualizando último login:', updateError);
-                    }
-                    
-                    console.log('✅ Usuario actualizado en clientes:', userData.email);
-                    return true;
-                }
-            } catch (error) {
-                console.error('Error guardando usuario:', error);
-                return false;
-            }
-        }
-
         function showAlert(message, type = 'error') {
             const alertDiv = document.getElementById('alert');
             alertDiv.textContent = message;
@@ -399,52 +344,48 @@
 
             // Inicio de sesión con Google
             googleBtn.addEventListener('click', async function() {
-            try {
-                loadingDiv.style.display = 'block';
-                loadingDiv.textContent = '⏳ Redirigiendo a Google...';
-                googleBtn.disabled = true;
+                try {
+                    loadingDiv.style.display = 'block';
+                    loadingDiv.textContent = '⏳ Redirigiendo a Google...';
+                    googleBtn.disabled = true;
 
-                // TIMEOUT DE SEGURIDAD: Si después de 10 segundos no hay redirección, limpiar estado
-                const safetyTimeout = setTimeout(() => {
-                    console.log('⚠️ Timeout de seguridad: Limpiando estado de carga');
+                    // TIMEOUT DE SEGURIDAD: Si después de 10 segundos no hay redirección, limpiar estado
+                    const safetyTimeout = setTimeout(() => {
+                        console.log('⚠️ Timeout de seguridad: Limpiando estado de carga');
+                        loadingDiv.style.display = 'none';
+                        googleBtn.disabled = false;
+                    }, 10000); // 10 segundos
+
+                    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+                        provider: 'google',
+                        options: {
+                            redirectTo: 'https://carlosfc123.github.io/barber/',
+                            queryParams: {
+                                access_type: 'offline',
+                                prompt: 'consent'
+                            }
+                        }
+                    });
+
+                    // Limpiar timeout si la función retornó (usuario canceló)
+                    clearTimeout(safetyTimeout);
+
+                    if (error) throw error;
+
+                } catch (error) {
+                    console.error('Error con Google OAuth:', error);
+                    
+                    // LIMPIAR ESTADO EN CASO DE ERROR
                     loadingDiv.style.display = 'none';
                     googleBtn.disabled = false;
-                }, 10000); // 10 segundos
-
-                const { data, error } = await supabaseClient.auth.signInWithOAuth({
-                    provider: 'google',
-                    options: {
-                        redirectTo: 'https://carlosfc123.github.io/barber/',
-                        queryParams: {
-                            access_type: 'offline',
-                            prompt: 'consent'
-                        }
+                    
+                    if (error.message.includes('provider is not enabled')) {
+                        showAlert('❌ Google OAuth no está configurado. Contacta al administrador.');
+                    } else {
+                        showAlert('❌ Error al iniciar sesión con Google: ' + error.message);
                     }
-                });
-
-                // Limpiar timeout si la función retornó (usuario canceló)
-                clearTimeout(safetyTimeout);
-
-                if (error) throw error;
-
-                // Si no hay error pero tampoco hay redirección (usuario canceló en el popup)
-                // El intervalo de checkAuth se encargará de limpiar eventualmente
-
-            } catch (error) {
-                console.error('Error con Google OAuth:', error);
-                
-                // LIMPIAR ESTADO EN CASO DE ERROR
-                loadingDiv.style.display = 'none';
-                googleBtn.disabled = false;
-                
-                if (error.message.includes('provider is not enabled')) {
-                    showAlert('❌ Google OAuth no está configurado. Contacta al administrador.');
-                } else {
-                    showAlert('❌ Error al iniciar sesión con Google: ' + error.message);
                 }
-            }
-        });
-
+            });
 
             // Manejar envío del formulario de magic link
             magicLinkForm.addEventListener('submit', async (e) => {
@@ -494,6 +435,64 @@
             checkAuthAndProcessUser();
         }
 
+        // Función para guardar usuario en la tabla clientes
+        async function saveUserToClients(userData, role = 'cliente') {
+            try {
+                const { data: existingUser } = await supabaseClient
+                    .from('clientes')
+                    .select('id, rol')
+                    .eq('email', userData.email)
+                    .single();
+
+                if (!existingUser) {
+                    const { error: insertError } = await supabaseClient
+                        .from('clientes')
+                        .insert([{
+                            id: userData.id,
+                            nombre: userData.nombre,
+                            apellido: userData.apellido,
+                            email: userData.email,
+                            rol: role, // Usar el rol proporcionado
+                            proveedor: userData.proveedor || 'google',
+                            avatar_url: userData.avatar_url,
+                            email_confirmado: true,
+                            creado_en: new Date().toISOString(),
+                            ultimo_login: new Date().toISOString()
+                        }]);
+
+                    if (insertError && insertError.code !== '23505') {
+                        console.error('Error insertando cliente:', insertError);
+                        return false;
+                    } else {
+                        console.log('✅ Usuario guardado en clientes:', userData.email, 'con rol:', role);
+                        return role;
+                    }
+                } else {
+                    // Usuario existe, obtener su rol actual
+                    const userRole = existingUser.rol || role;
+                    
+                    // Actualizar último login
+                    const { error: updateError } = await supabaseClient
+                        .from('clientes')
+                        .update({
+                            ultimo_login: new Date().toISOString(),
+                            avatar_url: userData.avatar_url
+                        })
+                        .eq('email', userData.email);
+
+                    if (updateError) {
+                        console.error('Error actualizando último login:', updateError);
+                    }
+                    
+                    console.log('✅ Usuario actualizado en clientes:', userData.email, 'con rol:', userRole);
+                    return userRole;
+                }
+            } catch (error) {
+                console.error('Error guardando usuario:', error);
+                return role; // Retornar rol por defecto en caso de error
+            }
+        }
+
         async function checkAuthAndProcessUser() {
             try {
                 const { data: { session }, error } = await supabaseClient.auth.getSession();
@@ -501,59 +500,86 @@
                 if (error) throw error;
                 
                 if (session && session.user) {
-                    console.log('✅ Usuario autenticado:', session.user);
+                    console.log('✅ Usuario autenticado:', session.user.email);
                     
-                    // Preparar datos del usuario para guardar en la base de datos
+                    // Preparar datos del usuario
                     const userData = {
                         id: session.user.id,
-                        nombre: session.user.user_metadata?.nombre || 
-                               session.user.user_metadata?.full_name?.split(' ')[0] || 
-                               session.user.user_metadata?.given_name ||
-                               'Usuario',
-                        apellido: session.user.user_metadata?.apellido || 
-                                session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
-                                session.user.user_metadata?.family_name ||
-                                'Google',
+                        nombre: extractFirstName(session.user),
+                        apellido: extractLastName(session.user),
                         email: session.user.email,
                         proveedor: session.user.app_metadata?.provider || 'google',
-                        avatar_url: session.user.user_metadata?.avatar_url || 
-                                  session.user.user_metadata?.picture
+                        avatar_url: extractAvatarUrl(session.user)
                     };
 
-                    // Guardar usuario en la base de datos
-                    const saved = await saveUserToClients(userData);
+                    // Verificar si hay rol en los metadatos del usuario
+                    const userRoleFromMetadata = session.user.user_metadata?.rol || 'cliente';
                     
-                    if (saved) {
-                        // Redirigir a la página principal
-                        window.location.href = 'cliente.html';
-                    } else {
-                        showAlert('❌ Error al guardar usuario en la base de datos');
-                    }
+                    // Guardar usuario en la base de datos y obtener su rol
+                    const userRole = await saveUserToClients(userData, userRoleFromMetadata);
+                    
+                    // Redirigir según el rol
+                    redirectByRole(userRole);
                 }
             } catch (error) {
                 console.error('Error en checkAuth:', error);
             }
         }
+
+        // Funciones auxiliares
+        function extractFirstName(user) {
+            return user.user_metadata?.nombre || 
+                   user.user_metadata?.full_name?.split(' ')[0] || 
+                   user.user_metadata?.given_name ||
+                   'Usuario';
+        }
+
+        function extractLastName(user) {
+            return user.user_metadata?.apellido || 
+                   user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+                   user.user_metadata?.family_name ||
+                   'Usuario';
+        }
+
+        function extractAvatarUrl(user) {
+            return user.user_metadata?.avatar_url || 
+                   user.user_metadata?.picture;
+        }
+
+        function redirectByRole(role) {
+            console.log(`🎯 Redirigiendo usuario con rol: ${role}`);
+            
+            // Definir qué roles van a cada página
+            if (role === 'admin' || role === 'barbero' || role === 'administrador') {
+                console.log('🔄 Redirigiendo a barbero.html');
+                window.location.href = 'barbero.html';
+            } else {
+                console.log('🔄 Redirigiendo a cliente.html');
+                window.location.href = 'cliente.html';
+            }
+        }
+
         function clearLoadingState() {
-    const loadingDiv = document.getElementById('loading');
-    const googleBtn = document.getElementById('googleBtn');
-    
-    loadingDiv.style.display = 'none';
-    googleBtn.disabled = false;
-}
+            const loadingDiv = document.getElementById('loading');
+            const googleBtn = document.getElementById('googleBtn');
+            
+            loadingDiv.style.display = 'none';
+            googleBtn.disabled = false;
+        }
 
-// Limpiar estado si el usuario hace clic fuera del botón
-document.addEventListener('click', function(event) {
-    if (!event.target.closest('#googleBtn') && !event.target.closest('.loading')) {
-        clearLoadingState();
-    }
-});
+        // Limpiar estado si el usuario hace clic fuera del botón
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('#googleBtn') && !event.target.closest('.loading')) {
+                clearLoadingState();
+            }
+        });
 
-// Verificación automática cada 2 segundos
-setInterval(() => {
-    clearLoadingState();
-}, 2000); // 2 segundos
-        // Verificar autenticación cada 2 segundos (por si acaso)
+        // Verificación automática cada 2 segundos para limpiar estado
+        setInterval(() => {
+            clearLoadingState();
+        }, 2000); // 2 segundos
+
+        // Verificar autenticación cada 2 segundos
         setInterval(checkAuthAndProcessUser, 2000);
     </script>
 </body>
