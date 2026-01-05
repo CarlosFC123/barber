@@ -7663,7 +7663,7 @@ async function agendarCita(e) {
         Object.values(citasAgrupadas).forEach((grupo, index) => {
             if (grupo.es_vip) {
                 // Mostrar como cita VIP de 2 horas
-                htmlContent += generarHTMLCitaVIPAdmin(grupo.cita, esAdmin);
+                htmlContent += generarHTMLBloqueCitaAdmin(grupo.cita, esAdmin);
             }
             else if (grupo.es_bloque && grupo.citas.length > 1) {
                 const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
@@ -7674,7 +7674,7 @@ async function agendarCita(e) {
             else if (grupo.es_bloque && grupo.citas.length === 1) {
                 // Si por alguna razón hay un bloque con solo una cita, mostrar como VIP si es de 80 min
                 if (grupo.citas[0].duracion === 80) {
-                    htmlContent += generarHTMLCitaVIPAdmin(grupo.citas[0], esAdmin);
+                    htmlContent += generarHTMLBloqueCitaAdmin(grupo.citas[0], esAdmin);
                 } else {
                     htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
                 }
