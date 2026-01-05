@@ -7997,8 +7997,9 @@ async function cambiarEstadoCita(citaId) {
 }
 
 async function verDetallesCita(citaId) {
-    
     try {
+        console.log('🔍 Obteniendo detalles de cita ID:', citaId);
+        
         const { data: cita, error } = await supabase
             .from('citas')
             .select(`
@@ -8011,6 +8012,22 @@ async function verDetallesCita(citaId) {
             .single();
             
         if (error) throw error;
+        
+        if (!cita) {
+            throw new Error('No se encontró la cita');
+        }
+        
+        console.log('📊 Datos de cita obtenidos:', cita);
+        
+        // Manejar datos nulos de manera segura
+        const servicioNombre = cita.servicios?.nombre || 'Servicio no disponible';
+        const servicioPrecio = cita.servicios?.precio || 'No disponible';
+        const servicioDescripcion = cita.servicios?.descripcion || 'Sin descripción';
+        const barberoNombre = cita.barberos?.nombre || 'Barbero no disponible';
+        const barberoEspecialidad = cita.barberos?.especialidad || 'Sin especialidad';
+        const clienteNombre = cita.clientes?.nombre || 'Cliente no disponible';
+        const clienteEmail = cita.clientes?.email || 'Sin email';
+        const clienteTelefono = cita.clientes?.telefono || 'Sin teléfono';
         
         const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
         const fechaFormateada = fechaCita.toLocaleString('es-MX', { 
@@ -8031,30 +8048,31 @@ async function verDetallesCita(citaId) {
                         <h3 style="color: #d4af37; margin-bottom: 15px;">Información de la cita</h3>
                         <p><strong>📅 Fecha y hora:</strong> ${fechaFormateada}</p>
                         <p><strong>📊 Estado:</strong> <span class="estado-${cita.estado}">${cita.estado}</span></p>
-                        <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
+                        <p><strong>💰 Precio:</strong> $${servicioPrecio}</p>
                         ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                        <p><strong>⏱️ Duración:</strong> ${cita.duracion || 40} minutos</p>
                         <p><strong>🆔 ID de cita:</strong> ${cita.id}</p>
                     </div>
                     
                     <div style="background: rgba(0, 123, 255, 0.1); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                         <h3 style="color: #007bff; margin-bottom: 15px;">Información del cliente</h3>
-                        <p><strong>👤 Nombre:</strong> ${cita.clientes.nombre}</p>
-                        <p><strong>📧 Email:</strong> ${cita.clientes.email}</p>
-                        ${cita.clientes.telefono ? `<p><strong>📱 Teléfono:</strong> ${cita.clientes.telefono}</p>` : ''}
+                        <p><strong>👤 Nombre:</strong> ${clienteNombre}</p>
+                        <p><strong>📧 Email:</strong> ${clienteEmail}</p>
+                        ${clienteTelefono !== 'Sin teléfono' ? `<p><strong>📱 Teléfono:</strong> ${clienteTelefono}</p>` : ''}
                         <p><strong>🆔 ID de cliente:</strong> ${cita.cliente_id}</p>
                     </div>
                     
                     <div style="background: rgba(40, 167, 69, 0.1); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                         <h3 style="color: #28a745; margin-bottom: 15px;">Información del servicio</h3>
-                        <p><strong>✂️ Servicio:</strong> ${cita.servicios.nombre}</p>
-                        <p><strong>📋 Descripción:</strong> ${cita.servicios.descripcion || 'Sin descripción'}</p>
-                        <p><strong>⏱️ Duración:</strong> ${cita.duracion || 40} minutos</p>
+                        <p><strong>✂️ Servicio:</strong> ${servicioNombre}</p>
+                        <p><strong>📋 Descripción:</strong> ${servicioDescripcion}</p>
+                        <p><strong>💲 Precio:</strong> $${servicioPrecio}</p>
                     </div>
                     
                     <div style="background: rgba(108, 117, 125, 0.1); border-radius: 8px; padding: 20px;">
                         <h3 style="color: #6c757d; margin-bottom: 15px;">Información del barbero</h3>
-                        <p><strong>💈 Barbero:</strong> ${cita.barberos.nombre}</p>
-                        <p><strong>⭐ Especialidad:</strong> ${cita.barberos.especialidad || 'Sin especialidad'}</p>
+                        <p><strong>💈 Barbero:</strong> ${barberoNombre}</p>
+                        <p><strong>⭐ Especialidad:</strong> ${barberoEspecialidad}</p>
                     </div>
                 </div>
             `,
@@ -8066,18 +8084,40 @@ async function verDetallesCita(citaId) {
         });
         
     } catch (error) {
-        console.error('Error obteniendo detalles:', error);
-        showAlert('❌ Error al obtener detalles', 'error');
+        console.error('❌ Error obteniendo detalles:', error);
+        console.error('Stack trace:', error.stack);
+        
+        await Swal.fire({
+            title: '❌ Error',
+            html: `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        No se pudieron cargar los detalles de la cita
+                    </p>
+                    <div style="background: rgba(255, 107, 107, 0.1); border: 1px solid #ff6b6b; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <p style="color: #ff6b6b; margin: 5px 0; font-size: 0.9em;">
+                            ${error.message || 'Error desconocido'}
+                        </p>
+                    </div>
+                    <p style="color: #cccccc; font-size: 0.85em;">
+                        Por favor, intenta nuevamente o contacta con soporte
+                    </p>
+                </div>
+            `,
+            icon: false,
+            background: '#1a1a1a',
+            color: '#ffffff',
+            confirmButtonText: 'Aceptar',
+            confirmButtonColor: '#ff6b6b'
+        });
     }
 }
-
 // Funciones específicas para admin
 async function cancelarCitaAdmin(citaId) {
-    if (typeof window.app !== 'undefined' && window.app.cancelarCitaAdmin) {
-        return window.app.cancelarCitaAdmin(citaId);
-    } else {
-        console.error('Función cancelarCitaAdmin no disponible');
-    }
+    
     if (confirm('¿Cancelar esta cita como administrador?')) {
         await cancelarCita(citaId);
     }
