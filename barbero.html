@@ -7376,7 +7376,7 @@ async function agendarCita(e) {
 
             // ============ FUNCIONES DE CITAS ============
 
-       async function cargarMisCitas() {
+        async function cargarMisCitas() {
     try {
         let citas;
         
@@ -7445,70 +7445,12 @@ async function agendarCita(e) {
         let htmlContent = '';
         
         if (esAdmin) {
-            // Para las estadísticas, necesitamos contar los bloques como 1 cita, no todas sus horas
-            
-            // Primero, agrupar las citas para identificar bloques únicos
-            const bloquesUnicos = new Set();
-            const citasHoySet = new Set();
-            const citasPendientesSet = new Set();
-            const citasConfirmadasSet = new Set();
-            const citasCanceladasSet = new Set();
-            
-            // Agrupar citas por bloque
-            const citasAgrupadasTemp = {};
-            citas.forEach(cita => {
-                if (cita.es_bloque && cita.hora_principal) {
-                    const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}`;
-                    if (!citasAgrupadasTemp[claveBloque]) {
-                        citasAgrupadasTemp[claveBloque] = {
-                            citas: []
-                        };
-                    }
-                    citasAgrupadasTemp[claveBloque].citas.push(cita);
-                } else {
-                    // Cita individual - clave única
-                    const claveIndividual = `individual_${cita.id}`;
-                    citasAgrupadasTemp[claveIndividual] = {
-                        citas: [cita]
-                    };
-                }
-            });
-            
-            // Contar cada grupo como 1 cita para estadísticas
-            Object.values(citasAgrupadasTemp).forEach(grupo => {
-                const citaPrincipal = grupo.citas[0]; // Tomamos la primera como representativa
-                const claveBloque = citaPrincipal.es_bloque ? 
-                    `${citaPrincipal.fecha}_${citaPrincipal.hora_principal}_${citaPrincipal.cliente_id}` : 
-                    `individual_${citaPrincipal.id}`;
-                
-                // Contar en Total Citas (cada bloque o cita individual cuenta como 1)
-                bloquesUnicos.add(claveBloque);
-                
-                // Contar citas de hoy (usando fecha actual)
-                const hoy = formatDate(new Date());
-                if (citaPrincipal.fecha === hoy) {
-                    citasHoySet.add(claveBloque);
-                }
-                
-                // Contar por estado
-                if (citaPrincipal.estado === 'pendiente') {
-                    citasPendientesSet.add(claveBloque);
-                } else if (citaPrincipal.estado === 'confirmada' || citaPrincipal.estado === 'aceptada') {
-                    citasConfirmadasSet.add(claveBloque);
-                } else if (citaPrincipal.estado === 'cancelada') {
-                    citasCanceladasSet.add(claveBloque);
-                }
-            });
-            
-            // Obtener los conteos
-            const totalCitas = bloquesUnicos.size; // Cada bloque cuenta como 1
-            const citasHoy = citasHoySet.size;
-            const citasPendientes = citasPendientesSet.size;
-            const citasConfirmadas = citasConfirmadasSet.size;
-            const citasCanceladas = citasCanceladasSet.size;
-            
-            // NOTA: Mantenemos el total de registros individuales para mostrar en el título
-            const totalRegistrosIndividuales = citas.length;
+            // Estadísticas para admin
+            const totalCitas = citas.length;
+            const citasHoy = citas.filter(c => c.fecha === formatDate(new Date())).length;
+            const citasPendientes = citas.filter(c => c.estado === 'pendiente').length;
+            const citasConfirmadas = citas.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
+            const citasCanceladas = citas.filter(c => c.estado === 'cancelada').length;
             
             htmlContent = `
                 <div class="admin-panel">
@@ -7522,9 +7464,6 @@ async function agendarCita(e) {
                             <div class="stat-info">
                                 <h3>Total Citas</h3>
                                 <p class="stat-number">${totalCitas}</p>
-                                <small style="color: #aaa; font-size: 0.8em;">
-                                    (${totalRegistrosIndividuales} horas individuales)
-                                </small>
                             </div>
                         </div>
                         
@@ -7590,7 +7529,7 @@ async function agendarCita(e) {
                     </div>
                     
                     <h3 style="color: #ffffff; margin: 30px 0 15px 0;">
-                        <i class="fas fa-list"></i> Todas las citas (${totalCitas} citas - ${totalRegistrosIndividuales} horas)
+                        <i class="fas fa-list"></i> Todas las citas (${totalCitas})
                     </h3>
                 </div>
             `;
@@ -7617,75 +7556,55 @@ async function agendarCita(e) {
         }
         
         // Agrupar citas (para ambos admin y usuario)
-        // Agrupar citas (para ambos admin y usuario)
-const citasAgrupadas = {};
-
-citas.forEach(cita => {
-    // Para admin, también mostrar información del cliente
-    const infoCliente = esAdmin ? `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>` : '';
-    
-    // CASO 1: Cita VIP de 2 horas (duración 80 minutos) - NO es un bloque, es una sola cita larga
-    if (cita.duracion === 80 && !cita.es_bloque) {
-        const claveVIP = `vip_${cita.fecha}_${cita.hora}_${cita.cliente_id}`;
-        if (!citasAgrupadas[claveVIP]) {
-            citasAgrupadas[claveVIP] = {
-                es_vip: true,
-                es_bloque: false,
-                cita: {...cita, infoCliente}
-            };
-        }
-    }
-    // CASO 2: Bloque de citas (múltiples horas - es_bloque = true)
-    else if (cita.es_bloque && cita.hora_principal) {
-        const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}_bloque`;
-        if (!citasAgrupadas[claveBloque]) {
-            citasAgrupadas[claveBloque] = {
-                es_bloque: true,
-                es_vip: false,
-                hora_principal: cita.hora_principal,
-                fecha: cita.fecha,
-                citas: []
-            };
-        }
-        citasAgrupadas[claveBloque].citas.push({...cita, infoCliente});
-    }
-    // CASO 3: Cita individual normal (40 minutos)
-    else {
-        const claveIndividual = `individual_${cita.id}`;
-        citasAgrupadas[claveIndividual] = {
-            es_bloque: false,
-            es_vip: false,
-            cita: {...cita, infoCliente}
-        };
-    }
-});
-
-// Generar HTML para cada cita/bloque
-Object.values(citasAgrupadas).forEach((grupo, index) => {
-    if (grupo.es_vip) {
-        // Mostrar como cita VIP de 2 horas - usar horasBloque como array con una sola hora
-        const horasBloque = [grupo.cita.hora];
-        htmlContent += generarHTMLBloqueCitaAdmin(grupo.cita, grupo, horasBloque, esAdmin);
-    }
-    else if (grupo.es_bloque && grupo.citas.length > 1) {
-        const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-        const horasBloque = grupo.citas.map(c => c.hora).sort();
+        const citasAgrupadas = {};
         
-        htmlContent += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
-    }
-    else if (grupo.es_bloque && grupo.citas.length === 1) {
-        // Si por alguna razón hay un bloque con solo una cita, mostrar como VIP si es de 80 min
-        if (grupo.citas[0].duracion === 80) {
-            const horasBloque = [grupo.citas[0].hora];
-            htmlContent += generarHTMLBloqueCitaAdmin(grupo.citas[0], grupo, horasBloque, esAdmin);
-        } else {
-            htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
-        }
-    }
-    else {
-        htmlContent += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
-    }
-});
+        citas.forEach(cita => {
+            // Para admin, también mostrar información del cliente
+            const infoCliente = esAdmin ? `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>` : '';
+            
+            if (cita.es_bloque && cita.hora_principal) {
+                const claveBloque = `${cita.fecha}_${cita.hora_principal}`;
+                if (!citasAgrupadas[claveBloque]) {
+                    citasAgrupadas[claveBloque] = {
+                        es_bloque: true,
+                        hora_principal: cita.hora_principal,
+                        fecha: cita.fecha,
+                        citas: []
+                    };
+                }
+                citasAgrupadas[claveBloque].citas.push({...cita, infoCliente});
+            } else if (cita.duracion && cita.duracion === 80) {
+                const claveBloque = `${cita.fecha}_${cita.hora}`;
+                if (!citasAgrupadas[claveBloque]) {
+                    citasAgrupadas[claveBloque] = {
+                        es_bloque: true,
+                        hora_principal: cita.hora,
+                        fecha: cita.fecha,
+                        citas: [{...cita, infoCliente}]
+                    };
+                }
+            } else {
+                const claveIndividual = `individual_${cita.id}`;
+                citasAgrupadas[claveIndividual] = {
+                    es_bloque: false,
+                    cita: {...cita, infoCliente}
+                };
+            }
+        });
+
+        // Generar HTML para cada cita/bloque
+        Object.values(citasAgrupadas).forEach((grupo, index) => {
+            if (grupo.es_bloque && grupo.citas.length > 1) {
+                const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+                const horasBloque = grupo.citas.map(c => c.hora).sort();
+                
+                htmlContent += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+            } else if (grupo.es_bloque && grupo.citas.length === 1) {
+                htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+            } else {
+                htmlContent += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+            }
+        });
         
         listaCitas.innerHTML = htmlContent;
         
@@ -7714,6 +7633,7 @@ Object.values(citasAgrupadas).forEach((grupo, index) => {
         showAlert('Error al cargar las citas', 'error');
     }
 }
+
 
 // Función auxiliar para generar HTML de bloque de citas
 function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) {
@@ -7917,93 +7837,23 @@ function filtrarCitasAdmin() {
 }
 
 function actualizarEstadisticasAdmin(citas) {
-    // Agrupar citas para contar bloques como 1
-    const bloquesUnicos = new Set();
-    const citasHoySet = new Set();
-    const citasPendientesSet = new Set();
-    const citasConfirmadasSet = new Set();
-    const citasCanceladasSet = new Set();
-    
-    // Agrupar citas por bloque
-    const citasAgrupadasTemp = {};
-    citas.forEach(cita => {
-        if (cita.es_bloque && cita.hora_principal) {
-            const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}`;
-            if (!citasAgrupadasTemp[claveBloque]) {
-                citasAgrupadasTemp[claveBloque] = {
-                    citas: []
-                };
-            }
-            citasAgrupadasTemp[claveBloque].citas.push(cita);
-        } else {
-            // Cita individual - clave única
-            const claveIndividual = `individual_${cita.id}`;
-            citasAgrupadasTemp[claveIndividual] = {
-                citas: [cita]
-            };
-        }
-    });
-    
-    // Contar cada grupo como 1 cita para estadísticas
-    Object.values(citasAgrupadasTemp).forEach(grupo => {
-        const citaPrincipal = grupo.citas[0];
-        const claveBloque = citaPrincipal.es_bloque ? 
-            `${citaPrincipal.fecha}_${citaPrincipal.hora_principal}_${citaPrincipal.cliente_id}` : 
-            `individual_${citaPrincipal.id}`;
-        
-        // Contar en Total Citas
-        bloquesUnicos.add(claveBloque);
-        
-        // Contar citas de hoy
-        const hoy = formatDate(new Date());
-        if (citaPrincipal.fecha === hoy) {
-            citasHoySet.add(claveBloque);
-        }
-        
-        // Contar por estado
-        if (citaPrincipal.estado === 'pendiente') {
-            citasPendientesSet.add(claveBloque);
-        } else if (citaPrincipal.estado === 'confirmada' || citaPrincipal.estado === 'aceptada') {
-            citasConfirmadasSet.add(claveBloque);
-        } else if (citaPrincipal.estado === 'cancelada') {
-            citasCanceladasSet.add(claveBloque);
-        }
-    });
-    
-    const totalCitas = bloquesUnicos.size;
-    const citasHoy = citasHoySet.size;
-    const citasPendientes = citasPendientesSet.size;
-    const citasConfirmadas = citasConfirmadasSet.size;
-    const citasCanceladas = citasCanceladasSet.size;
-    const totalRegistrosIndividuales = citas.length;
+    const totalCitas = citas.length;
+    const citasHoy = citas.filter(c => c.fecha === formatDate(new Date())).length;
+    const citasPendientes = citas.filter(c => c.estado === 'pendiente').length;
+    const citasConfirmadas = citas.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
+    const citasCanceladas = citas.filter(c => c.estado === 'cancelada').length;
     
     // Actualizar números en las tarjetas
-    const statNumbers = document.querySelectorAll('.stat-number');
-    if (statNumbers.length >= 5) {
-        statNumbers[0].textContent = totalCitas;
-        statNumbers[1].textContent = citasHoy;
-        statNumbers[2].textContent = citasPendientes;
-        statNumbers[3].textContent = citasConfirmadas;
-        statNumbers[4].textContent = citasCanceladas;
-        
-        // Actualizar el subtítulo de Total Citas si existe
-        const totalCitasCard = document.querySelector('.stat-card:nth-child(1) .stat-info');
-        if (totalCitasCard) {
-            // Buscar y actualizar el elemento small si existe, si no, crearlo
-            let smallElement = totalCitasCard.querySelector('small');
-            if (!smallElement) {
-                smallElement = document.createElement('small');
-                smallElement.style.cssText = 'color: #aaa; font-size: 0.8em; display: block;';
-                totalCitasCard.appendChild(smallElement);
-            }
-            smallElement.textContent = `(${totalRegistrosIndividuales} horas individuales)`;
-        }
-    }
+    document.querySelectorAll('.stat-number')[0].textContent = totalCitas;
+    document.querySelectorAll('.stat-number')[1].textContent = citasHoy;
+    document.querySelectorAll('.stat-number')[2].textContent = citasPendientes;
+    document.querySelectorAll('.stat-number')[3].textContent = citasConfirmadas;
+    document.querySelectorAll('.stat-number')[4].textContent = citasCanceladas;
     
     // Actualizar título
     const titulo = document.querySelector('.admin-panel h3');
     if (titulo) {
-        titulo.innerHTML = `<i class="fas fa-list"></i> Citas filtradas (${totalCitas} citas - ${totalRegistrosIndividuales} horas)`;
+        titulo.innerHTML = `<i class="fas fa-list"></i> Citas filtradas (${totalCitas})`;
     }
 }
 
