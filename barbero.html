@@ -7764,37 +7764,36 @@ function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
                 <div id="contador-${cita.id}" class="contador-cita"></div>
             </div>
             <div class="cita-acciones">
-                ${esAdmin ? `
-                    <!-- Botones de administrador -->
-                    <button class="btn btn-warning" onclick="cambiarEstadoCita('${cita.id}')">
-                        <i class="fas fa-edit"></i> Cambiar Estado
+            ${esAdmin ? `
+                <!-- Botones de administrador -->
+                <button class="btn btn-warning" onclick="app.cambiarEstadoCita('${cita.id}')">
+                    <i class="fas fa-edit"></i> Cambiar Estado
+                </button>
+                <button class="btn btn-info" onclick="app.verDetallesCita('${cita.id}')">
+                    <i class="fas fa-info-circle"></i> Detalles
+                </button>
+                ${puedeCancelar ? `
+                    <button class="btn btn-danger" onclick="app.cancelarCitaAdmin('${cita.id}')">
+                        <i class="fas fa-times"></i> Cancelar
                     </button>
-                    <button class="btn btn-info" onclick="verDetallesCita('${cita.id}')">
-                        <i class="fas fa-info-circle"></i> Detalles
+                ` : ''}
+                ${puedeEliminar ? `
+                    <button class="btn btn-secondary" onclick="app.eliminarCitaAdmin('${cita.id}')">
+                        <i class="fas fa-trash"></i> Eliminar
                     </button>
-                    ${puedeCancelar ? `
-                        <button class="btn btn-danger" onclick="cancelarCitaAdmin('${cita.id}')">
-                            <i class="fas fa-times"></i> Cancelar
-                        </button>
-                    ` : ''}
-                    ${puedeEliminar ? `
-                        <button class="btn btn-secondary" onclick="eliminarCitaAdmin('${cita.id}')">
-                            <i class="fas fa-trash"></i> Eliminar
-                        </button>
-                    ` : ''}
-                ` : `
-                    <!-- Botones de usuario normal -->
-                    ${puedeCancelar ? `
-                        <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
-                    ` : ''}
-                    ${!puedeCancelar && !citaPasada && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
-                        <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
-                    ` : ''}
-                    ${puedeEliminar ? `
-                        <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
-                    ` : ''}
-                `}
-            </div>
+                ` : ''}
+            ` : `
+                <!-- Botones de usuario normal -->
+                ${puedeCancelar ? `
+                    <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
+                ` : ''}
+                ${!puedeCancelar && !citaPasada && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
+                    <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
+                ` : ''}
+                ${puedeEliminar ? `
+                    <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
+                ` : ''}
+            `}
         </div>
     `;
 }
