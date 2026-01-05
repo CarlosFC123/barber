@@ -7997,11 +7997,7 @@ async function cambiarEstadoCita(citaId) {
 }
 
 async function verDetallesCita(citaId) {
-    if (typeof window.app !== 'undefined' && window.app.verDetallesCita) {
-        return window.app.verDetallesCita(citaId);
-    } else {
-        console.error('Función verDetallesCita no disponible');
-    }
+    
     try {
         const { data: cita, error } = await supabase
             .from('citas')
