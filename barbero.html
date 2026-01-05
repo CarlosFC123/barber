@@ -7935,6 +7935,11 @@ function resetearFiltrosAdmin() {
 
 // Funciones de administración de citas
 async function cambiarEstadoCita(citaId) {
+    if (typeof window.app !== 'undefined' && window.app.cambiarEstadoCita) {
+        return window.app.cambiarEstadoCita(citaId);
+    } else {
+        console.error('Función cambiarEstadoCita no disponible');
+    }
     try {
         const { data: cita, error } = await supabase
             .from('citas')
@@ -7993,6 +7998,11 @@ async function cambiarEstadoCita(citaId) {
 }
 
 async function verDetallesCita(citaId) {
+    if (typeof window.app !== 'undefined' && window.app.verDetallesCita) {
+        return window.app.verDetallesCita(citaId);
+    } else {
+        console.error('Función verDetallesCita no disponible');
+    }
     try {
         const { data: cita, error } = await supabase
             .from('citas')
@@ -8068,12 +8078,53 @@ async function verDetallesCita(citaId) {
 
 // Funciones específicas para admin
 async function cancelarCitaAdmin(citaId) {
+    if (typeof window.app !== 'undefined' && window.app.cancelarCitaAdmin) {
+        return window.app.cancelarCitaAdmin(citaId);
+    } else {
+        console.error('Función cancelarCitaAdmin no disponible');
+    }
     if (confirm('¿Cancelar esta cita como administrador?')) {
         await cancelarCita(citaId);
     }
 }
 
+function cambiarEstadoCitaBloque(citaId) {
+    if (typeof window.app !== 'undefined' && window.app.cambiarEstadoCitaBloque) {
+        return window.app.cambiarEstadoCitaBloque(citaId);
+    } else {
+        console.error('Función cambiarEstadoCitaBloque no disponible');
+    }
+}
+function verDetallesBloque(citaId) {
+    if (typeof window.app !== 'undefined' && window.app.verDetallesBloque) {
+        return window.app.verDetallesBloque(citaId);
+    } else {
+        console.error('Función verDetallesBloque no disponible');
+    }
+}
+function cancelarBloqueAdmin(citaId) {
+    if (typeof window.app !== 'undefined' && window.app.cancelarBloqueAdmin) {
+        return window.app.cancelarBloqueAdmin(citaId);
+    } else {
+        console.error('Función cancelarBloqueAdmin no disponible');
+    }
+}
+
+// Función para eliminar bloque como admin
+function eliminarBloqueAdmin(citaId) {
+    if (typeof window.app !== 'undefined' && window.app.eliminarBloqueAdmin) {
+        return window.app.eliminarBloqueAdmin(citaId);
+    } else {
+        console.error('Función eliminarBloqueAdmin no disponible');
+    }
+}
+
 async function eliminarCitaAdmin(citaId) {
+     if (typeof window.app !== 'undefined' && window.app.eliminarCitaAdmin) {
+        return window.app.eliminarCitaAdmin(citaId);
+    } else {
+        console.error('Función eliminarCitaAdmin no disponible');
+    }
     if (confirm('¿Eliminar permanentemente esta cita?')) {
         await eliminarCita(citaId);
     }
@@ -10142,28 +10193,36 @@ if (logoutBtn) {
 
             // ============ API PÚBLICA ============
 
-            window.app = {
-                cancelarCita,
-                eliminarCita,
-                cambiarPestana,
-                cargarMisCitas: async function() {
-                    for (const id in intervalosContador) {
-                        clearInterval(intervalosContador[id]);
-                    }
-                    intervalosContador = {};
-                    await cargarMisCitas();
-                    setTimeout(() => {
-                        iniciarContadoresCitas();
-                    }, 100);
-                },
-                refrescarContadores,
-                marcarComoCompletada,
-                filtrarCitasAdmin,
-                resetearFiltrosAdmin,
-                cambiarEstadoCita,
-                verDetallesCita
-            };
+           // ============ API PÚBLICA ============
 
+window.app = {
+    cancelarCita,
+    eliminarCita,
+    cambiarPestana,
+    cargarMisCitas: async function() {
+        for (const id in intervalosContador) {
+            clearInterval(intervalosContador[id]);
+        }
+        intervalosContador = {};
+        await cargarMisCitas();
+        setTimeout(() => {
+            iniciarContadoresCitas();
+        }, 100);
+    },
+    refrescarContadores,
+    marcarComoCompletada,
+    filtrarCitasAdmin,
+    resetearFiltrosAdmin,
+    // Agrega las funciones específicas de admin
+    cambiarEstadoCita,
+    verDetallesCita,
+    cancelarCitaAdmin: cancelarCita, // Puedes reutilizar la función existente
+    eliminarCitaAdmin: eliminarCita, // Puedes reutilizar la función existente
+    cambiarEstadoCitaBloque: cambiarEstadoCita, // Reutiliza para bloques
+    verDetallesBloque: verDetallesCita, // Reutiliza para bloques
+    cancelarBloqueAdmin: cancelarCita, // Reutiliza para bloques
+    eliminarBloqueAdmin: eliminarCita // Reutiliza para bloques
+};
             // ============ EJECUCIÓN ============
 
             verificarAutenticacion();
