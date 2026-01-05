@@ -7934,11 +7934,7 @@ function resetearFiltrosAdmin() {
 
 // Funciones de administración de citas
 async function cambiarEstadoCita(citaId) {
-    if (typeof window.app !== 'undefined' && window.app.cambiarEstadoCita) {
-        return window.app.cambiarEstadoCita(citaId);
-    } else {
-        console.error('Función cambiarEstadoCita no disponible');
-    }
+    
     try {
         const { data: cita, error } = await supabase
             .from('citas')
