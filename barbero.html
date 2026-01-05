@@ -7617,72 +7617,75 @@ async function agendarCita(e) {
         }
         
         // Agrupar citas (para ambos admin y usuario)
-        const citasAgrupadas = {};
+        // Agrupar citas (para ambos admin y usuario)
+const citasAgrupadas = {};
 
-        citas.forEach(cita => {
-            // Para admin, también mostrar información del cliente
-            const infoCliente = esAdmin ? `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>` : '';
-            
-            // CASO 1: Cita VIP de 2 horas (duración 80 minutos) - NO es un bloque, es una sola cita larga
-            if (cita.duracion === 80 && !cita.es_bloque) {
-                const claveVIP = `vip_${cita.fecha}_${cita.hora}_${cita.cliente_id}`;
-                if (!citasAgrupadas[claveVIP]) {
-                    citasAgrupadas[claveVIP] = {
-                        es_vip: true,
-                        es_bloque: false,
-                        cita: {...cita, infoCliente}
-                    };
-                }
-            }
-            // CASO 2: Bloque de citas (múltiples horas - es_bloque = true)
-            else if (cita.es_bloque && cita.hora_principal) {
-                const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}_bloque`;
-                if (!citasAgrupadas[claveBloque]) {
-                    citasAgrupadas[claveBloque] = {
-                        es_bloque: true,
-                        es_vip: false,
-                        hora_principal: cita.hora_principal,
-                        fecha: cita.fecha,
-                        citas: []
-                    };
-                }
-                citasAgrupadas[claveBloque].citas.push({...cita, infoCliente});
-            }
-            // CASO 3: Cita individual normal (40 minutos)
-            else {
-                const claveIndividual = `individual_${cita.id}`;
-                citasAgrupadas[claveIndividual] = {
-                    es_bloque: false,
-                    es_vip: false,
-                    cita: {...cita, infoCliente}
-                };
-            }
-        });
+citas.forEach(cita => {
+    // Para admin, también mostrar información del cliente
+    const infoCliente = esAdmin ? `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>` : '';
+    
+    // CASO 1: Cita VIP de 2 horas (duración 80 minutos) - NO es un bloque, es una sola cita larga
+    if (cita.duracion === 80 && !cita.es_bloque) {
+        const claveVIP = `vip_${cita.fecha}_${cita.hora}_${cita.cliente_id}`;
+        if (!citasAgrupadas[claveVIP]) {
+            citasAgrupadas[claveVIP] = {
+                es_vip: true,
+                es_bloque: false,
+                cita: {...cita, infoCliente}
+            };
+        }
+    }
+    // CASO 2: Bloque de citas (múltiples horas - es_bloque = true)
+    else if (cita.es_bloque && cita.hora_principal) {
+        const claveBloque = `${cita.fecha}_${cita.hora_principal}_${cita.cliente_id}_bloque`;
+        if (!citasAgrupadas[claveBloque]) {
+            citasAgrupadas[claveBloque] = {
+                es_bloque: true,
+                es_vip: false,
+                hora_principal: cita.hora_principal,
+                fecha: cita.fecha,
+                citas: []
+            };
+        }
+        citasAgrupadas[claveBloque].citas.push({...cita, infoCliente});
+    }
+    // CASO 3: Cita individual normal (40 minutos)
+    else {
+        const claveIndividual = `individual_${cita.id}`;
+        citasAgrupadas[claveIndividual] = {
+            es_bloque: false,
+            es_vip: false,
+            cita: {...cita, infoCliente}
+        };
+    }
+});
 
-        // Generar HTML para cada cita/bloque
-        Object.values(citasAgrupadas).forEach((grupo, index) => {
-            if (grupo.es_vip) {
-                // Mostrar como cita VIP de 2 horas
-                htmlContent += generarHTMLBloqueCitaAdmin(grupo.cita, esAdmin);
-            }
-            else if (grupo.es_bloque && grupo.citas.length > 1) {
-                const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-                const horasBloque = grupo.citas.map(c => c.hora).sort();
-                
-                htmlContent += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
-            }
-            else if (grupo.es_bloque && grupo.citas.length === 1) {
-                // Si por alguna razón hay un bloque con solo una cita, mostrar como VIP si es de 80 min
-                if (grupo.citas[0].duracion === 80) {
-                    htmlContent += generarHTMLBloqueCitaAdmin(grupo.citas[0], esAdmin);
-                } else {
-                    htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
-                }
-            }
-            else {
-                htmlContent += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
-            }
-        });
+// Generar HTML para cada cita/bloque
+Object.values(citasAgrupadas).forEach((grupo, index) => {
+    if (grupo.es_vip) {
+        // Mostrar como cita VIP de 2 horas - usar horasBloque como array con una sola hora
+        const horasBloque = [grupo.cita.hora];
+        htmlContent += generarHTMLBloqueCitaAdmin(grupo.cita, grupo, horasBloque, esAdmin);
+    }
+    else if (grupo.es_bloque && grupo.citas.length > 1) {
+        const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+        const horasBloque = grupo.citas.map(c => c.hora).sort();
+        
+        htmlContent += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+    }
+    else if (grupo.es_bloque && grupo.citas.length === 1) {
+        // Si por alguna razón hay un bloque con solo una cita, mostrar como VIP si es de 80 min
+        if (grupo.citas[0].duracion === 80) {
+            const horasBloque = [grupo.citas[0].hora];
+            htmlContent += generarHTMLBloqueCitaAdmin(grupo.citas[0], grupo, horasBloque, esAdmin);
+        } else {
+            htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+        }
+    }
+    else {
+        htmlContent += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+    }
+});
         
         listaCitas.innerHTML = htmlContent;
         
