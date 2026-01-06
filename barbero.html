@@ -2414,6 +2414,96 @@ function resetearFiltrosAdmin() {
     filtrarCitasAdmin();
 }
 
+function actualizarEstadisticasAdmin(citas) {
+    // Filtrar solo las citas principales (es_bloque = false)
+    const citasPrincipales = citas.filter(c => c.es_bloque === false);
+    
+    const totalCitas = citasPrincipales.length;
+    const hoy = formatDate(new Date());
+    const citasHoy = citasPrincipales.filter(c => c.fecha === hoy).length;
+    const citasPendientes = citasPrincipales.filter(c => c.estado === 'pendiente').length;
+    const citasConfirmadas = citasPrincipales.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
+    const citasCanceladas = citasPrincipales.filter(c => c.estado === 'cancelada').length;
+    const citasCompletadas = citasPrincipales.filter(c => c.estado === 'completada').length;
+    
+    return {
+        totalCitas,
+        citasHoy,
+        citasPendientes,
+        citasConfirmadas,
+        citasCanceladas,
+        citasCompletadas
+    };
+}
+
+function actualizarListaCitasFiltradas(citas) {
+    // Eliminar las citas actuales
+    const citasCards = document.querySelectorAll('.cita-card');
+    citasCards.forEach(card => {
+        if (card.closest('.admin-panel')) {
+            card.remove();
+        }
+    });
+    
+    // Agrupar citas filtradas
+    const citasAgrupadas = {};
+    
+    citas.forEach(cita => {
+        if (cita.es_bloque && cita.hora_principal) {
+            const claveBloque = `${cita.fecha}_${cita.hora_principal}`;
+            if (!citasAgrupadas[claveBloque]) {
+                citasAgrupadas[claveBloque] = {
+                    es_bloque: true,
+                    hora_principal: cita.hora_principal,
+                    fecha: cita.fecha,
+                    citas: []
+                };
+            }
+            citasAgrupadas[claveBloque].citas.push(cita);
+        } else if (cita.duracion && cita.duracion === 80) {
+            const claveBloque = `${cita.fecha}_${cita.hora}`;
+            if (!citasAgrupadas[claveBloque]) {
+                citasAgrupadas[claveBloque] = {
+                    es_bloque: true,
+                    hora_principal: cita.hora,
+                    fecha: cita.fecha,
+                    citas: [cita]
+                };
+            }
+        } else {
+            const claveIndividual = `individual_${cita.id}`;
+            citasAgrupadas[claveIndividual] = {
+                es_bloque: false,
+                cita: cita
+            };
+        }
+    });
+    
+    // Generar HTML para cada cita filtrada
+    let htmlContent = '';
+    Object.values(citasAgrupadas).forEach(grupo => {
+        if (grupo.es_bloque && grupo.citas.length > 1) {
+            const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+            const horasBloque = grupo.citas.map(c => c.hora).sort();
+            htmlContent += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, true);
+        } else if (grupo.es_bloque && grupo.citas.length === 1) {
+            htmlContent += generarHTMLCitaIndividualAdmin(grupo.citas[0], true);
+        } else {
+            htmlContent += generarHTMLCitaIndividualAdmin(grupo.cita, true);
+        }
+    });
+    
+    // Insertar después del panel de filtros
+    const adminPanel = document.querySelector('.admin-panel');
+    if (adminPanel) {
+        const titulo = adminPanel.querySelector('h3');
+        if (titulo && titulo.nextSibling) {
+            titulo.nextSibling.remove();
+        }
+        titulo.insertAdjacentHTML('afterend', htmlContent);
+    }
+}
+
         function startApplication(supabase) {
             // ============ VARIABLES GLOBALES ============
             let usuarioActual = null;
