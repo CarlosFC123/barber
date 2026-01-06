@@ -2026,6 +2026,29 @@ h2 {
     transform: none !important;
     box-shadow: none !important;
 }
+.admin-quick-actions {
+    text-align: center;
+    margin: 20px 0 30px 0;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(22, 33, 62, 0.8) 100%);
+    border-radius: 12px;
+    border: 2px solid #d4af37;
+    box-shadow: 0 5px 15px rgba(212, 175, 55, 0.2);
+}
+
+.admin-quick-actions .btn {
+    font-size: 16px;
+    padding: 12px 30px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: bold;
+}
+
+.admin-quick-actions .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
+}
 
 /* Estilo para indicar duración */
 .hora-btn .duracion-indicator {
@@ -7847,27 +7870,62 @@ async function agendarCita(e) {
         const listaCitas = document.getElementById('listaCitas');
         if (!listaCitas) return;
         
-        if (!citas || citas.length === 0) {
-            listaCitas.innerHTML = `
-                <div class="empty-state">
-                    <div>📅</div>
-                    <h3>No hay citas ${esAdmin ? 'en el sistema' : 'agendadas'}</h3>
-                    ${!esAdmin ? `<p>¡Agenda tu primera cita ahora!</p>
-                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>` : ''}
+         let htmlContent = '';
+        
+        if (esAdmin) {
+            // BOTÓN SIEMPRE DISPONIBLE PARA ADMIN
+            htmlContent = `
+                <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 12px; border: 2px solid #d4af37; box-shadow: 0 5px 15px rgba(212, 175, 55, 0.2);">
+                    <h3 style="color: #d4af37; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        <i class="fas fa-crown"></i> Acciones de Administrador
+                    </h3>
+                    <p style="color: #ccc; margin-bottom: 15px;">Puedes agendar citas en cualquier momento</p>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="mostrarModalAgendarComoAdmin()" style="font-size: 16px; padding: 12px 24px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-calendar-plus"></i> Agendar Nueva Cita
+                        </button>
+                        <button class="btn btn-secondary" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 24px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-clock"></i> Ver Disponibilidad
+                        </button>
+                    </div>
                 </div>
             `;
+        }
+        // FIN: BOTÓN SIEMPRE VISIBLE PARA ADMIN
+        
+        // Manejo cuando no hay citas
+        if (!citas || citas.length === 0) {
+            if (esAdmin) {
+                // Para admin: mantener el botón + mensaje de no citas
+                htmlContent += `
+                    <div class="empty-state">
+                        <div>📊</div>
+                        <h3>No hay citas en el sistema</h3>
+                        <p>Comienza agendando la primera cita</p>
+                    </div>
+                `;
+            } else {
+                // Para usuario normal: mantener el comportamiento original
+                listaCitas.innerHTML = `
+                    <div class="empty-state">
+                        <div>📅</div>
+                        <h3>No hay citas agendadas</h3>
+                        <p>¡Agenda tu primera cita ahora!</p>
+                        <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
+                    </div>
+                `;
+            }
+            listaCitas.innerHTML = htmlContent;
             return;
         }
         
         // Si es admin, crear filtros y estadísticas
-        let htmlContent = '';
-        
         if (esAdmin) {
             // Estadísticas para admin
             const stats = calcularEstadisticasAdmin(citas);
-
             
-            htmlContent = `
+            // Agregar estadísticas después del botón de acciones
+            htmlContent += `
                 <div class="admin-panel">
                     <h2 style="color: #d4af37; margin-bottom: 20px; border-bottom: 2px solid #d4af37; padding-bottom: 10px;">
                         <i class="fas fa-crown"></i> Panel de Administración
@@ -7957,18 +8015,20 @@ async function agendarCita(e) {
                 c.estado === 'confirmada'
             );
             
+            // Mostrar botón si no hay citas activas
             if (hayCitasCanceladasOCompletadas && !hayCitasActivas) {
                 htmlContent = `
                     <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
                         <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
                         <p style="color: #ccc; margin-bottom: 15px;">Ya has completado o cancelado una cita anterior</p>
-                        <button class="btn btn-primary" id="btnAgregarCitaDesdeLista" style="font-size: 16px; padding: 12px 24px;">
+                        <button class="btn btn-primary" id="btnAgregarCitaDesdeLista" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 24px;">
                             📅 Agendar Nueva Cita
                         </button>
                     </div>
                 `;
             }
         }
+        
         
         // Agrupar citas (para ambos admin y usuario)
         const citasAgrupadas = {};
