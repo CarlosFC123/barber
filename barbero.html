@@ -8353,14 +8353,12 @@ function filtrarCitasAdmin() {
     const filtroFecha = document.getElementById('filterFecha').value;
     const filtroCliente = document.getElementById('filterCliente').value.toLowerCase();
     
-    // Filtrar primero excluyendo las citas de bloque
+    // Filtrar excluyendo las citas de bloque
     const citasFiltradas = window.adminCitasOriginales.filter(cita => {
-        // Excluir citas que son bloques (es_bloque = true)
         if (cita.es_bloque === true) {
             return false;
         }
         
-        // Resto de los filtros...
         if (filtroEstado !== 'todos' && cita.estado !== filtroEstado) {
             return false;
         }
@@ -8380,10 +8378,7 @@ function filtrarCitasAdmin() {
         return true;
     });
     
-    // Actualizar estadísticas con citas filtradas
     actualizarEstadisticasAdmin(citasFiltradas);
-    
-    // Actualizar lista de citas
     actualizarListaCitasFiltradas(citasFiltradas);
 }
 // Modificar las funciones de cancelación para manejar bloques VIP
@@ -8522,6 +8517,7 @@ function resetearFiltrosAdmin() {
     document.getElementById('filterCliente').value = '';
     filtrarCitasAdmin();
 }
+
 
 // Funciones de administración de citas
 async function cambiarEstadoCita(citaId) {
