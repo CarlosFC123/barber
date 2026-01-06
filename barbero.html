@@ -7812,6 +7812,49 @@ async function agendarCita(e) {
         return false;
     }
 }
+function filtrarCitasAdmin() {
+    if (!window.adminCitasOriginales) return;
+    
+    const filtroEstado = document.getElementById('filterEstado').value;
+    const filtroFecha = document.getElementById('filterFecha').value;
+    const filtroCliente = document.getElementById('filterCliente').value.toLowerCase();
+    
+    // Filtrar excluyendo las citas de bloque
+    const citasFiltradas = window.adminCitasOriginales.filter(cita => {
+        if (cita.es_bloque === true) {
+            return false;
+        }
+        
+        if (filtroEstado !== 'todos' && cita.estado !== filtroEstado) {
+            return false;
+        }
+        
+        if (filtroFecha && cita.fecha !== filtroFecha) {
+            return false;
+        }
+        
+        if (filtroCliente) {
+            const nombreCliente = cita.clientes?.nombre?.toLowerCase() || '';
+            const emailCliente = cita.clientes?.email?.toLowerCase() || '';
+            if (!nombreCliente.includes(filtroCliente) && !emailCliente.includes(filtroCliente)) {
+                return false;
+            }
+        }
+        
+        return true;
+    });
+    
+    actualizarEstadisticasAdmin(citasFiltradas);
+    actualizarListaCitasFiltradas(citasFiltradas);
+}
+
+function resetearFiltrosAdmin() {
+    document.getElementById('filterEstado').value = 'todos';
+    document.getElementById('filterFecha').value = '';
+    document.getElementById('filterCliente').value = '';
+    filtrarCitasAdmin();
+}
+
 
             // ============ FUNCIONES DE CITAS ============
 
@@ -8346,41 +8389,7 @@ function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
 }
 
 // Funciones de filtrado para admin
-function filtrarCitasAdmin() {
-    if (!window.adminCitasOriginales) return;
-    
-    const filtroEstado = document.getElementById('filterEstado').value;
-    const filtroFecha = document.getElementById('filterFecha').value;
-    const filtroCliente = document.getElementById('filterCliente').value.toLowerCase();
-    
-    // Filtrar excluyendo las citas de bloque
-    const citasFiltradas = window.adminCitasOriginales.filter(cita => {
-        if (cita.es_bloque === true) {
-            return false;
-        }
-        
-        if (filtroEstado !== 'todos' && cita.estado !== filtroEstado) {
-            return false;
-        }
-        
-        if (filtroFecha && cita.fecha !== filtroFecha) {
-            return false;
-        }
-        
-        if (filtroCliente) {
-            const nombreCliente = cita.clientes?.nombre?.toLowerCase() || '';
-            const emailCliente = cita.clientes?.email?.toLowerCase() || '';
-            if (!nombreCliente.includes(filtroCliente) && !emailCliente.includes(filtroCliente)) {
-                return false;
-            }
-        }
-        
-        return true;
-    });
-    
-    actualizarEstadisticasAdmin(citasFiltradas);
-    actualizarListaCitasFiltradas(citasFiltradas);
-}
+
 // Modificar las funciones de cancelación para manejar bloques VIP
 async function cancelarBloqueVIP(citaId) {
     try {
@@ -8511,12 +8520,6 @@ function actualizarListaCitasFiltradas(citas) {
     }
 }
 
-function resetearFiltrosAdmin() {
-    document.getElementById('filterEstado').value = 'todos';
-    document.getElementById('filterFecha').value = '';
-    document.getElementById('filterCliente').value = '';
-    filtrarCitasAdmin();
-}
 
 
 // Funciones de administración de citas
