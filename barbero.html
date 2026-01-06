@@ -7815,9 +7815,23 @@ async function agendarCita(e) {
 
 
 function resetearFiltrosAdmin() {
-    document.getElementById('filterEstado').value = 'todos';
-    document.getElementById('filterFecha').value = '';
-    document.getElementById('filterCliente').value = '';
+    // VERIFICAR QUE ESTAMOS EN EL CONTEXTO CORRECTO
+    const estaEnAdminPanel = document.querySelector('.admin-panel');
+    
+    if (!estaEnAdminPanel) {
+        console.log('⚠️ No está en panel admin, ignorando reset');
+        return;
+    }
+    
+    const filterEstado = document.getElementById('filterEstado');
+    const filterFecha = document.getElementById('filterFecha');
+    const filterCliente = document.getElementById('filterCliente');
+    
+    // Verificar que los elementos existen
+    if (filterEstado) filterEstado.value = 'todos';
+    if (filterFecha) filterFecha.value = '';
+    if (filterCliente) filterCliente.value = '';
+    
     filtrarCitasAdmin();
 }
 
@@ -8430,26 +8444,41 @@ async function cancelarBloqueVIP(citaId) {
 }
 
 function actualizarEstadisticasAdmin(citas) {
-    // Filtrar solo citas principales para estadísticas
+    // Filtrar solo las citas principales (es_bloque = false)
     const citasPrincipales = citas.filter(c => c.es_bloque === false);
-    const stats = calcularEstadisticasAdmin(citasPrincipales);
     
-    // Actualizar números en las tarjetas
-    document.querySelectorAll('.stat-number')[0].textContent = stats.totalCitas;
-    document.querySelectorAll('.stat-number')[1].textContent = stats.citasHoy;
-    document.querySelectorAll('.stat-number')[2].textContent = stats.citasPendientes;
-    document.querySelectorAll('.stat-number')[3].textContent = stats.citasConfirmadas;
-    document.querySelectorAll('.stat-number')[4].textContent = stats.citasCanceladas;
-    // Si tienes la sexta tarjeta de completadas:
-    if (document.querySelectorAll('.stat-number')[5]) {
-        document.querySelectorAll('.stat-number')[5].textContent = stats.citasCompletadas;
+    const totalCitas = citasPrincipales.length;
+    const hoy = formatDate(new Date());
+    const citasHoy = citasPrincipales.filter(c => c.fecha === hoy).length;
+    const citasPendientes = citasPrincipales.filter(c => c.estado === 'pendiente').length;
+    const citasConfirmadas = citasPrincipales.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
+    const citasCanceladas = citasPrincipales.filter(c => c.estado === 'cancelada').length;
+    const citasCompletadas = citasPrincipales.filter(c => c.estado === 'completada').length;
+    
+    // VERIFICAR SI LOS ELEMENTOS EXISTEN ANTES DE ACCEDER
+    const statElements = document.querySelectorAll('.stat-number');
+    
+    if (statElements.length >= 5) {
+        statElements[0].textContent = totalCitas;
+        statElements[1].textContent = citasHoy;
+        statElements[2].textContent = citasPendientes;
+        statElements[3].textContent = citasConfirmadas;
+        statElements[4].textContent = citasCanceladas;
+        
+        // Si tienes la sexta tarjeta de completadas:
+        if (statElements[5]) {
+            statElements[5].textContent = citasCompletadas;
+        }
     }
     
-    // Actualizar título
-    const titulo = document.querySelector('.admin-panel h3');
-    if (titulo) {
-        titulo.innerHTML = `<i class="fas fa-list"></i> Citas Principales (${stats.totalCitas})`;
-    }
+    return {
+        totalCitas,
+        citasHoy,
+        citasPendientes,
+        citasConfirmadas,
+        citasCanceladas,
+        citasCompletadas
+    };
 }
 
 function actualizarListaCitasFiltradas(citas) {
