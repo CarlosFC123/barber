@@ -491,7 +491,404 @@ body {
 .logout-item .dropdown-icon {
     font-size: 20px;
 }
+/* =========================================== */
+/* MEDIA QUERIES ESPECÍFICAS PARA PANTALLAS PEQUEÑAS */
+/* =========================================== */
 
+/* Para pantallas menores o iguales a 679px */
+@media (max-width: 679px) {
+    /* Ajustar el contenedor principal */
+    .container {
+        padding: 10px;
+        width: 100%;
+        overflow-x: hidden;
+    }
+    
+    /* Panel de administración - Ajustes */
+    .admin-panel {
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 10px;
+        width: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+    
+    /* Estadísticas en grid responsive */
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px;
+        margin: 15px 0;
+    }
+    
+    .stat-card {
+        padding: 15px 10px;
+        border-radius: 8px;
+        min-height: auto;
+    }
+    
+    .stat-icon {
+        font-size: 1.8rem;
+        margin-bottom: 8px;
+    }
+    
+    .stat-number {
+        font-size: 18px;
+    }
+    
+    .stat-info h3 {
+        font-size: 11px;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Filtros de administración */
+    .admin-filters {
+        padding: 15px;
+        margin: 15px 0;
+        grid-template-columns: 1fr !important;
+        gap: 12px;
+        border-radius: 8px;
+    }
+    
+    .filter-group {
+        width: 100%;
+    }
+    
+    .filter-select {
+        padding: 10px;
+        font-size: 13px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    /* Contenedor de citas y contenido de pestañas */
+    .tab-content {
+        padding: 15px;
+        border-radius: 0 0 10px 10px;
+        width: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+    
+    /* Grid de citas */
+    .citas-grid {
+        gap: 12px;
+        margin-top: 15px;
+    }
+    
+    /* Tarjetas de citas */
+    .cita-card {
+        padding: 15px;
+        border-radius: 10px;
+        margin: 0;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .cita-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+    
+    .cita-estado {
+        padding: 4px 10px;
+        font-size: 11px;
+        align-self: flex-start;
+    }
+    
+    /* Detalles de citas */
+    .cita-detalles p {
+        margin: 8px 0;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+    
+    .cita-acciones {
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 15px;
+    }
+    
+    .cita-acciones .btn {
+        width: 100%;
+        padding: 10px;
+        font-size: 13px;
+        text-align: center;
+    }
+    
+    /* Servicios grid */
+    .servicios-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        margin-top: 15px;
+    }
+    
+    .servicio-card {
+        padding: 15px;
+        border-radius: 10px;
+    }
+    
+    .servicio-precio {
+        font-size: 22px;
+    }
+    
+    /* Horas grid */
+    .horas-grid {
+        grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
+        gap: 6px;
+        min-height: 150px;
+    }
+    
+    .hora-btn {
+        padding: 8px 4px;
+        font-size: 11px;
+        min-height: 45px;
+        border-radius: 5px;
+    }
+    
+    /* Botones generales */
+    .btn {
+        padding: 10px 15px;
+        font-size: 13px;
+        border-radius: 6px;
+    }
+    
+    /* Formularios */
+    .form-group {
+        margin-bottom: 18px;
+    }
+    
+    label {
+        font-size: 12px;
+        margin-bottom: 6px;
+    }
+    
+    input, select {
+        padding: 10px 12px;
+        font-size: 13px;
+        border-radius: 6px;
+    }
+    
+    /* Títulos */
+    h2 {
+        font-size: 18px;
+        margin-bottom: 15px;
+    }
+    
+    /* Mensajes de alerta */
+    .alert {
+        padding: 12px;
+        font-size: 12px;
+        border-radius: 6px;
+    }
+}
+
+/* Para pantallas muy pequeñas (menores a 460px) */
+@media (max-width: 460px) {
+    .container {
+        padding: 8px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+        gap: 8px;
+    }
+    
+    .admin-panel {
+        padding: 12px;
+        margin-bottom: 15px;
+    }
+    
+    .tab-content {
+        padding: 12px;
+    }
+    
+    .cita-card {
+        padding: 12px;
+    }
+    
+    .cita-detalles p {
+        font-size: 12px;
+    }
+    
+    /* Ajustar grid de citas para una columna */
+    .citas-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    /* Horas grid más compacto */
+    .horas-grid {
+        grid-template-columns: repeat(auto-fill, minmax(55px, 1fr));
+        gap: 5px;
+    }
+    
+    .hora-btn {
+        padding: 6px 3px;
+        font-size: 10px;
+        min-height: 40px;
+    }
+    
+    /* Servicios grid aún más compacto */
+    .servicios-seleccion {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .servicio-option {
+        padding: 12px;
+    }
+    
+    .servicio-option h3 {
+        font-size: 16px;
+    }
+    
+    .servicio-option .precio {
+        font-size: 20px;
+    }
+    
+    /* Calendario más compacto */
+    .calendar-grid {
+        gap: 3px;
+    }
+    
+    .day-cell {
+        min-height: 30px;
+        font-size: 11px;
+        border-radius: 5px;
+    }
+    
+    .day-label {
+        font-size: 9px;
+        padding: 5px 2px;
+    }
+    
+    .calendar-picker {
+        padding: 12px;
+    }
+    
+    /* Pestañas más compactas */
+    .nav-tab {
+        padding: 12px 8px;
+        font-size: 13px;
+    }
+}
+
+/* Para pantallas extremadamente pequeñas (menores a 360px) */
+@media (max-width: 360px) {
+    .container {
+        padding: 5px;
+    }
+    
+    .admin-panel {
+        padding: 10px;
+    }
+    
+    .tab-content {
+        padding: 10px;
+    }
+    
+    .stat-card {
+        padding: 12px 8px;
+    }
+    
+    .stat-number {
+        font-size: 16px;
+    }
+    
+    .stat-icon {
+        font-size: 1.5rem;
+    }
+    
+    .cita-card {
+        padding: 10px;
+    }
+    
+    .horas-grid {
+        grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+    }
+    
+    .hora-btn {
+        font-size: 9px;
+        min-height: 35px;
+        padding: 5px 2px;
+    }
+    
+    /* Botones más pequeños */
+    .btn {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+    
+    /* Inputs más pequeños */
+    input, select {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+}
+
+/* Asegurar que no haya desbordamiento horizontal */
+* {
+    max-width: 100%;
+}
+
+body {
+    overflow-x: hidden;
+}
+
+/* Contenedores específicos con overflow hidden */
+.admin-panel,
+.tab-content,
+.cita-card,
+.servicio-card,
+.calendar-picker {
+    overflow: hidden;
+    word-wrap: break-word;
+}
+
+/* Para tablas o contenido largo */
+.cita-detalles,
+.cita-header {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+/* Estilos para texto muy largo */
+.cliente-info,
+.cita-detalles p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* Ajustes para estado de citas en móviles */
+@media (max-width: 679px) {
+    .cita-estado {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+}
+
+/* Evitar que las animaciones causen desbordamiento */
+.cita-card:hover {
+    transform: translateY(-2px) !important; /* Reducir efecto en móviles */
+}
+
+.hora-btn:hover {
+    transform: scale(1.02) !important; /* Reducir efecto en móviles */
+}
+
+/* Scroll horizontal suave si es necesario */
+@media (max-width: 679px) {
+    .tab-content {
+        -webkit-overflow-scrolling: touch;
+    }
+}
 /* =========================================== */
 /* RESPONSIVE */
 /* =========================================== */
