@@ -2358,19 +2358,35 @@ h2 {
             initializeApp();
         });
 
-        function initializeApp() {
-            const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
-            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
-            
-            if (typeof supabase === 'undefined') {
-                console.error('Supabase no está cargado');
-                showAlert('Error: No se pudo cargar la configuración', 'error');
-                return;
-            }
-            
-            const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-            startApplication(supabaseClient);
+        async function initializeApp() {
+    try {
+        // Carga la configuración desde config.json
+        const response = await fetch('./config.json');
+        const config = await response.json();
+        
+        const supabaseUrl = config.supabaseUrl;
+        const supabaseKey = config.supabaseKey;
+        
+        if (!supabaseUrl || !supabaseKey) {
+            console.error('Configuración de Supabase no encontrada');
+            showAlert('Error de configuración', 'error');
+            return;
         }
+        
+        if (typeof supabase === 'undefined') {
+            console.error('Supabase no está cargado');
+            showAlert('Error: No se pudo cargar la configuración', 'error');
+            return;
+        }
+        
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        startApplication(supabaseClient);
+        
+    } catch (error) {
+        console.error('Error cargando configuración:', error);
+        showAlert('Error al cargar la configuración', 'error');
+    }
+}
 
         function startApplication(supabase) {
             // ============ VARIABLES GLOBALES ============
