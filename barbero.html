@@ -7861,7 +7861,7 @@ function resetearFiltrosAdmin() {
                     barberos(nombre),
                     clientes(nombre, email, telefono)
                 `)
-                .eq('es_bloque', false) // ← SOLO obtener citas que NO sean bloques
+                .eq('es_bloque', false)
                 .order('fecha', { ascending: false })
                 .order('hora', { ascending: false });
                 
@@ -7880,7 +7880,7 @@ function resetearFiltrosAdmin() {
                     barberos(nombre)
                 `)
                 .eq('cliente_id', usuarioActual.id)
-                .eq('es_bloque', false) // ← SOLO obtener citas que NO sean bloques
+                .eq('es_bloque', false)
                 .order('fecha', { ascending: false });
 
             if (error) throw error;
@@ -7891,13 +7891,13 @@ function resetearFiltrosAdmin() {
         const listaCitas = document.getElementById('listaCitas');
         if (!listaCitas) return;
         
-        let htmlContent = '';
-        let htmlAdminPanel = ''; // SEPARAR el panel de admin
-        let htmlCitasList = '';  // SEPARAR la lista de citas
+        // Limpiar completamente el contenedor
+        listaCitas.innerHTML = '';
         
+        // **1. PRIMERO: Crear el botón de acciones para admin**
         if (esAdmin) {
-            // BOTÓN SIEMPRE DISPONIBLE PARA ADMIN - va al inicio
-            htmlContent = `
+            const accionesAdminDiv = document.createElement('div');
+            accionesAdminDiv.innerHTML = `
                 <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 12px; border: 2px solid #d4af37; box-shadow: 0 5px 15px rgba(212, 175, 55, 0.2);">
                     <h3 style="color: #d4af37; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
                         <i class="fas fa-crown"></i> Acciones de Administración
@@ -7910,21 +7910,21 @@ function resetearFiltrosAdmin() {
                     </div>
                 </div>
             `;
+            listaCitas.appendChild(accionesAdminDiv);
         }
         
         // Manejo cuando no hay citas
         if (!citas || citas.length === 0) {
             if (esAdmin) {
-                // Para admin: mantener el botón + mensaje de no citas
-                htmlContent += `
-                    <div class="empty-state">
-                        <div>📊</div>
-                        <h3>No hay citas en el sistema</h3>
-                        <p>Comienza agendando la primera cita</p>
-                    </div>
+                const emptyStateDiv = document.createElement('div');
+                emptyStateDiv.className = 'empty-state';
+                emptyStateDiv.innerHTML = `
+                    <div>📊</div>
+                    <h3>No hay citas en el sistema</h3>
+                    <p>Comienza agendando la primera cita</p>
                 `;
+                listaCitas.appendChild(emptyStateDiv);
             } else {
-                // Para usuario normal: mantener el comportamiento original
                 listaCitas.innerHTML = `
                     <div class="empty-state">
                         <div>📅</div>
@@ -7934,102 +7934,93 @@ function resetearFiltrosAdmin() {
                     </div>
                 `;
             }
-            listaCitas.innerHTML = htmlContent;
             return;
         }
         
-        // Si es admin, crear filtros y estadísticas en un contenedor SEPARADO
+        // **2. SEGUNDO: Si es admin, crear PANEL DE ADMINISTRACIÓN (solo filtros y stats)**
         if (esAdmin) {
-            // Estadísticas para admin
             const stats = calcularEstadisticasAdmin(citas);
             
-            // Crear panel de administración SEPARADO
-            htmlAdminPanel = `
-                <div class="admin-panel">
-                    <h2 style="color: #d4af37; margin-bottom: 20px; border-bottom: 2px solid #d4af37; padding-bottom: 10px;">
-                        <i class="fas fa-crown"></i> Panel de Administración
-                    </h2>
-                    
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon total">📊</div>
-                            <div class="stat-info">
-                                <h3>Total Citas</h3>
-                                <p class="stat-number">${stats.totalCitas}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon today">📅</div>
-                            <div class="stat-info">
-                                <h3>Citas Hoy</h3>
-                                <p class="stat-number">${stats.citasHoy}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon pending">⏳</div>
-                            <div class="stat-info">
-                                <h3>Pendientes</h3>
-                                <p class="stat-number">${stats.citasPendientes}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon confirmed">✅</div>
-                            <div class="stat-info">
-                                <h3>Confirmadas</h3>
-                                <p class="stat-number">${stats.citasConfirmadas}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="stat-card">
-                            <div class="stat-icon canceled">❌</div>
-                            <div class="stat-info">
-                                <h3>Canceladas</h3>
-                                <p class="stat-number">${stats.citasCanceladas}</p>
-                            </div>
+            const adminPanelDiv = document.createElement('div');
+            adminPanelDiv.className = 'admin-panel';
+            adminPanelDiv.innerHTML = `
+                <h2 style="color: #d4af37; margin-bottom: 20px; border-bottom: 2px solid #d4af37; padding-bottom: 10px;">
+                    <i class="fas fa-crown"></i> Panel de Administración
+                </h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon total">📊</div>
+                        <div class="stat-info">
+                            <h3>Total Citas</h3>
+                            <p class="stat-number">${stats.totalCitas}</p>
                         </div>
                     </div>
                     
-                    <div class="admin-filters">
-                        <div class="filter-group">
-                            <label for="filterEstado"><i class="fas fa-filter"></i> Filtrar por estado:</label>
-                            <select id="filterEstado" class="filter-select" onchange="filtrarCitasAdmin()">
-                                <option value="todos">Todos los estados</option>
-                                <option value="pendiente">Pendientes</option>
-                                <option value="confirmada">Confirmadas</option>
-                                <option value="aceptada">Aceptadas</option>
-                                <option value="completada">Completadas</option>
-                                <option value="cancelada">Canceladas</option>
-                            </select>
+                    <div class="stat-card">
+                        <div class="stat-icon today">📅</div>
+                        <div class="stat-info">
+                            <h3>Citas Hoy</h3>
+                            <p class="stat-number">${stats.citasHoy}</p>
                         </div>
-                        
-                        <div class="filter-group">
-                            <label for="filterFecha"><i class="fas fa-calendar-alt"></i> Filtrar por fecha:</label>
-                            <input type="date" id="filterFecha" class="filter-select" onchange="filtrarCitasAdmin()">
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon pending">⏳</div>
+                        <div class="stat-info">
+                            <h3>Pendientes</h3>
+                            <p class="stat-number">${stats.citasPendientes}</p>
                         </div>
-                        
-                        <div class="filter-group">
-                            <label for="filterCliente"><i class="fas fa-user"></i> Filtrar por cliente:</label>
-                            <input type="text" id="filterCliente" class="filter-select" placeholder="Nombre del cliente" onkeyup="filtrarCitasAdmin()">
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon confirmed">✅</div>
+                        <div class="stat-info">
+                            <h3>Confirmadas</h3>
+                            <p class="stat-number">${stats.citasConfirmadas}</p>
                         </div>
-                        
-                        <button class="btn btn-secondary" onclick="resetearFiltrosAdmin()">
-                            <i class="fas fa-redo"></i> Resetear filtros
-                        </button>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon canceled">❌</div>
+                        <div class="stat-info">
+                            <h3>Canceladas</h3>
+                            <p class="stat-number">${stats.citasCanceladas}</p>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- TÍTULO DE CITAS FUERA DEL PANEL -->
-                <div style="margin: 40px 0 20px 0; border-bottom: 2px solid #d4af37; padding-bottom: 10px;">
-                    <h3 style="color: #ffffff;">
-                        <i class="fas fa-list"></i> Todas las citas (<span id="total-citas-count">${stats.totalCitas}</span>)
-                    </h3>
+                <div class="admin-filters">
+                    <div class="filter-group">
+                        <label for="filterEstado"><i class="fas fa-filter"></i> Filtrar por estado:</label>
+                        <select id="filterEstado" class="filter-select" onchange="filtrarCitasAdmin()">
+                            <option value="todos">Todos los estados</option>
+                            <option value="pendiente">Pendientes</option>
+                            <option value="confirmada">Confirmadas</option>
+                            <option value="aceptada">Aceptadas</option>
+                            <option value="completada">Completadas</option>
+                            <option value="cancelada">Canceladas</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filterFecha"><i class="fas fa-calendar-alt"></i> Filtrar por fecha:</label>
+                        <input type="date" id="filterFecha" class="filter-select" onchange="filtrarCitasAdmin()">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filterCliente"><i class="fas fa-user"></i> Filtrar por cliente:</label>
+                        <input type="text" id="filterCliente" class="filter-select" placeholder="Nombre del cliente" onkeyup="filtrarCitasAdmin()">
+                    </div>
+                    
+                    <button class="btn btn-secondary" onclick="resetearFiltrosAdmin()">
+                        <i class="fas fa-redo"></i> Resetear filtros
+                    </button>
                 </div>
             `;
+            listaCitas.appendChild(adminPanelDiv);
         } else {
-            // Para usuarios normales, mantener el encabezado existente
+            // Para usuarios normales
             const hayCitasCanceladasOCompletadas = citas.some(c => c.estado === 'cancelada' || c.estado === 'completada');
             const hayCitasActivas = citas.some(c => 
                 c.estado === 'aceptada' || 
@@ -8037,9 +8028,9 @@ function resetearFiltrosAdmin() {
                 c.estado === 'confirmada'
             );
             
-            // Mostrar botón si no hay citas activas
             if (hayCitasCanceladasOCompletadas && !hayCitasActivas) {
-                htmlContent = `
+                const btnDiv = document.createElement('div');
+                btnDiv.innerHTML = `
                     <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: #2a2a2a; border-radius: 12px; border: 2px solid #d4af37;">
                         <h3 style="color: #d4af37; margin-bottom: 15px;">¿Quieres agendar otra cita?</h3>
                         <p style="color: #ccc; margin-bottom: 15px;">Ya has completado o cancelado una cita anterior</p>
@@ -8048,14 +8039,33 @@ function resetearFiltrosAdmin() {
                         </button>
                     </div>
                 `;
+                listaCitas.appendChild(btnDiv);
             }
         }
         
-        // Agrupar citas (para ambos admin y usuario)
+        // **3. TERCERO: Crear TÍTULO DE LISTA DE CITAS (FUERA del panel)**
+        if (esAdmin) {
+            const tituloDiv = document.createElement('div');
+            tituloDiv.style.margin = '40px 0 20px 0';
+            tituloDiv.style.borderBottom = '2px solid #d4af37';
+            tituloDiv.style.paddingBottom = '10px';
+            tituloDiv.innerHTML = `
+                <h3 style="color: #ffffff;">
+                    <i class="fas fa-list"></i> Todas las citas (<span id="total-citas-count">${citas.length}</span>)
+                </h3>
+            `;
+            listaCitas.appendChild(tituloDiv);
+        }
+        
+        // **4. CUARTO: Crear CONTENEDOR para las citas (FUERA del panel)**
+        const citasContainer = document.createElement('div');
+        citasContainer.id = 'citas-list-container';
+        listaCitas.appendChild(citasContainer);
+        
+        // **5. QUINTO: Agrupar y mostrar las citas en el contenedor SEPARADO**
         const citasAgrupadas = {};
         
         citas.forEach(cita => {
-            // Para admin, también mostrar información del cliente
             const infoCliente = esAdmin ? `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>` : '';
             
             if (cita.es_bloque && cita.hora_principal) {
@@ -8089,11 +8099,11 @@ function resetearFiltrosAdmin() {
         });
 
         // Generar HTML para cada cita/bloque
+        let htmlCitasList = '';
         Object.values(citasAgrupadas).forEach((grupo, index) => {
             if (grupo.es_bloque && grupo.citas.length > 1) {
                 const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
                 const horasBloque = grupo.citas.map(c => c.hora).sort();
-                
                 htmlCitasList += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
             } else if (grupo.es_bloque && grupo.citas.length === 1) {
                 htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
@@ -8102,15 +8112,7 @@ function resetearFiltrosAdmin() {
             }
         });
         
-        // CONSTRUIR EL HTML FINAL
-        if (esAdmin) {
-            // Para admin: botón + panel + lista de citas
-            listaCitas.innerHTML = htmlContent + htmlAdminPanel + 
-                `<div id="citas-list-container">${htmlCitasList}</div>`;
-        } else {
-            // Para usuario normal: botón (si aplica) + lista de citas
-            listaCitas.innerHTML = htmlContent + htmlCitasList;
-        }
+        citasContainer.innerHTML = htmlCitasList;
         
         // Si es admin, guardar las citas originales para filtros
         if (esAdmin) {
@@ -8452,9 +8454,8 @@ async function cancelarBloqueVIP(citaId) {
 }
 
 function actualizarEstadisticasAdmin(citas) {
-    // Filtrar solo las citas principales (es_bloque = false)
+    // Calcular estadísticas
     const citasPrincipales = citas.filter(c => c.es_bloque === false);
-    
     const totalCitas = citasPrincipales.length;
     const hoy = formatDate(new Date());
     const citasHoy = citasPrincipales.filter(c => c.fecha === hoy).length;
@@ -8463,20 +8464,14 @@ function actualizarEstadisticasAdmin(citas) {
     const citasCanceladas = citasPrincipales.filter(c => c.estado === 'cancelada').length;
     const citasCompletadas = citasPrincipales.filter(c => c.estado === 'completada').length;
     
-    // VERIFICAR SI LOS ELEMENTOS EXISTEN ANTES DE ACCEDER
+    // Actualizar estadísticas SOLO si los elementos existen
     const statElements = document.querySelectorAll('.stat-number');
-    
     if (statElements.length >= 5) {
         statElements[0].textContent = totalCitas;
         statElements[1].textContent = citasHoy;
         statElements[2].textContent = citasPendientes;
         statElements[3].textContent = citasConfirmadas;
         statElements[4].textContent = citasCanceladas;
-        
-        // Si tienes la sexta tarjeta de completadas:
-        if (statElements[5]) {
-            statElements[5].textContent = citasCompletadas;
-        }
     }
     
     return {
@@ -8490,30 +8485,50 @@ function actualizarEstadisticasAdmin(citas) {
 }
 
 function actualizarListaCitasFiltradas(citas) {
-    // Encontrar el contenedor de citas (FUERA del panel)
+    console.log('🔄 Actualizando lista de citas filtradas...');
+    
+    // 1. Buscar el contenedor de citas
     let citasContainer = document.getElementById('citas-list-container');
     
-    // Si no existe, crearlo después del panel
+    // Si no existe, crearlo
     if (!citasContainer) {
+        console.log('📦 Creando contenedor de citas...');
+        citasContainer = document.createElement('div');
+        citasContainer.id = 'citas-list-container';
+        
+        // Insertar después del panel de admin
         const adminPanel = document.querySelector('.admin-panel');
         if (adminPanel) {
-            // Crear contenedor después del panel
-            citasContainer = document.createElement('div');
-            citasContainer.id = 'citas-list-container';
-            adminPanel.parentNode.insertBefore(citasContainer, adminPanel.nextSibling.nextSibling);
+            adminPanel.parentNode.insertBefore(citasContainer, adminPanel.nextSibling);
         } else {
-            console.error('No se encontró el panel de administración');
-            return;
+            // Si no hay panel, insertar al final
+            const listaCitas = document.getElementById('listaCitas');
+            if (listaCitas) {
+                listaCitas.appendChild(citasContainer);
+            }
         }
     }
     
-    // Limpiar contenedor
+    // 2. Limpiar y llenar el contenedor
     citasContainer.innerHTML = '';
     
-    // Agrupar citas filtradas
+    if (!citas || citas.length === 0) {
+        citasContainer.innerHTML = `
+            <div class="empty-state">
+                <div>🔍</div>
+                <h3>No se encontraron citas</h3>
+                <p>No hay citas que coincidan con los filtros seleccionados</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // 3. Agrupar citas filtradas
     const citasAgrupadas = {};
     
     citas.forEach(cita => {
+        const infoCliente = `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>`;
+        
         if (cita.es_bloque && cita.hora_principal) {
             const claveBloque = `${cita.fecha}_${cita.hora_principal}`;
             if (!citasAgrupadas[claveBloque]) {
@@ -8524,7 +8539,7 @@ function actualizarListaCitasFiltradas(citas) {
                     citas: []
                 };
             }
-            citasAgrupadas[claveBloque].citas.push(cita);
+            citasAgrupadas[claveBloque].citas.push({...cita, infoCliente});
         } else if (cita.duracion && cita.duracion === 80) {
             const claveBloque = `${cita.fecha}_${cita.hora}`;
             if (!citasAgrupadas[claveBloque]) {
@@ -8532,19 +8547,19 @@ function actualizarListaCitasFiltradas(citas) {
                     es_bloque: true,
                     hora_principal: cita.hora,
                     fecha: cita.fecha,
-                    citas: [cita]
+                    citas: [{...cita, infoCliente}]
                 };
             }
         } else {
             const claveIndividual = `individual_${cita.id}`;
             citasAgrupadas[claveIndividual] = {
                 es_bloque: false,
-                cita: cita
+                cita: {...cita, infoCliente}
             };
         }
     });
     
-    // Generar HTML para cada cita filtrada
+    // 4. Generar HTML para cada cita filtrada
     let htmlCitasList = '';
     Object.values(citasAgrupadas).forEach(grupo => {
         if (grupo.es_bloque && grupo.citas.length > 1) {
@@ -8558,14 +8573,16 @@ function actualizarListaCitasFiltradas(citas) {
         }
     });
     
-    // Insertar en el contenedor
+    // 5. Insertar en el contenedor
     citasContainer.innerHTML = htmlCitasList;
     
-    // Actualizar contador en el título
+    // 6. Actualizar contador en el título
     const totalCitasCount = document.getElementById('total-citas-count');
     if (totalCitasCount) {
         totalCitasCount.textContent = citas.length;
     }
+    
+    console.log('✅ Lista de citas actualizada');
 }
 
 
