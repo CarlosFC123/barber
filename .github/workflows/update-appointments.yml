@@ -1,0 +1,25 @@
+name: Update Completed Appointments
+on:
+  schedule:
+    # Ejecutar cada 40 minutos
+    - cron: '*/40 * * * *'
+  workflow_dispatch:  # Permite ejecución manual desde GitHub
+
+jobs:
+  update-appointments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update appointments status
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          # Usar curl para llamar a Supabase REST API
+          curl -X POST "$SUPABASE_URL/rest/v1/rpc/actualizar_citas_periodicamente" \
+          -H "apikey: $SUPABASE_KEY" \
+          -H "Authorization: Bearer $SUPABASE_KEY" \
+          -H "Content-Type: application/json" \
+          -H "Prefer: return=minimal"
+          
+      - name: Log success
+        run: echo "✅ Citas actualizadas automáticamente - $(date)"
