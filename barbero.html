@@ -1151,14 +1151,8 @@ body {
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .btn {
@@ -7923,9 +7917,6 @@ function resetearFiltrosAdmin() {
     if (window.adminCitasOriginales) {
         actualizarEstadisticasAdmin(window.adminCitasOriginales);
         actualizarListaCitasFiltradas(window.adminCitasOriginales);
-    } else {
-        // Si no, recargar
-        cargarMisCitas();
     }
 }
 
@@ -8194,56 +8185,33 @@ function resetearFiltrosAdmin() {
         });
 
         // Generar HTML para cada cita/bloque
-citasContainer.innerHTML = '';
-
-// Crear cada cita como elemento individual
-Object.values(citasAgrupadas).forEach((grupo, index) => {
-    // Crear el contenedor para esta cita
+        let htmlCitasList = '';
+        Object.values(citasAgrupadas).forEach((grupo, index) => {
+            if (grupo.es_bloque && grupo.citas.length > 1) {
+                const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+                const horasBloque = grupo.citas.map(c => c.hora).sort();
+                htmlCitasList += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+            } else if (grupo.es_bloque && grupo.citas.length === 1) {
+                htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+            } else {
+                htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+            }
+        });
+        
+        const citaElements = htmlCitasList.match(/<div class="cita-card[\s\S]*?<\/div><\/div>/g) || [];
+        citaElements.forEach((citaHTML, index) => {
     const citaDiv = document.createElement('div');
     citaDiv.className = 'cita-item';
     citaDiv.style.cssText = `
-        margin-bottom: 12px;
+        margin-bottom: 25px;
         animation: fadeIn 0.3s ease ${index * 0.1}s both;
     `;
-    
-    // Generar el HTML específico para este grupo
-    let citaHTML = '';
-    if (grupo.es_bloque && grupo.citas.length > 1) {
-        const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-        const horasBloque = grupo.citas.map(c => c.hora).sort();
-        citaHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
-    } else if (grupo.es_bloque && grupo.citas.length === 1) {
-        citaHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
-    } else {
-        citaHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
-    }
-    
-    // Insertar el HTML en el div
     citaDiv.innerHTML = citaHTML;
-    
-    // Añadir al contenedor principal
     citasContainer.appendChild(citaDiv);
 });
-
-// Aplicar estilos al contenedor
-citasContainer.style.cssText = `
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 15px;
-    margin-bottom: 20px;
-`;
-// Asegúrate de que cada cita tenga la clase correcta
-document.querySelectorAll('#citas-list-container .cita-card').forEach((citaCard, index) => {
-    citaCard.style.marginBottom = '8px';
-    citaCard.style.opacity = '0';
-    citaCard.style.animation = `fadeIn 0.3s ease ${index * 0.1}s forwards`;
-});
-
         // Si es admin, guardar las citas originales para filtros
         if (esAdmin) {
             window.adminCitasOriginales = citas;
-            window.adminCitasAgrupadas = citasAgrupadas; 
         }
         
         // Iniciar contadores
@@ -8617,31 +8585,48 @@ function actualizarListaCitasFiltradas(citas) {
     // 1. Buscar el contenedor de citas
     let citasContainer = document.getElementById('citas-list-container');
     
-    // Si no existe, algo está mal - recargar todas las citas
+    // Si no existe, crearlo
     if (!citasContainer) {
-        console.error('❌ Contenedor de citas no encontrado, recargando...');
-        cargarMisCitas();
-        return;
+        console.log('📦 Creando contenedor de citas...');
+        citasContainer = document.createElement('div');
+        citasContainer.id = 'citas-list-container';
+        citasContainer.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        `;
+        
+        // Insertar después del panel de admin
+        const adminPanel = document.querySelector('.admin-panel');
+        if (adminPanel) {
+            adminPanel.parentNode.insertBefore(citasContainer, adminPanel.nextSibling);
+        } else {
+            const listaCitas = document.getElementById('listaCitas');
+            if (listaCitas) {
+                listaCitas.appendChild(citasContainer);
+            }
+        }
     }
     
-    // 2. Limpiar completamente
+    // 2. Limpiar y aplicar estilos
     citasContainer.innerHTML = '';
+    citasContainer.style.gap = '25px';
+    citasContainer.style.margin = '20px 0 30px 0';
     
     if (!citas || citas.length === 0) {
         citasContainer.innerHTML = `
-            <div class="empty-state" style="margin: 30px auto; padding: 40px; max-width: 500px;">
+            <div class="empty-state" style="margin: 30px 0; padding: 40px;">
                 <div style="font-size: 48px; margin-bottom: 20px;">🔍</div>
-                <h3 style="margin-bottom: 15px; color: #d4af37;">No se encontraron citas</h3>
-                <p style="color: #ccc;">No hay citas que coincidan con los filtros seleccionados</p>
-                <button class="btn btn-secondary" onclick="resetearFiltrosAdmin()" style="margin-top: 20px;">
-                    <i class="fas fa-redo"></i> Ver todas las citas
-                </button>
+                <h3 style="margin-bottom: 15px;">No se encontraron citas</h3>
+                <p>No hay citas que coincidan con los filtros seleccionados</p>
             </div>
         `;
         return;
     }
     
-    // 3. Agrupar citas filtradas (misma lógica que cargarMisCitas)
+    // 3. Agrupar citas filtradas
     const citasAgrupadas = {};
     
     citas.forEach(cita => {
@@ -8677,67 +8662,41 @@ function actualizarListaCitasFiltradas(citas) {
         }
     });
     
-    // 4. Generar HTML (usando las mismas funciones de generación)
-    citasContainer.innerHTML = '';
-
-// 5. Crear cada cita como elemento individual
-Object.values(citasAgrupadas).forEach((grupo, index) => {
-    // Crear el contenedor para esta cita
-    const citaDiv = document.createElement('div');
-    citaDiv.className = 'cita-item';
-    citaDiv.style.cssText = `
-        margin-bottom: 12px;
-        animation: fadeIn 0.3s ease ${index * 0.1}s both;
-    `;
-    
-    // Generar el HTML específico para este grupo
-    let citaHTML = '';
-    if (grupo.es_bloque && grupo.citas.length > 1) {
-        const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-        const horasBloque = grupo.citas.map(c => c.hora).sort();
-        citaHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, true);
-    } else if (grupo.es_bloque && grupo.citas.length === 1) {
-        citaHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], true);
-    } else {
-        citaHTML = generarHTMLCitaIndividualAdmin(grupo.cita, true);
-    }
-    
-    // Insertar el HTML en el div
-    citaDiv.innerHTML = citaHTML;
-    
-    // Añadir al contenedor principal
-    citasContainer.appendChild(citaDiv);
-});
-
-// 6. Aplicar estilos al contenedor
-citasContainer.style.cssText = `
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 15px;
-    margin-bottom: 20px;
-`;
-    
-    // 6. Aplicar animaciones y estilos
-    setTimeout(() => {
-        document.querySelectorAll('#citas-list-container .cita-card').forEach((citaCard, index) => {
-            citaCard.style.marginBottom = '8px';
-            citaCard.style.opacity = '0';
-            citaCard.style.animation = `fadeIn 0.3s ease ${index * 0.1}s forwards`;
-        });
+    // 4. Generar HTML para cada cita con separación
+    Object.values(citasAgrupadas).forEach((grupo, index) => {
+        let citaHTML = '';
         
-        // Iniciar contadores
-        iniciarContadoresCitas();
-    }, 50);
+        if (grupo.es_bloque && grupo.citas.length > 1) {
+            const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+            const horasBloque = grupo.citas.map(c => c.hora).sort();
+            citaHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, true);
+        } else if (grupo.es_bloque && grupo.citas.length === 1) {
+            citaHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], true);
+        } else {
+            citaHTML = generarHTMLCitaIndividualAdmin(grupo.cita, true);
+        }
+        
+        // Crear un contenedor para cada cita con clase de separación
+        const citaDiv = document.createElement('div');
+        citaDiv.className = 'cita-item';
+        citaDiv.style.cssText = `
+            margin-bottom: 10px;
+            animation: fadeIn 0.3s ease ${index * 0.1}s both;
+        `;
+        citaDiv.innerHTML = citaHTML;
+        
+        citasContainer.appendChild(citaDiv);
+    });
     
-    // 7. Actualizar contador en el título
+    // 5. Actualizar contador en el título
     const totalCitasCount = document.getElementById('total-citas-count');
     if (totalCitasCount) {
         totalCitasCount.textContent = citas.length;
     }
     
-    console.log('✅ Lista de citas filtradas actualizada');
+    console.log('✅ Lista de citas actualizada con separación mejorada');
 }
+
 
 // Funciones de administración de citas
 async function cambiarEstadoCita(citaId) {
