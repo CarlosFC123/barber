@@ -8194,22 +8194,38 @@ function resetearFiltrosAdmin() {
         });
 
         // Generar HTML para cada cita/bloque
-        let htmlCitasList = '';
-        Object.values(citasAgrupadas).forEach((grupo, index) => {
-            if (grupo.es_bloque && grupo.citas.length > 1) {
-                const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-                const horasBloque = grupo.citas.map(c => c.hora).sort();
-                htmlCitasList += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
-            } else if (grupo.es_bloque && grupo.citas.length === 1) {
-                htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
-            } else {
-                htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
-            }
-        });
-        
-        citasContainer.innerHTML = htmlCitasList;
+citasContainer.innerHTML = '';
 
-// Aplica estilos básicos al contenedor
+// Crear cada cita como elemento individual
+Object.values(citasAgrupadas).forEach((grupo, index) => {
+    // Crear el contenedor para esta cita
+    const citaDiv = document.createElement('div');
+    citaDiv.className = 'cita-item';
+    citaDiv.style.cssText = `
+        margin-bottom: 12px;
+        animation: fadeIn 0.3s ease ${index * 0.1}s both;
+    `;
+    
+    // Generar el HTML específico para este grupo
+    let citaHTML = '';
+    if (grupo.es_bloque && grupo.citas.length > 1) {
+        const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+        const horasBloque = grupo.citas.map(c => c.hora).sort();
+        citaHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+    } else if (grupo.es_bloque && grupo.citas.length === 1) {
+        citaHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+    } else {
+        citaHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+    }
+    
+    // Insertar el HTML en el div
+    citaDiv.innerHTML = citaHTML;
+    
+    // Añadir al contenedor principal
+    citasContainer.appendChild(citaDiv);
+});
+
+// Aplicar estilos al contenedor
 citasContainer.style.cssText = `
     display: flex;
     flex-direction: column;
@@ -8217,7 +8233,6 @@ citasContainer.style.cssText = `
     margin-top: 15px;
     margin-bottom: 20px;
 `;
-
 // Asegúrate de que cada cita tenga la clase correcta
 document.querySelectorAll('#citas-list-container .cita-card').forEach((citaCard, index) => {
     citaCard.style.marginBottom = '8px';
@@ -8663,21 +8678,45 @@ function actualizarListaCitasFiltradas(citas) {
     });
     
     // 4. Generar HTML (usando las mismas funciones de generación)
-    let htmlCitasList = '';
-    Object.values(citasAgrupadas).forEach((grupo, index) => {
-        if (grupo.es_bloque && grupo.citas.length > 1) {
-            const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-            const horasBloque = grupo.citas.map(c => c.hora).sort();
-            htmlCitasList += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, true);
-        } else if (grupo.es_bloque && grupo.citas.length === 1) {
-            htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.citas[0], true);
-        } else {
-            htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.cita, true);
-        }
-    });
+    citasContainer.innerHTML = '';
+
+// 5. Crear cada cita como elemento individual
+Object.values(citasAgrupadas).forEach((grupo, index) => {
+    // Crear el contenedor para esta cita
+    const citaDiv = document.createElement('div');
+    citaDiv.className = 'cita-item';
+    citaDiv.style.cssText = `
+        margin-bottom: 12px;
+        animation: fadeIn 0.3s ease ${index * 0.1}s both;
+    `;
     
-    // 5. Insertar HTML
-    citasContainer.innerHTML = htmlCitasList;
+    // Generar el HTML específico para este grupo
+    let citaHTML = '';
+    if (grupo.es_bloque && grupo.citas.length > 1) {
+        const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+        const horasBloque = grupo.citas.map(c => c.hora).sort();
+        citaHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, true);
+    } else if (grupo.es_bloque && grupo.citas.length === 1) {
+        citaHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], true);
+    } else {
+        citaHTML = generarHTMLCitaIndividualAdmin(grupo.cita, true);
+    }
+    
+    // Insertar el HTML en el div
+    citaDiv.innerHTML = citaHTML;
+    
+    // Añadir al contenedor principal
+    citasContainer.appendChild(citaDiv);
+});
+
+// 6. Aplicar estilos al contenedor
+citasContainer.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 15px;
+    margin-bottom: 20px;
+`;
     
     // 6. Aplicar animaciones y estilos
     setTimeout(() => {
