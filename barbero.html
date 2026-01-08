@@ -1439,18 +1439,18 @@ input::placeholder {
 #citas-list-container {
     display: flex;
     flex-direction: column;
-    gap: 25px !important; /* ← Aumentar separación entre citas */
-    margin-top: 20px;
-    margin-bottom: 30px;
+    gap: 15px !important; /* ← Aumentar separación entre citas */
+    margin-top: 10px;
+    margin-bottom: 20px;
 }
 
 .cita-card {
     background: #2a2a2a;
     border: 1px solid #333;
     border-radius: 12px;
-    padding: 24px;
+    padding: 20px;
     transition: all 0.3s ease;
-    margin-bottom: 10px !important; /* ← Espacio adicional */
+    margin-bottom: 5px !important; /* ← Espacio adicional */
     position: relative;
     overflow: hidden;
 }
@@ -8593,9 +8593,9 @@ function actualizarListaCitasFiltradas(citas) {
         citasContainer.style.cssText = `
             display: flex;
             flex-direction: column;
-            gap: 25px;
-            margin-top: 20px;
-            margin-bottom: 30px;
+            gap: 10px;
+            margin-top: 10px;
+            margin-bottom: 20px;
         `;
         
         // Insertar después del panel de admin
@@ -8680,7 +8680,7 @@ function actualizarListaCitasFiltradas(citas) {
         const citaDiv = document.createElement('div');
         citaDiv.className = 'cita-item';
         citaDiv.style.cssText = `
-            margin-bottom: 25px;
+            margin-bottom: 10px;
             animation: fadeIn 0.3s ease ${index * 0.1}s both;
         `;
         citaDiv.innerHTML = citaHTML;
