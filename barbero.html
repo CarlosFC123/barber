@@ -575,22 +575,40 @@ body {
         gap: 12px;
         margin-top: 15px;
     }
-    
+    .citas-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px; /* Espacio entre citas */
+    padding: 15px 0;
+}
+
     /* Tarjetas de citas */
     .cita-card {
-        padding: 15px;
-        border-radius: 10px;
-        margin: 0;
-        width: 100%;
-        box-sizing: border-box;
-    }
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px; /* Espacio adicional */
+    border: 1px solid #333;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+.cita-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+    border-color: #d4af37;
+}
+
     
     .cita-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-        margin-bottom: 12px;
-    }
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #333;
+}
     
     .cita-estado {
         padding: 4px 10px;
@@ -852,8 +870,12 @@ body {
 /* Para tablas o contenido largo */
 .cita-detalles,
 .cita-header {
-    overflow-wrap: break-word;
-    word-break: break-word;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #333;
 }
 
 /* Estilos para texto muy largo */
@@ -1472,6 +1494,8 @@ input::placeholder {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #333;
 }
 
 .cita-estado {
@@ -2001,10 +2025,16 @@ h2 {
 }
 
 .bloque-vip {
-    border-left: 4px solid #FFD700;
-    background: linear-gradient(to right, rgba(255, 215, 0, 0.05), transparent);
+    border-left: 5px solid #d4af37 !important;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.05) 0%, rgba(26, 26, 46, 0.1) 100%) !important;
+    margin-bottom: 25px !important;
 }
 
+.bloque-cita {
+    border-left: 5px solid #007bff !important;
+    background: linear-gradient(135deg, rgba(0, 123, 255, 0.05) 0%, rgba(26, 26, 46, 0.1) 100%) !important;
+    margin-bottom: 25px !important;
+}
 .bloque-vip .cita-header h3 {
     color: #FFD700;
 }
