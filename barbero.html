@@ -2164,6 +2164,54 @@ h2 {
     background: #1a3c27; 
     color: #90EE90; 
 }
+/* Agrega estos estilos a tu CSS */
+.btn-actualizar-citas {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    color: #000;
+    border: none;
+    border-radius: 50px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 999;
+    transition: all 0.3s ease;
+}
+
+.btn-actualizar-citas:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
+}
+
+.btn-actualizar-citas:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.btn-actualizar-icon {
+    font-size: 16px;
+}
+
+.btn-actualizar-text {
+    white-space: nowrap;
+}
+
+/* Animación para el icono de actualización */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.btn-actualizar-citas.actualizando .btn-actualizar-icon {
+    animation: spin 1s linear infinite;
+}
 
 /* =========================================== */
 /* MEDIA QUERIES (RESPONSIVE) */
@@ -2482,6 +2530,11 @@ h2 {
             let timeoutReserva = null;
             let bloqueoLlamadaEnProgreso = false;
             let pollingActivo = false;
+            
+            let pollingCitasActivo = false;
+            let intervaloPollingCitas = null;
+            let ultimaActualizacionCitas = 0;
+            const INTERVALO_POLLING_CITAS = 10000;
 
             // Control de clics múltiples
             let reservasEnProgreso = new Map(); // {fecha_hora: true} para evitar dobles clics
@@ -2763,6 +2816,324 @@ function verificarUsuarioActivo() {
             }
 
             // ============ SISTEMA DE POLLING INTELIGENTE ============
+
+
+
+async function iniciarPollingCitas() {
+    if (pollingCitasActivo) {
+        console.log('⏭️ Polling de citas ya está activo');
+        return;
+    }
+    
+    pollingCitasActivo = true;
+    console.log('🔄 Iniciando polling de citas (10 segundos)');
+    
+    intervaloPollingCitas = setInterval(async () => {
+        try {
+            // Solo verificar si estamos en la pestaña de Mis Citas
+            const estaEnMisCitas = document.getElementById('mis-citas').classList.contains('active');
+            const estaEnAgendar = document.getElementById('agendar').classList.contains('active');
+            
+            if (!estaEnMisCitas && !estaEnAgendar) {
+                // No estamos viendo citas, no necesitamos verificar
+                return;
+            }
+            
+            const ahora = Date.now();
+            
+            // Verificar si ha pasado suficiente tiempo desde la última actualización
+            if (ahora - ultimaActualizacionCitas < 5000) { // 5 segundos mínimo
+                return;
+            }
+            
+            console.log('🔍 Verificando cambios en citas...');
+            
+            // 1. Verificar si hay citas nuevas, canceladas o completadas
+            const hayCambios = await verificarCambiosEnCitas();
+            
+            if (hayCambios) {
+                console.log('🔄 Cambios detectados en citas, actualizando...');
+                ultimaActualizacionCitas = ahora;
+                
+                // Actualizar caché de citas
+                await precargarCitasFuturas();
+                
+                // Si estamos en Mis Citas, recargar la lista
+                if (estaEnMisCitas) {
+                    console.log('📋 Recargando lista de citas...');
+                    await cargarMisCitas();
+                }
+                
+                // Si estamos en Agendar y tenemos fecha seleccionada, actualizar horas
+                if (estaEnAgendar && selectedDate) {
+                    console.log('📅 Actualizando horas disponibles...');
+                    await generateHoras(selectedDate);
+                }
+                
+                showAlert('📢 Se detectaron cambios en las citas', 'info', 3000);
+            }
+            
+        } catch (error) {
+            console.error('❌ Error en polling de citas:', error);
+        }
+    }, INTERVALO_POLLING_CITAS);
+}
+
+async function verificarCambiosEnCitas() {
+    try {
+        console.log('🔍 Verificando cambios en base de datos...');
+        
+        // Obtener el conteo más reciente de citas del usuario
+        let conteoActual = 0;
+        let estadoHash = '';
+        
+        const { data: userData } = await supabase
+            .from('clientes')
+            .select('rol')
+            .eq('id', usuarioActual.id)
+            .single();
+        
+        const esAdmin = userData?.rol === 'admin';
+        
+        if (esAdmin) {
+            // Para admin: obtener conteo de TODAS las citas
+            const { count, error } = await supabase
+                .from('citas')
+                .select('*', { count: 'exact', head: true });
+                
+            if (!error) {
+                conteoActual = count || 0;
+                // También obtener un hash de las últimas citas para detectar cambios
+                const { data: ultimasCitas } = await supabase
+                    .from('citas')
+                    .select('id, estado, actualizado_en')
+                    .order('actualizado_en', { ascending: false })
+                    .limit(5);
+                    
+                if (ultimasCitas) {
+                    estadoHash = ultimasCitas.map(c => `${c.id}-${c.estado}`).join('|');
+                }
+            }
+        } else {
+            // Para usuario normal: obtener conteo de SUS citas
+            const { count, error } = await supabase
+                .from('citas')
+                .select('*', { count: 'exact', head: true })
+                .eq('cliente_id', usuarioActual.id);
+                
+            if (!error) {
+                conteoActual = count || 0;
+                // También obtener un hash de las últimas citas
+                const { data: ultimasCitas } = await supabase
+                    .from('citas')
+                    .select('id, estado, actualizado_en')
+                    .eq('cliente_id', usuarioActual.id)
+                    .order('actualizado_en', { ascending: false })
+                    .limit(5);
+                    
+                if (ultimasCitas) {
+                    estadoHash = ultimasCitas.map(c => `${c.id}-${c.estado}`).join('|');
+                }
+            }
+        }
+        
+        // Comparar con el último estado guardado
+        const ultimoEstado = window.ultimoEstadoCitas || { conteo: 0, hash: '' };
+        
+        console.log(`📊 Comparación: Anterior ${ultimoEstado.conteo}/${ultimoEstado.hash.substr(0, 20)}... vs Actual ${conteoActual}/${estadoHash.substr(0, 20)}...`);
+        
+        const hayCambios = (ultimoEstado.conteo !== conteoActual) || (ultimoEstado.hash !== estadoHash);
+        
+        // Guardar nuevo estado
+        window.ultimoEstadoCitas = {
+            conteo: conteoActual,
+            hash: estadoHash,
+            timestamp: Date.now()
+        };
+        
+        return hayCambios;
+        return await verificarCambiosPrecisosEnCitas();
+        
+    } catch (error) {
+        console.error('Error verificando cambios:', error);
+        return false;
+    }
+}
+// Función más precisa para detectar cambios
+async function verificarCambiosPrecisosEnCitas() {
+    try {
+        console.log('🔍 Verificación precisa de cambios...');
+        
+        const { data: userData } = await supabase
+            .from('clientes')
+            .select('rol')
+            .eq('id', usuarioActual.id)
+            .single();
+        
+        const esAdmin = userData?.rol === 'admin';
+        
+        // Obtener las citas más recientes
+        let query = supabase
+            .from('citas')
+            .select('id, estado, actualizado_en, cliente_id')
+            .order('actualizado_en', { ascending: false })
+            .limit(20);
+        
+        if (!esAdmin) {
+            query = query.eq('cliente_id', usuarioActual.id);
+        }
+        
+        const { data: citasRecientes, error } = await query;
+        
+        if (error) throw error;
+        
+        // Calcular un hash simple basado en las citas
+        let hashActual = '';
+        if (citasRecientes && citasRecientes.length > 0) {
+            hashActual = citasRecientes
+                .map(c => `${c.id}-${c.estado}-${c.actualizado_en ? c.actualizado_en.substring(0, 19) : 'null'}`)
+                .join('|');
+        }
+        
+        // Usar un hash más corto para comparar
+        const hashCorto = hashActual.length > 100 ? 
+            hashActual.substring(0, 100) + '...' + hashActual.substring(hashActual.length - 20) : 
+            hashActual;
+        
+        // Comparar con el último hash guardado
+        const ultimoHash = window.ultimoHashCitas || '';
+        
+        console.log(`📊 Hash anterior: ${ultimoHash.substr(0, 50)}...`);
+        console.log(`📊 Hash actual: ${hashCorto.substr(0, 50)}...`);
+        
+        const hayCambios = ultimoHash !== hashActual;
+        
+        // Guardar nuevo hash
+        window.ultimoHashCitas = hashActual;
+        
+        if (hayCambios) {
+            console.log('🔄 Se detectaron cambios en las citas');
+            // También verificar si hay cambios en citas completadas/canceladas
+            await verificarCitasPasadas();
+        }
+        
+        return hayCambios;
+        
+    } catch (error) {
+        console.error('Error en verificación precisa:', error);
+        return false;
+    }
+}
+function detenerPollingCitas() {
+    if (intervaloPollingCitas) {
+        clearInterval(intervaloPollingCitas);
+        intervaloPollingCitas = null;
+        pollingCitasActivo = false;
+        console.log('⏸️ Polling de citas detenido');
+    }
+}
+
+async function forzarVerificacionCitas() {
+    console.log('🔄 Forzando verificación de citas...');
+    ultimaActualizacionCitas = 0; // Resetear para forzar actualización
+    const hayCambios = await verificarCambiosEnCitas();
+    
+    if (hayCambios) {
+        await precargarCitasFuturas();
+        await cargarMisCitas();
+        showAlert('✅ Citas actualizadas', 'success', 2000);
+    } else {
+        showAlert('📭 No hay cambios en las citas', 'info', 2000);
+    }
+}
+
+
+// ============ BOTÓN DE ACTUALIZACIÓN MANUAL ============
+
+function agregarBotonActualizarCitas() {
+    // Verificar si ya existe
+    if (document.getElementById('btnActualizarCitas')) {
+        return;
+    }
+    
+    // Buscar el contenedor de Mis Citas
+    const misCitasTab = document.getElementById('mis-citas');
+    if (!misCitasTab) return;
+    
+    // Crear botón flotante
+    const btnActualizar = document.createElement('button');
+    btnActualizar.id = 'btnActualizarCitas';
+    btnActualizar.className = 'btn-actualizar-citas';
+    btnActualizar.innerHTML = `
+        <span class="btn-actualizar-icon">🔄</span>
+        <span class="btn-actualizar-text">Actualizar</span>
+    `;
+    btnActualizar.title = 'Actualizar lista de citas';
+    
+    // Estilos inline
+    btnActualizar.style.cssText = `
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+        color: #000;
+        border: none;
+        border-radius: 50px;
+        padding: 12px 20px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        z-index: 999;
+        transition: all 0.3s ease;
+    `;
+    
+    // Efecto hover
+    btnActualizar.onmouseenter = function() {
+        this.style.transform = 'translateY(-2px)';
+        this.style.boxShadow = '0 6px 20px rgba(212, 175, 55, 0.4)';
+    };
+    
+    btnActualizar.onmouseleave = function() {
+        this.style.transform = 'translateY(0)';
+        this.style.boxShadow = '0 4px 15px rgba(212, 175, 55, 0.3)';
+    };
+    
+    // Evento clic
+    btnActualizar.onclick = async function() {
+        // Deshabilitar temporalmente
+        btnActualizar.disabled = true;
+        btnActualizar.style.opacity = '0.7';
+        btnActualizar.innerHTML = '<span class="btn-actualizar-icon">⏳</span>';
+        
+        await forzarVerificacionCitas();
+        
+        // Rehabilitar después de 2 segundos
+        setTimeout(() => {
+            btnActualizar.disabled = false;
+            btnActualizar.style.opacity = '1';
+            btnActualizar.innerHTML = `
+                <span class="btn-actualizar-icon">🔄</span>
+                <span class="btn-actualizar-text">Actualizar</span>
+            `;
+        }, 2000);
+    };
+    
+    // Agregar al body
+    document.body.appendChild(btnActualizar);
+    
+    // Mostrar/ocultar según la pestaña activa
+    const observer = new MutationObserver(() => {
+        const estaEnMisCitas = document.getElementById('mis-citas').classList.contains('active');
+        btnActualizar.style.display = estaEnMisCitas ? 'flex' : 'none';
+    });
+    
+    observer.observe(document.getElementById('mis-citas'), { attributes: true, attributeFilter: ['class'] });
+}
+
 
 function iniciarPollingInteligente() {
     // Limpiar intervalo anterior si existe
@@ -7980,6 +8351,35 @@ function resetearFiltrosAdmin() {
         // Limpiar completamente el contenedor
         listaCitas.innerHTML = '';
         
+        // Agregar información de última actualización
+        const ahora = new Date();
+        const horaActualizacion = ahora.toLocaleTimeString('es-MX', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        // Buscar o crear el indicador de actualización
+        let actualizacionIndicator = document.createElement('div');
+        actualizacionIndicator.id = 'actualizacion-indicator';
+        actualizacionIndicator.style.cssText = `
+            text-align: center;
+            color: #d4af37;
+            font-size: 12px;
+            margin: 10px 0 20px 0;
+            padding: 8px;
+            background: rgba(212, 175, 55, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        `;
+        
+        // Insertar después del título o al inicio
+        const tituloDiv = document.querySelector('#listaCitas h2') || 
+                        document.querySelector('#listaCitas h3');
+        
         // **1. PRIMERO: Crear el botón de acciones para admin**
         if (esAdmin) {
             const accionesAdminDiv = document.createElement('div');
@@ -7999,6 +8399,32 @@ function resetearFiltrosAdmin() {
             listaCitas.appendChild(accionesAdminDiv);
         }
         
+        // Insertar indicador de actualización después del panel de admin o al inicio
+        if (esAdmin) {
+            // Si hay panel admin, insertar después de él
+            listaCitas.insertBefore(actualizacionIndicator, listaCitas.children[1] ? listaCitas.children[1].nextSibling : null);
+        } else {
+            // Para usuarios normales, insertar al inicio
+            listaCitas.insertBefore(actualizacionIndicator, listaCitas.firstChild);
+        }
+        
+        actualizacionIndicator.innerHTML = `
+            <span>🕐</span>
+            <span>Última actualización: ${horaActualizacion}</span>
+            <button onclick="forzarVerificacionCitas()" style="
+                background: none;
+                border: 1px solid #d4af37;
+                color: #d4af37;
+                padding: 4px 8px;
+                border-radius: 4px;
+                margin-left: 10px;
+                cursor: pointer;
+                font-size: 11px;
+            ">
+                🔄 Actualizar ahora
+            </button>
+        `;
+        
         // Manejo cuando no hay citas
         if (!citas || citas.length === 0) {
             if (esAdmin) {
@@ -8011,14 +8437,15 @@ function resetearFiltrosAdmin() {
                 `;
                 listaCitas.appendChild(emptyStateDiv);
             } else {
-                listaCitas.innerHTML = `
-                    <div class="empty-state">
-                        <div>📅</div>
-                        <h3>No hay citas agendadas</h3>
-                        <p>¡Agenda tu primera cita ahora!</p>
-                        <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
-                    </div>
+                const emptyStateDiv = document.createElement('div');
+                emptyStateDiv.className = 'empty-state';
+                emptyStateDiv.innerHTML = `
+                    <div>📅</div>
+                    <h3>No hay citas agendadas</h3>
+                    <p>¡Agenda tu primera cita ahora!</p>
+                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
                 `;
+                listaCitas.appendChild(emptyStateDiv);
             }
             return;
         }
@@ -8198,15 +8625,16 @@ function resetearFiltrosAdmin() {
         
         const citaElements = htmlCitasList.match(/<div class="cita-card[\s\S]*?<\/div><\/div>/g) || [];
         citaElements.forEach((citaHTML, index) => {
-    const citaDiv = document.createElement('div');
-    citaDiv.className = 'cita-item';
-    citaDiv.style.cssText = `
-        margin-bottom: 25px;
-        animation: fadeIn 0.3s ease ${index * 0.1}s both;
-    `;
-    citaDiv.innerHTML = citaHTML;
-    citasContainer.appendChild(citaDiv);
-});
+            const citaDiv = document.createElement('div');
+            citaDiv.className = 'cita-item';
+            citaDiv.style.cssText = `
+                margin-bottom: 25px;
+                animation: fadeIn 0.3s ease ${index * 0.1}s both;
+            `;
+            citaDiv.innerHTML = citaHTML;
+            citasContainer.appendChild(citaDiv);
+        });
+        
         // Si es admin, guardar las citas originales para filtros
         if (esAdmin) {
             window.adminCitasOriginales = citas;
@@ -8230,6 +8658,39 @@ function resetearFiltrosAdmin() {
             `;
         }
         showAlert('Error al cargar las citas', 'error');
+    }
+}
+
+// Función para forzar la verificación de citas
+async function forzarVerificacionCitas() {
+    try {
+        // Deshabilitar botón temporalmente
+        const btn = document.querySelector('#actualizacion-indicator button');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '⏳ Actualizando...';
+        btn.disabled = true;
+        
+        // Mostrar indicador de carga
+        showAlert('Actualizando citas...', 'info', 2000);
+        
+        // Llamar a la función de carga de citas
+        await cargarMisCitas();
+        
+        // Restaurar botón después de un breve retraso
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            showAlert('Citas actualizadas correctamente', 'success', 2000);
+        }, 500);
+        
+    } catch (error) {
+        console.error('Error forzando verificación:', error);
+        showAlert('Error al actualizar las citas', 'error');
+        
+        // Restaurar botón en caso de error
+        const btn = document.querySelector('#actualizacion-indicator button');
+        btn.innerHTML = '🔄 Actualizar ahora';
+        btn.disabled = false;
     }
 }
 
@@ -10724,10 +11185,25 @@ async function eliminarCita(citaId) {
         ultimaInteraccion = Date.now();
         iniciarPollingInteligente();
         generateHoras(selectedDate);
-    } else {
+        detenerPollingCitas();
+    }else if (pestanaId === 'mis-citas') {
+        // Usuario en Mis Citas - iniciar polling de citas
+        console.log('📋 Cambiando a Mis Citas - Iniciando polling de citas');
+        iniciarPollingCitas();
+        
+        // Detener polling de agendar
+        detenerPolling();
+        
+        // Forzar una actualización inmediata
+        setTimeout(async () => {
+            await precargarCitasFuturas();
+            await cargarMisCitas();
+        }, 300);
+     } else {
         // Usuario no está en agendar - detener polling
         console.log(`⏸️ Cambiando a pestaña ${pestanaId} - Deteniendo polling`);
         detenerPolling();
+        detenerPollingCitas();
     }
             }
 
@@ -10769,6 +11245,7 @@ async function eliminarCita(citaId) {
     try {
         // Detener todos los intervalos
         detenerPolling();
+        detenerPollingCitas();
         
         if (intervaloInactividad) {
             clearInterval(intervaloInactividad);
@@ -10784,6 +11261,11 @@ async function eliminarCita(citaId) {
                 clearInterval(intervalosContador[id]);
             }
         }
+
+        const btnActualizar = document.getElementById('btnActualizarCitas');
+        if (btnActualizar) {
+            btnActualizar.remove();
+        }
         
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
@@ -10797,26 +11279,26 @@ async function eliminarCita(citaId) {
 
             // ============ INICIALIZACIÓN ============
 
-            async function verificarAutenticacion() {
-        try {
-            const { data: { session }, error } = await supabase.auth.getSession();
-            
-            if (error) throw error;
-            
-            if (!session) {
-                window.location.href = 'index.html';
-                return;
-            }
+async function verificarAutenticacion() {
+    try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+        
+        if (!session) {
+            window.location.href = 'index.html';
+            return;
+        }
 
-            usuarioActual = session.user;
-            miUsuarioId = usuarioActual.id;
+        usuarioActual = session.user;
+        miUsuarioId = usuarioActual.id;
 
-            const { data: userData, error: userError } = await supabase
+        const { data: userData, error: userError } = await supabase
             .from('clientes')
             .select('rol')
             .eq('id', usuarioActual.id)
             .single();
-            
+        
         const esAdmin = userData?.rol === 'admin';
 
         if (esAdmin) {
@@ -10828,168 +11310,369 @@ async function eliminarCita(citaId) {
             }
         }
 
-            console.log('🌍 Información de zona horaria:');
-            console.log('   - Zona horaria del navegador:', Intl.DateTimeFormat().resolvedOptions().timeZone);
-            console.log('   - Hora actual navegador:', new Date().toLocaleString('es-MX'));
-            console.log('   - Hora Yucatán (calculada):', getCurrentTimeYucatan());
-            console.log('   - Hora Yucatán (ISO):', getCurrentISOTimeYucatan());
-            configurarDropdownPerfil();
+        console.log('🌍 Información de zona horaria:');
+        console.log('   - Zona horaria del navegador:', Intl.DateTimeFormat().resolvedOptions().timeZone);
+        console.log('   - Hora actual navegador:', new Date().toLocaleString('es-MX'));
+        console.log('   - Hora Yucatán (calculada):', getCurrentTimeYucatan());
+        console.log('   - Hora Yucatán (ISO):', getCurrentISOTimeYucatan());
+        
+        configurarDropdownPerfil();
 
-// Cargar datos del usuario en el dropdown
-            cargarDatosUsuarioDropdown();
+        // Cargar datos del usuario en el dropdown
+        cargarDatosUsuarioDropdown();
 
-            iniciarDeteccionActividad();
-            iniciarControlVisibilidad();
+        iniciarDeteccionActividad();
+        iniciarControlVisibilidad();
 
-            await debugSolicitudesTemporales();
+        await debugSolicitudesTemporales();
+        await limpiarSolicitudesCorruptas();
 
-            await limpiarSolicitudesCorruptas();
+        // Inicializar variables de control
+        pollingActivo = true;
+        reservaActiva = null;
+        timeoutReserva = null;
+        bloqueoLlamadaEnProgreso = false;
+        
+        console.log('👤 Usuario ID:', miUsuarioId);
 
-            // Inicializar variables de control
-            pollingActivo = true;
-            reservaActiva = null;
-            timeoutReserva = null;
-            bloqueoLlamadaEnProgreso = false;
-            
-            console.log('👤 Usuario ID:', miUsuarioId);
+        await cargarBarberoFijo();
+        await cargarServicios();
 
-            await cargarBarberoFijo();
-            await cargarServicios();
+        await verificarCitasPasadas();
+        await cargarMisCitas();
+        await precargarCitasFuturas();
+        
+        currentMonth = new Date();
+        generateCalendar(currentMonth);
+        habilitarCalendario();
 
+        inicializarEmailJS();
+        iniciarPollingInteligente();
+        iniciarLimpiezaPeriodica();
+        iniciarVerificadorPeriodicoReservas();
+        iniciarLimpiezaAutomaticaBotones();
+
+        // Inicializar estado de citas para verificación de cambios
+        window.ultimoEstadoCitas = {
+            conteo: 0,
+            hash: '',
+            timestamp: 0
+        };
+        
+        // Agregar botón de actualización en la interfaz
+        setTimeout(() => {
+            agregarBotonActualizarCitas();
+        }, 2000);
+        
+        // Iniciar polling de citas si estamos en esa pestaña
+        if (document.getElementById('mis-citas').classList.contains('active')) {
+            setTimeout(() => {
+                iniciarPollingCitas();
+            }, 1000);
+        }
+        
+        console.log('✅ Sistema de verificación de citas configurado');
+
+        // Intervalo para depuración del estado
+        setInterval(() => {
+            if (selectedDate) {
+                const fecha = formatDate(selectedDate);
+                console.log(`=== ESTADO ACTUAL ===`);
+                console.log(`📅 Fecha seleccionada: ${fecha}`);
+                console.log(`📊 Reservas en memoria: ${solicitudesPendientes.size}`);
+                console.log(`🎯 Reserva activa: ${reservaActiva ? `${reservaActiva.fecha} ${reservaActiva.hora}` : 'Ninguna'}`);
+                console.log(`⏰ Polling activo: ${pollingActivo}`);
+                console.log(`📱 Calendario habilitado: ${calendarioHabilitado}`);
+
+                console.log('📋 Reservas activas:');
+                for (const [clave, reserva] of solicitudesPendientes.entries()) {
+                    const tiempoRestante = reserva.expira_en.getTime() - Date.now();
+                    console.log(`   - ${clave}: usuario=${reserva.usuarioId}, expira en ${Math.floor(tiempoRestante/1000)}s`);
+                }
+                
+                // Verificar si hay horas visibles
+                const horasGrid = document.getElementById('horasGrid');
+                if (horasGrid) {
+                    const botones = horasGrid.querySelectorAll('.hora-btn');
+                    console.log(`🎯 Botones en UI: ${botones.length}`);
+                    
+                    // Verificar estados de algunos botones
+                    if (botones.length > 0) {
+                        console.log('🔍 Estados de primeros 3 botones:');
+                        botones.forEach((btn, index) => {
+                            if (index < 3) {
+                                console.log(`${index + 1}. ${btn.dataset.hora} - Clases: ${btn.className}`);
+                            }
+                        });
+                    }
+                }
+            }
+        }, 5000);
+
+        // Verificación periódica de citas pasadas
+        setInterval(async () => {
+            try {
+                await verificarCitasPasadas();
+            } catch (error) {
+                console.error('Error en verificación periódica de citas:', error);
+            }
+        }, 60000); // Cada minuto
+
+        // Configurar eventos
+        document.addEventListener('visibilitychange', async () => {
+            if (!document.hidden && selectedDate) {
+                console.log('👀 Pestaña visible - sincronizando...');
+                await sincronizarEstadosHoras();
+            }
+        });
+
+        // Configurar evento para el botón dentro de la lista de citas
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'btnAgregarCitaDesdeLista') {
+                cambiarPestana('agendar');
+            }
+        });
+
+        // Event listeners para botones
+        const prevMonthBtn = document.getElementById('prevMonth');
+        const nextMonthBtn = document.getElementById('nextMonth');
+        const logoutBtn = document.getElementById('logoutBtn');
+        
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                cerrarSesion();
+            });
+        }
+        
+        const btnAgendarCita = document.getElementById('btnAgendarCita');
+        
+        if (prevMonthBtn) {
+            prevMonthBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!calendarioHabilitado) return;
+                currentMonth.setMonth(currentMonth.getMonth() - 1);
+                generateCalendar(currentMonth);
+            });
+        }
+        
+        if (nextMonthBtn) {
+            nextMonthBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!calendarioHabilitado) return;
+                currentMonth.setMonth(currentMonth.getMonth() + 1);
+                generateCalendar(currentMonth);
+            });
+        }
+        
+        if (btnAgendarCita) {
+            btnAgendarCita.addEventListener('click', agendarCita);
+        }
+        
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                cambiarPestana(this.dataset.tab);
+            });
+        });
+
+        console.log('✅ Sistema de sincronización iniciado correctamente');
+
+    } catch (error) {
+        console.error('Error de autenticación:', error);
+        window.location.href = 'index.html';
+    }
+}
+
+// Función para agregar botón de actualización global
+function agregarBotonActualizarCitas() {
+    const header = document.querySelector('header');
+    if (!header) return;
+    
+    // Verificar si ya existe el botón
+    if (document.getElementById('btn-actualizar-global')) return;
+    
+    const btnActualizar = document.createElement('button');
+    btnActualizar.id = 'btn-actualizar-global';
+    btnActualizar.innerHTML = '🔄 Actualizar Citas';
+    btnActualizar.title = 'Actualizar todas las citas manualmente';
+    btnActualizar.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1000;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    `;
+    
+    btnActualizar.addEventListener('mouseenter', () => {
+        btnActualizar.style.transform = 'translateY(-2px)';
+        btnActualizar.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.6)';
+    });
+    
+    btnActualizar.addEventListener('mouseleave', () => {
+        btnActualizar.style.transform = 'translateY(0)';
+        btnActualizar.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+    });
+    
+    btnActualizar.addEventListener('click', async () => {
+        btnActualizar.innerHTML = '⏳ Actualizando...';
+        btnActualizar.disabled = true;
+        
+        try {
+            await cargarMisCitas();
+            showAlert('Citas actualizadas correctamente', 'success', 2000);
+        } catch (error) {
+            console.error('Error actualizando citas:', error);
+            showAlert('Error al actualizar citas', 'error');
+        } finally {
+            setTimeout(() => {
+                btnActualizar.innerHTML = '🔄 Actualizar Citas';
+                btnActualizar.disabled = false;
+            }, 1000);
+        }
+    });
+    
+    header.appendChild(btnActualizar);
+}
+
+// Función para iniciar polling automático de citas
+function iniciarPollingCitas() {
+    if (window.citasPollingInterval) {
+        clearInterval(window.citasPollingInterval);
+    }
+    
+    // Polling cada 30 segundos solo cuando esté en la pestaña de citas
+    window.citasPollingInterval = setInterval(async () => {
+        const misCitasTab = document.getElementById('mis-citas');
+        if (misCitasTab && misCitasTab.classList.contains('active')) {
+            console.log('🔄 Polling automático de citas...');
             await verificarCitasPasadas();
             await cargarMisCitas();
-            await precargarCitasFuturas();
-            
-            currentMonth = new Date();
-            generateCalendar(currentMonth);
-            habilitarCalendario();
-
-            inicializarEmailJS();
-            iniciarPollingInteligente();
-            iniciarLimpiezaPeriodica();
-            iniciarVerificadorPeriodicoReservas();
-            iniciarLimpiezaAutomaticaBotones();
-
-            setInterval(() => {
-    if (selectedDate) {
-        const fecha = formatDate(selectedDate);
-        console.log(`=== ESTADO ACTUAL ===`);
-        console.log(`📅 Fecha seleccionada: ${fecha}`);
-        console.log(`📊 Reservas en memoria: ${solicitudesPendientes.size}`);
-        console.log(`🎯 Reserva activa: ${reservaActiva ? `${reservaActiva.fecha} ${reservaActiva.hora}` : 'Ninguna'}`);
-        console.log(`⏰ Polling activo: ${pollingActivo}`);
-        console.log(`📱 Calendario habilitado: ${calendarioHabilitado}`);
-
-         console.log('📋 Reservas activas:');
-        for (const [clave, reserva] of solicitudesPendientes.entries()) {
-            const tiempoRestante = reserva.expira_en.getTime() - Date.now();
-            console.log(`   - ${clave}: usuario=${reserva.usuarioId}, expira en ${Math.floor(tiempoRestante/1000)}s`);
         }
-        // Verificar si hay horas visibles
-        const horasGrid = document.getElementById('horasGrid');
-        if (horasGrid) {
-            const botones = horasGrid.querySelectorAll('.hora-btn');
-            console.log(`🎯 Botones en UI: ${botones.length}`);
-            
-            // Verificar estados de algunos botones
-            if (botones.length > 0) {
-                console.log('🔍 Estados de primeros 3 botones:');
-                botones.forEach((btn, index) => {
-                    if (index < 3) {
-                        console.log(`${index + 1}. ${btn.dataset.hora} - Clases: ${btn.className}`);
-                    }
-                });
-            }
-        }
-    }
-}, 5000);
-
-            setInterval(async () => {
-                try {
-                    await verificarCitasPasadas();
-                } catch (error) {
-                    console.error('Error en verificación periódica de citas:', error);
-                }
-            }, 60000); // Cada minuto
-
-            // Configurar eventos
-            document.addEventListener('visibilitychange', async () => {
-                if (!document.hidden && selectedDate) {
-                    console.log('👀 Pestaña visible - sincronizando...');
-                    await sincronizarEstadosHoras();
-                }
-            });
-
-            // Configurar evento para el botón dentro de la lista de citas
-            document.addEventListener('click', function(e) {
-                if (e.target && e.target.id === 'btnAgregarCitaDesdeLista') {
-                    cambiarPestana('agendar');
-                }
-            });
-
-            // Event listeners para botones
-            const prevMonthBtn = document.getElementById('prevMonth');
-            const nextMonthBtn = document.getElementById('nextMonth');
-            const logoutBtn = document.getElementById('logoutBtn');
-if (logoutBtn) {
-    logoutBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        cerrarSesion();
-    });
+    }, 30000); // 30 segundos
+    
+    console.log('🔄 Polling de citas iniciado (cada 30s)');
 }
-            const btnAgendarCita = document.getElementById('btnAgendarCita');
-            
-            if (prevMonthBtn) {
-                prevMonthBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    if (!calendarioHabilitado) return;
-                    currentMonth.setMonth(currentMonth.getMonth() - 1);
-                    generateCalendar(currentMonth);
-                });
-            }
-            
-            if (nextMonthBtn) {
-                nextMonthBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    if (!calendarioHabilitado) return;
-                    currentMonth.setMonth(currentMonth.getMonth() + 1);
-                    generateCalendar(currentMonth);
-                });
-            }
-            
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', cerrarSesion);
-            }
-            
-            if (btnAgendarCita) {
-                btnAgendarCita.addEventListener('click', agendarCita);
-            }
-            
-            document.querySelectorAll('.nav-tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    cambiarPestana(this.dataset.tab);
-                });
-            });
 
-            console.log('✅ Sistema de sincronización iniciado correctamente');
-
-            // Agrega esto al final de verificarAutenticacion()
-
-
-        } catch (error) {
-            console.error('Error de autenticación:', error);
-            window.location.href = 'index.html';
-        }
+// Función para detener el polling de citas
+function detenerPollingCitas() {
+    if (window.citasPollingInterval) {
+        clearInterval(window.citasPollingInterval);
+        window.citasPollingInterval = null;
+        console.log('🛑 Polling de citas detenido');
     }
+}
+
+// Función para calcular hash del estado de citas
+function calcularHashCitas(citas) {
+    if (!citas || citas.length === 0) return 'empty';
+    
+    // Crear un string con información clave de cada cita
+    const datosHash = citas.map(cita => 
+        `${cita.id}_${cita.estado}_${cita.fecha}_${cita.hora}`
+    ).join('|');
+    
+    // Crear un hash simple
+    let hash = 0;
+    for (let i = 0; i < datosHash.length; i++) {
+        const char = datosHash.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convertir a 32-bit integer
+    }
+    
+    return Math.abs(hash).toString(16);
+}
+
+// Función para verificar cambios en citas
+async function verificarCambiosCitas() {
+    try {
+        // Obtener estado actual de citas
+        const { data: userData } = await supabase
+            .from('clientes')
+            .select('rol')
+            .eq('id', usuarioActual.id)
+            .single();
+            
+        const esAdmin = userData?.rol === 'admin';
+        
+        let citasActuales;
+        
+        if (esAdmin) {
+            const { data } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('es_bloque', false)
+                .order('fecha', { ascending: false })
+                .order('hora', { ascending: false });
+            citasActuales = data || [];
+        } else {
+            const { data } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('cliente_id', usuarioActual.id)
+                .eq('es_bloque', false)
+                .order('fecha', { ascending: false });
+            citasActuales = data || [];
+        }
+        
+        // Calcular nuevo hash
+        const nuevoConteo = citasActuales.length;
+        const nuevoHash = calcularHashCitas(citasActuales);
+        
+        // Comparar con estado anterior
+        if (!window.ultimoEstadoCitas) {
+            window.ultimoEstadoCitas = {
+                conteo: nuevoConteo,
+                hash: nuevoHash,
+                timestamp: Date.now()
+            };
+            return false;
+        }
+        
+        const huboCambios = 
+            window.ultimoEstadoCitas.conteo !== nuevoConteo ||
+            window.ultimoEstadoCitas.hash !== nuevoHash;
+        
+        if (huboCambios) {
+            console.log('🔄 Cambios detectados en citas:', {
+                anterior: window.ultimoEstadoCitas,
+                actual: { conteo: nuevoConteo, hash: nuevoHash }
+            });
+            
+            // Actualizar estado
+            window.ultimoEstadoCitas = {
+                conteo: nuevoConteo,
+                hash: nuevoHash,
+                timestamp: Date.now()
+            };
+            
+            return true;
+        }
+        
+        return false;
+        
+    } catch (error) {
+        console.error('Error verificando cambios en citas:', error);
+        return false;
+    }
+}
 
     window.filtrarCitasAdmin = filtrarCitasAdmin;
     window.resetearFiltrosAdmin = resetearFiltrosAdmin;
     window.formatDate = formatDate;
 
             // ============ API PÚBLICA ============
-
-           // ============ API PÚBLICA ============
 
 window.app = {
     cancelarCita,
