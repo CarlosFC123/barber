@@ -8411,7 +8411,7 @@ function resetearFiltrosAdmin() {
         actualizacionIndicator.innerHTML = `
             <span>🕐</span>
             <span>Última actualización: ${horaActualizacion}</span>
-            <button onclick="forzarVerificacionCitas()" style="
+            <button onclick="app.forzarVerificacionCitas()" style="
                 background: none;
                 border: 1px solid #d4af37;
                 color: #d4af37;
@@ -11700,7 +11700,12 @@ window.app = {
     cambiarEstadoCitaBloque: cambiarEstadoCita, // Reutiliza para bloques
     verDetallesBloque: verDetallesCita, // Reutiliza para bloques
     cancelarBloqueAdmin: cancelarCita, // Reutiliza para bloques
-    eliminarBloqueAdmin: eliminarCita // Reutiliza para bloques
+    eliminarBloqueAdmin: eliminarCita, // Reutiliza para bloques
+    forzarVerificacionCitas,
+    iniciarPollingCitas,
+    detenerPollingCitas,
+    agregarBotonActualizarCitas
+
 };
             // ============ EJECUCIÓN ============
 
