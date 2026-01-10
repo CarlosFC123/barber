@@ -3,15 +3,43 @@ name: Clean Old Notifications
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Ejecutar diariamente a medianoche
+    - cron: '0 0 * * *'  # Ejecutar diariamente a medianoche UTC
   workflow_dispatch:      # Permitir ejecución manual
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - name: Clean notifications older than 24h
+      - name: Test connection first
         run: |
-          curl -X POST 'https://nllllvztipbrhryzxamm.supabase.co/functions/v1/clean-notifications' \
-          -H 'Authorization: Bearer [SUPABASE_SERVICE_ROLE_KEY]' \
-          -H 'Content-Type: application/json'
+          # Probar la conexión primero
+          echo "Testing Supabase connection..."
+          curl -X GET "https://nllllvztipbrhryzxamm.supabase.co/rest/v1/" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            --silent --output /dev/null --write-out "%{http_code}\n"
+          
+      - name: Clean old notifications
+        run: |
+          echo "Calling clean-notifications function..."
+          
+          RESPONSE=$(curl -X POST \
+            "https://nllllvztipbrhryzxamm.supabase.co/functions/v1/clean-notifications" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            --silent)
+          
+          # Separar el cuerpo de la respuesta del estado HTTP
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
+          STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          
+          echo "Response status: $STATUS"
+          echo "Response body: $BODY"
+          
+          if [ "$STATUS" != "200" ]; then
+            echo "Error: Function returned status $STATUS"
+            exit 1
+          fi
+          
+          echo "Success! $BODY"
