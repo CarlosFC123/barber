@@ -1,0 +1,17 @@
+# .github/workflows/clean-notifications.yml
+name: Clean Old Notifications
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Ejecutar diariamente a medianoche
+  workflow_dispatch:      # Permitir ejecución manual
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean notifications older than 24h
+        run: |
+          curl -X POST 'https://[tu-proyecto].supabase.co/functions/v1/clean-notifications' \
+          -H 'Authorization: Bearer [TU_SERVICE_ROLE_KEY]' \
+          -H 'Content-Type: application/json'
