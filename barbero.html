@@ -9179,9 +9179,7 @@ async function cambiarEstadoCita(citaId) {
                         Estado actual: <span class="estado-${cita.estado}">${cita.estado}</span>
                     </p>
                     <select id="estadoSelect" class="swal2-select" style="width: 100%; padding: 10px; border-radius: 6px; background: #2a2a2a; color: white; border: 1px solid #d4af37;">
-                        <option value="pendiente">⏳ Pendiente</option>
-                        <option value="confirmada">✅ Confirmada</option>
-                        <option value="aceptada">👍 Aceptada</option>
+                        <option value="confirmada">✅ Aceptada</option>
                         <option value="completada">🏁 Completada</option>
                         <option value="cancelada">❌ Cancelada</option>
                     </select>
@@ -9375,14 +9373,7 @@ function eliminarBloqueAdmin(citaId) {
 }
 
 async function eliminarCitaAdmin(citaId) {
-     if (typeof window.app !== 'undefined' && window.app.eliminarCitaAdmin) {
-        return window.app.eliminarCitaAdmin(citaId);
-    } else {
-        console.error('Función eliminarCitaAdmin no disponible');
-    }
-    if (confirm('¿Eliminar permanentemente esta cita?')) {
-        await eliminarCita(citaId);
-    }
+     await eliminarCita(citaId); // Llama directamente a la función existente
 }
 
     async function limpiarCacheDespuesDeAgendar() {
