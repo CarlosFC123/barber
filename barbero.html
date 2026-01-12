@@ -1151,10 +1151,8 @@ body {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; 
-    transform: translateY(15px); }
-    to { opacity: 1; 
-    transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .btn {
@@ -1447,16 +1445,11 @@ input::placeholder {
 }
 
 .cita-item {
-    margin-bottom: 25px !important;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    border: 1px solid #2a2a3e;
+    transition: transform 0.2s ease;
 }
+
 .cita-item:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px);
 }
 
 .cita-card {
@@ -2113,7 +2106,7 @@ h2 {
 }
 
 .seccion-citas {
-    margin-bottom: 30px;
+    margin-bottom: 40px;
 }
 
 .cita-card.futura {
@@ -2123,17 +2116,6 @@ h2 {
 .cita-card.pasada {
     border-left: 4px solid #6c757d;
     opacity: 0.8;
-}
-.seccion-citas h4 {
-    font-size: 1.2rem;
-    font-weight: 600;
-    padding-left: 10px;
-}
-
-#futuras-container, #pasadas-container {
-    display: flex;
-    flex-direction: column;
-    gap: 25px;
 }
 
 .cita-card.pasada .cita-header h3 {
@@ -8690,19 +8672,64 @@ function resetearFiltrosAdmin() {
         });
         
         // Generar HTML para las citas, primero las futuras y luego las pasadas
+        let htmlCitasList = '';
         
+        // **Sección de citas futuras**
+        if (citasFuturas.length > 0) {
+            // Agregar encabezado para citas futuras
+            htmlCitasList += `
+                <div class="seccion-citas">
+                    <h4 style="color: #28a745; margin: 30px 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #28a745;">
+                        <i class="fas fa-calendar-check"></i> Próximas Citas
+                    </h4>
+            `;
+            
+            citasFuturas.forEach((grupo, index) => {
+                if (grupo.es_bloque && grupo.citas.length > 1) {
+                    const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+                    const horasBloque = grupo.citas.map(c => c.hora).sort();
+                    htmlCitasList += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+                } else if (grupo.es_bloque && grupo.citas.length === 1) {
+                    htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+                } else {
+                    htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+                }
+            });
+            
+            htmlCitasList += `</div>`;
+        }
+        
+        // **Sección de citas pasadas**
+        if (citasPasadas.length > 0) {
+            htmlCitasList += `
+                <div class="seccion-citas">
+                    <h4 style="color: #6c757d; margin: 30px 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #6c757d;">
+                        <i class="fas fa-history"></i> Citas Pasadas
+                    </h4>
+            `;
+            
+            citasPasadas.forEach((grupo, index) => {
+                if (grupo.es_bloque && grupo.citas.length > 1) {
+                    const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+                    const horasBloque = grupo.citas.map(c => c.hora).sort();
+                    htmlCitasList += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+                } else if (grupo.es_bloque && grupo.citas.length === 1) {
+                    htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+                } else {
+                    htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+                }
+            });
+            
+            htmlCitasList += `</div>`;
+        }
         
         // Insertar las citas en el contenedor
         const citaElements = htmlCitasList.match(/<div class="cita-card[\s\S]*?<\/div><\/div>/g) || [];
         
-        // **SEXTO: Insertar las citas en el contenedor con separación adecuada**
-if (citasFuturas.length > 0 || citasPasadas.length > 0) {
-    // Limpiar el contenedor primero
-    citasContainer.innerHTML = '';
-    
-    // Procesar citas futuras
+        if (citasFuturas.length > 0 || citasPasadas.length > 0) {
+    // Primero, generar el HTML como antes pero SIN usar htmlCitasList
+    // Crear sección de citas futuras
     if (citasFuturas.length > 0) {
-        // Crear sección de citas futuras
         const seccionFuturas = document.createElement('div');
         seccionFuturas.className = 'seccion-citas';
         seccionFuturas.innerHTML = `
@@ -8712,47 +8739,33 @@ if (citasFuturas.length > 0 || citasPasadas.length > 0) {
         `;
         citasContainer.appendChild(seccionFuturas);
         
-        // Crear contenedor para las citas futuras
-        const futurasContainer = document.createElement('div');
-        futurasContainer.id = 'futuras-container';
-        futurasContainer.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            margin-bottom: 30px;
-        `;
-        citasContainer.appendChild(futurasContainer);
-        
-        // Agregar cada cita futura con su propio contenedor
+        // Agregar cada cita futura
         citasFuturas.forEach((grupo, index) => {
             const citaItem = document.createElement('div');
             citaItem.className = 'cita-item';
             citaItem.style.cssText = `
-                margin-bottom: 20px;
+                margin-bottom: 25px;
                 border-radius: 12px;
                 overflow: hidden;
                 animation: fadeIn 0.5s ease ${index * 0.1}s both;
             `;
             
-            let citaHTML = '';
             if (grupo.es_bloque && grupo.citas.length > 1) {
                 const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
                 const horasBloque = grupo.citas.map(c => c.hora).sort();
-                citaHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+                citaItem.innerHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
             } else if (grupo.es_bloque && grupo.citas.length === 1) {
-                citaHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+                citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
             } else {
-                citaHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+                citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
             }
             
-            citaItem.innerHTML = citaHTML;
-            futurasContainer.appendChild(citaItem);
+            citasContainer.appendChild(citaItem);
         });
     }
     
-    // Procesar citas pasadas
+    // Crear sección de citas pasadas
     if (citasPasadas.length > 0) {
-        // Crear sección de citas pasadas
         const seccionPasadas = document.createElement('div');
         seccionPasadas.className = 'seccion-citas';
         seccionPasadas.innerHTML = `
@@ -8762,40 +8775,28 @@ if (citasFuturas.length > 0 || citasPasadas.length > 0) {
         `;
         citasContainer.appendChild(seccionPasadas);
         
-        // Crear contenedor para las citas pasadas
-        const pasadasContainer = document.createElement('div');
-        pasadasContainer.id = 'pasadas-container';
-        pasadasContainer.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        `;
-        citasContainer.appendChild(pasadasContainer);
-        
-        // Agregar cada cita pasada con su propio contenedor
+        // Agregar cada cita pasada
         citasPasadas.forEach((grupo, index) => {
             const citaItem = document.createElement('div');
             citaItem.className = 'cita-item';
             citaItem.style.cssText = `
-                margin-bottom: 20px;
+                margin-bottom: 25px;
                 border-radius: 12px;
                 overflow: hidden;
                 animation: fadeIn 0.5s ease ${index * 0.1}s both;
             `;
             
-            let citaHTML = '';
             if (grupo.es_bloque && grupo.citas.length > 1) {
                 const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
                 const horasBloque = grupo.citas.map(c => c.hora).sort();
-                citaHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+                citaItem.innerHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
             } else if (grupo.es_bloque && grupo.citas.length === 1) {
-                citaHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+                citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
             } else {
-                citaHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+                citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
             }
             
-            citaItem.innerHTML = citaHTML;
-            pasadasContainer.appendChild(citaItem);
+            citasContainer.appendChild(citaItem);
         });
     }
 } else {
