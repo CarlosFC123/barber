@@ -8724,22 +8724,23 @@ function resetearFiltrosAdmin() {
         }
         
         // Insertar las citas en el contenedor
-        const citaElements = htmlCitasList.match(/<div class="cita-card[\s\S]*?<\/div><\/div>/g) || [];
-        
-        if (citaElements.length === 0) {
-            citasContainer.innerHTML = htmlCitasList;
-        } else {
-            // Si hay múltiples elementos, insertarlos con animación
+       
+        if (citasFuturass.length > 0 || citasPasadas.length > 0) {
+            const citaElements = htmlCitasList.match(/<div class="cita-card[\s\S]*?<\/div><\/div>/g) || [];
             citaElements.forEach((citaHTML, index) => {
-                const citaDiv = document.createElement('div');
-                citaDiv.className = 'cita-item';
-                citaDiv.style.cssText = `
-                    margin-bottom: 25px;
-                    animation: fadeIn 0.3s ease ${index * 0.1}s both;
-                `;
-                citaDiv.innerHTML = citaHTML;
-                citasContainer.appendChild(citaDiv);
-            });
+        if (citaHTML.trim()) {
+            const citaWrapper = document.createElement('div');
+            citaWrapper.className = 'cita-wrapper';
+            citaWrapper.style.cssText = `
+                margin-bottom: 25px;
+                border-radius: 12px;
+                overflow: hidden;
+                animation: fadeIn 0.3s ease ${index * 0.1}s both;
+            `;
+            citaWrapper.innerHTML = citaHTML;
+            citasContainer.appendChild(citaWrapper);
+        }
+    });    
         }
         
         // Si es admin, guardar las citas originales para filtros
@@ -8917,6 +8918,7 @@ function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) 
     const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
     
     return `
+        <!-- Separador de Cita -->
         <div class="cita-card bloque-cita ${citaPrincipal.estado} ${esAdmin ? 'admin-cita' : ''}" 
              data-cita-id="${citaPrincipal.id}" 
              data-fecha="${citaPrincipal.fecha}" 
@@ -9010,6 +9012,7 @@ function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
     });
     
     return `
+        <!-- Separador -->
         <div class="cita-card ${cita.estado} ${esAdmin ? 'admin-cita' : ''} ${citaPasada ? 'pasada' : 'futura'}" 
              id="cita-${cita.id}" 
              data-cita-id="${cita.id}" 
