@@ -8724,7 +8724,6 @@ function resetearFiltrosAdmin() {
         }
         
         // Insertar las citas en el contenedor
-        const citaElements = htmlCitasList.match(/<div class="cita-card[\s\S]*?<\/div><\/div>/g) || [];
         
         if (citasFuturas.length > 0 || citasPasadas.length > 0) {
     // Primero, generar el HTML como antes pero SIN usar htmlCitasList
