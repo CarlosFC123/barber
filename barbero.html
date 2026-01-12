@@ -8725,7 +8725,7 @@ function resetearFiltrosAdmin() {
         
         // Insertar las citas en el contenedor
        
-        if (citasFuturass.length > 0 || citasPasadas.length > 0) {
+        if (citasFuturas.length > 0 || citasPasadas.length > 0) {
             const citaElements = htmlCitasList.match(/<div class="cita-card[\s\S]*?<\/div><\/div>/g) || [];
             citaElements.forEach((citaHTML, index) => {
         if (citaHTML.trim()) {
