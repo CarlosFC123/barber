@@ -9494,7 +9494,9 @@ async function eliminarCita(citaId) {
             await cargarBarberoFijo();
             await cargarServicios();
 
-            //await verificarCitasPasadas();
+            
+            console.log('✅ Sistema iniciado - Verificación automática de citas desactivada');
+
             await cargarMisCitas();
             await precargarCitasFuturas();
             
@@ -9542,14 +9544,7 @@ async function eliminarCita(citaId) {
     }
 }, 5000);
 
-            // setInterval(async () => {
-            //     try {
-            //         await verificarCitasPasadas();
-            //     } catch (error) {
-            //         console.error('Error en verificación periódica de citas:', error);
-            //     }
-            // }, 60000); // Cada minuto
-
+            
             // Configurar eventos
             document.addEventListener('visibilitychange', async () => {
                 if (!document.hidden && selectedDate) {
