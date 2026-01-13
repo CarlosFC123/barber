@@ -8759,106 +8759,106 @@ async function cancelarCita(citaId) {
         });
     }
 }
-   async function verificarCitasPasadas() {
-    try {
-        // Obtener hora LOCAL actual
-        const ahoraLocal = new Date();
-        console.log('🕐 Verificando citas pasadas...');
-        console.log('   - Hora LOCAL:', ahoraLocal.toLocaleString('es-MX'));
+//    async function verificarCitasPasadas() {
+//     try {
+//         // Obtener hora LOCAL actual
+//         const ahoraLocal = new Date();
+//         console.log('🕐 Verificando citas pasadas...');
+//         console.log('   - Hora LOCAL:', ahoraLocal.toLocaleString('es-MX'));
         
-        // Buscar todas las citas activas del usuario
-        const { data: citasActivas, error } = await supabase
-            .from('citas')
-            .select('id, fecha, hora, estado, hora_principal, duracion, notas')
-            .eq('cliente_id', usuarioActual.id)
-            .in('estado', ['aceptada', 'pendiente', 'confirmada']);
+//         // Buscar todas las citas activas del usuario
+//         const { data: citasActivas, error } = await supabase
+//             .from('citas')
+//             .select('id, fecha, hora, estado, hora_principal, duracion, notas')
+//             .eq('cliente_id', usuarioActual.id)
+//             .in('estado', ['aceptada', 'pendiente', 'confirmada']);
             
-        if (error) throw error;
+//         if (error) throw error;
         
-        if (citasActivas && citasActivas.length > 0) {
-            const citasYaProcesadas = new Set(); // Para evitar procesar la misma cita múltiples veces
+//         if (citasActivas && citasActivas.length > 0) {
+//             const citasYaProcesadas = new Set(); // Para evitar procesar la misma cita múltiples veces
             
-            for (const cita of citasActivas) {
-                // Si ya procesamos esta cita (por ejemplo, como parte de un bloque), saltarla
-                if (citasYaProcesadas.has(cita.id)) {
-                    continue;
-                }
+//             for (const cita of citasActivas) {
+//                 // Si ya procesamos esta cita (por ejemplo, como parte de un bloque), saltarla
+//                 if (citasYaProcesadas.has(cita.id)) {
+//                     continue;
+//                 }
                 
-                // Convertir fecha/hora de la cita a objeto Date (ya está en hora local)
-                const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
+//                 // Convertir fecha/hora de la cita a objeto Date (ya está en hora local)
+//                 const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
                 
-                console.log(`   - Cita ${cita.id}: ${cita.fecha} ${cita.hora}`);
-                console.log(`     Hora cita (local): ${fechaCita.toLocaleString('es-MX')}`);
-                console.log(`     Hora actual (local): ${ahoraLocal.toLocaleString('es-MX')}`);
-                console.log(`     Pasó? ${ahoraLocal > fechaCita}`);
+//                 console.log(`   - Cita ${cita.id}: ${cita.fecha} ${cita.hora}`);
+//                 console.log(`     Hora cita (local): ${fechaCita.toLocaleString('es-MX')}`);
+//                 console.log(`     Hora actual (local): ${ahoraLocal.toLocaleString('es-MX')}`);
+//                 console.log(`     Pasó? ${ahoraLocal > fechaCita}`);
                 
-                // Verificar si la hora de la cita YA PASÓ (comparación LOCAL)
-                if (ahoraLocal > fechaCita) {
-                    console.log(`✅ Cita ${cita.id} pasó: ${cita.fecha} ${cita.hora}`);
+//                 // Verificar si la hora de la cita YA PASÓ (comparación LOCAL)
+//                 if (ahoraLocal > fechaCita) {
+//                     console.log(`✅ Cita ${cita.id} pasó: ${cita.fecha} ${cita.hora}`);
                     
-                    // Buscar todas las citas del bloque si es parte de un bloque
-                    let todasCitasBloque = [cita];
-                    citasYaProcesadas.add(cita.id);
+//                     // Buscar todas las citas del bloque si es parte de un bloque
+//                     let todasCitasBloque = [cita];
+//                     citasYaProcesadas.add(cita.id);
                     
-                    // Si es hora principal de un bloque (duración 80 minutos)
-                    if ((cita.duracion || 40) === 80) {
-                        // Buscar horas secundarias
-                        for (const otraCita of citasActivas) {
-                            if (otraCita.hora_principal === cita.hora && 
-                                otraCita.fecha === cita.fecha &&
-                                !citasYaProcesadas.has(otraCita.id)) {
-                                todasCitasBloque.push(otraCita);
-                                citasYaProcesadas.add(otraCita.id);
-                            }
-                        }
-                    }
-                    // Si es hora secundaria
-                    else if (cita.hora_principal) {
-                        // Buscar la hora principal
-                        for (const otraCita of citasActivas) {
-                            if (otraCita.hora === cita.hora_principal && 
-                                otraCita.fecha === cita.fecha &&
-                                !citasYaProcesadas.has(otraCita.id)) {
-                                todasCitasBloque.push(otraCita);
-                                citasYaProcesadas.add(otraCita.id);
-                            }
-                        }
-                    }
+//                     // Si es hora principal de un bloque (duración 80 minutos)
+//                     if ((cita.duracion || 40) === 80) {
+//                         // Buscar horas secundarias
+//                         for (const otraCita of citasActivas) {
+//                             if (otraCita.hora_principal === cita.hora && 
+//                                 otraCita.fecha === cita.fecha &&
+//                                 !citasYaProcesadas.has(otraCita.id)) {
+//                                 todasCitasBloque.push(otraCita);
+//                                 citasYaProcesadas.add(otraCita.id);
+//                             }
+//                         }
+//                     }
+//                     // Si es hora secundaria
+//                     else if (cita.hora_principal) {
+//                         // Buscar la hora principal
+//                         for (const otraCita of citasActivas) {
+//                             if (otraCita.hora === cita.hora_principal && 
+//                                 otraCita.fecha === cita.fecha &&
+//                                 !citasYaProcesadas.has(otraCita.id)) {
+//                                 todasCitasBloque.push(otraCita);
+//                                 citasYaProcesadas.add(otraCita.id);
+//                             }
+//                         }
+//                     }
                     
-                    // Marcar todas las citas del bloque como completadas
-                    const idsAMarcar = todasCitasBloque.map(c => c.id);
-                    console.log(`📦 Marcando ${idsAMarcar.length} citas del bloque como completadas: ${idsAMarcar.join(', ')}`);
+//                     // Marcar todas las citas del bloque como completadas
+//                     const idsAMarcar = todasCitasBloque.map(c => c.id);
+//                     console.log(`📦 Marcando ${idsAMarcar.length} citas del bloque como completadas: ${idsAMarcar.join(', ')}`);
                     
-                    // IMPORTANTE: Solo actualizamos el estado
-                    // El trigger se encargará de establecer expira_en automáticamente
-                    const { error: updateError } = await supabase
-                        .from('citas')
-                        .update({
-                            estado: 'completada'
-                        })
-                        .in('id', idsAMarcar);
+//                     // IMPORTANTE: Solo actualizamos el estado
+//                     // El trigger se encargará de establecer expira_en automáticamente
+//                     const { error: updateError } = await supabase
+//                         .from('citas')
+//                         .update({
+//                             estado: 'completada'
+//                         })
+//                         .in('id', idsAMarcar);
                         
-                    if (updateError) throw updateError;
+//                     if (updateError) throw updateError;
                     
-                    console.log(`✅ ${idsAMarcar.length} citas marcadas como completadas`);
-                }
-            }
+//                     console.log(`✅ ${idsAMarcar.length} citas marcadas como completadas`);
+//                 }
+//             }
             
-            if (citasYaProcesadas.size > 0) {
-                console.log('✅ Citas marcadas como completadas - Trigger establecerá expira_en automáticamente');
+//             if (citasYaProcesadas.size > 0) {
+//                 console.log('✅ Citas marcadas como completadas - Trigger establecerá expira_en automáticamente');
                 
-                // Recargar citas y actualizar UI
-                await cargarMisCitas();
-                setTimeout(() => {
-                    iniciarContadoresCitas();
-                }, 500);
-            }
-        }
+//                 // Recargar citas y actualizar UI
+//                 await cargarMisCitas();
+//                 setTimeout(() => {
+//                     iniciarContadoresCitas();
+//                 }, 500);
+//             }
+//         }
         
-    } catch (error) {
-        console.error('Error verificando citas pasadas:', error);
-    }
-}
+//     } catch (error) {
+//         console.error('Error verificando citas pasadas:', error);
+//     }
+// }
 
     async function verificarTimestampsCita(citaId) {
         try {
@@ -9494,7 +9494,7 @@ async function eliminarCita(citaId) {
             await cargarBarberoFijo();
             await cargarServicios();
 
-            await verificarCitasPasadas();
+            //await verificarCitasPasadas();
             await cargarMisCitas();
             await precargarCitasFuturas();
             
@@ -9542,13 +9542,13 @@ async function eliminarCita(citaId) {
     }
 }, 5000);
 
-            setInterval(async () => {
-                try {
-                    await verificarCitasPasadas();
-                } catch (error) {
-                    console.error('Error en verificación periódica de citas:', error);
-                }
-            }, 60000); // Cada minuto
+            // setInterval(async () => {
+            //     try {
+            //         await verificarCitasPasadas();
+            //     } catch (error) {
+            //         console.error('Error en verificación periódica de citas:', error);
+            //     }
+            // }, 60000); // Cada minuto
 
             // Configurar eventos
             document.addEventListener('visibilitychange', async () => {
