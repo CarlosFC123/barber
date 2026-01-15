@@ -8330,6 +8330,8 @@ function resetearFiltrosAdmin() {
             .eq('id', usuarioActual.id)
             .single();
             
+        if (userError) throw userError;
+        
         const esAdmin = userData?.rol === 'admin';
         
         if (esAdmin) {
@@ -8345,12 +8347,12 @@ function resetearFiltrosAdmin() {
                     clientes(nombre, email, telefono)
                 `)
                 .eq('es_bloque', false)
-                .order('fecha', { ascending: true })  // Cambiado a ascendente para ver las más cercanas primero
-                .order('hora', { ascending: true });  // Cambiado a ascendente
+                .order('fecha', { ascending: true })
+                .order('hora', { ascending: true });
             
             if (error) throw error;
             
-            citas = todasCitas;
+            citas = todasCitas || []; // Asegurar array vacío si es null/undefined
         } else {
             console.log('👤 Cargando citas como USUARIO normal');
             
@@ -8364,12 +8366,12 @@ function resetearFiltrosAdmin() {
                 `)
                 .eq('cliente_id', usuarioActual.id)
                 .eq('es_bloque', false)
-                .order('fecha', { ascending: true })  // Cambiado a ascendente
-                .order('hora', { ascending: true });  // Cambiado a ascendente
+                .order('fecha', { ascending: true })
+                .order('hora', { ascending: true });
 
             if (error) throw error;
             
-            citas = misCitas;
+            citas = misCitas || []; // Asegurar array vacío si es null/undefined
         }
 
         const listaCitas = document.getElementById('listaCitas');
@@ -8378,7 +8380,7 @@ function resetearFiltrosAdmin() {
         // Limpiar completamente el contenedor
         listaCitas.innerHTML = '';
         
-        // Agregar información de última actualización - USAR VARIABLE DIFERENTE
+        // Agregar información de última actualización
         const fechaActual = new Date();
         const horaActualizacion = fechaActual.toLocaleTimeString('es-MX', { 
             hour: '2-digit', 
@@ -8386,24 +8388,7 @@ function resetearFiltrosAdmin() {
             second: '2-digit'
         });
         
-        // Buscar o crear el indicador de actualización
-        let actualizacionIndicator = document.createElement('div');
-        actualizacionIndicator.id = 'actualizacion-indicator';
-        actualizacionIndicator.style.cssText = `
-            text-align: center;
-            color: #d4af37;
-            font-size: 12px;
-            margin: 10px 0 20px 0;
-            padding: 8px;
-            background: rgba(212, 175, 55, 0.1);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        `;
-        
-        // **1. PRIMERO: Crear el botón de acciones para admin**
+        // **1. BOTÓN DE ACCIONES PARA ADMIN (siempre visible si es admin)**
         if (esAdmin) {
             const accionesAdminDiv = document.createElement('div');
             accionesAdminDiv.innerHTML = `
@@ -8422,12 +8407,27 @@ function resetearFiltrosAdmin() {
             listaCitas.appendChild(accionesAdminDiv);
         }
         
-        // Insertar indicador de actualización después del panel de admin o al inicio
+        // **2. INDICADOR DE ACTUALIZACIÓN (siempre visible)**
+        const actualizacionIndicator = document.createElement('div');
+        actualizacionIndicator.id = 'actualizacion-indicator';
+        actualizacionIndicator.style.cssText = `
+            text-align: center;
+            color: #d4af37;
+            font-size: 12px;
+            margin: 10px 0 20px 0;
+            padding: 8px;
+            background: rgba(212, 175, 55, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        `;
+        
+        // Insertar indicador después del botón de acciones o al inicio
         if (esAdmin) {
-            // Si hay panel admin, insertar después de él
             listaCitas.insertBefore(actualizacionIndicator, listaCitas.children[1] ? listaCitas.children[1].nextSibling : null);
         } else {
-            // Para usuarios normales, insertar al inicio
             listaCitas.insertBefore(actualizacionIndicator, listaCitas.firstChild);
         }
         
@@ -8448,32 +8448,7 @@ function resetearFiltrosAdmin() {
             </button>
         `;
         
-        // Manejo cuando no hay citas
-        if (!citas || citas.length === 0) {
-            if (esAdmin) {
-                const emptyStateDiv = document.createElement('div');
-                emptyStateDiv.className = 'empty-state';
-                emptyStateDiv.innerHTML = `
-                    <div>📊</div>
-                    <h3>No hay citas en el sistema</h3>
-                    <p>Comienza agendando la primera cita</p>
-                `;
-                listaCitas.appendChild(emptyStateDiv);
-            } else {
-                const emptyStateDiv = document.createElement('div');
-                emptyStateDiv.className = 'empty-state';
-                emptyStateDiv.innerHTML = `
-                    <div>📅</div>
-                    <h3>No hay citas agendadas</h3>
-                    <p>¡Agenda tu primera cita ahora!</p>
-                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')">Agendar Cita</button>
-                `;
-                listaCitas.appendChild(emptyStateDiv);
-            }
-            return;
-        }
-        
-        // **2. SEGUNDO: Si es admin, crear PANEL DE ADMINISTRACIÓN (solo filtros y stats)**
+        // **3. PANEL DE ADMINISTRACIÓN (siempre visible para admin)**
         if (esAdmin) {
             const stats = calcularEstadisticasAdmin(citas);
             
@@ -8553,8 +8528,44 @@ function resetearFiltrosAdmin() {
                 </div>
             `;
             listaCitas.appendChild(adminPanelDiv);
-        } else {
-            // Para usuarios normales
+        }
+        
+        // **4. MANEJO CUANDO NO HAY CITAS**
+        if (!citas || citas.length === 0) {
+            const emptyStateDiv = document.createElement('div');
+            emptyStateDiv.className = 'empty-state';
+            emptyStateDiv.style.marginTop = esAdmin ? '30px' : '0'; // Más espacio si hay panel admin
+            
+            if (esAdmin) {
+                emptyStateDiv.innerHTML = `
+                    <div style="font-size: 64px; margin-bottom: 20px; color: #d4af37;">📊</div>
+                    <h3 style="color: #ffffff; margin-bottom: 15px;">No hay citas en el sistema</h3>
+                    <p style="color: #aaa; margin-bottom: 25px;">Comienza agendando la primera cita</p>
+                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 30px;">
+                        <i class="fas fa-calendar-plus"></i> Agendar Primera Cita
+                    </button>
+                `;
+            } else {
+                emptyStateDiv.innerHTML = `
+                    <div style="font-size: 64px; margin-bottom: 20px; color: #d4af37;">📅</div>
+                    <h3 style="color: #ffffff; margin-bottom: 15px;">No hay citas agendadas</h3>
+                    <p style="color: #aaa; margin-bottom: 25px;">¡Agenda tu primera cita ahora!</p>
+                    <button class="btn btn-primary" onclick="app.cambiarPestana('agendar')" style="font-size: 16px; padding: 12px 30px;">
+                        <i class="fas fa-calendar-plus"></i> Agendar Cita
+                    </button>
+                `;
+            }
+            listaCitas.appendChild(emptyStateDiv);
+            
+            // Para admin, guardar citas vacías para filtros
+            if (esAdmin) {
+                window.adminCitasOriginales = [];
+            }
+            return;
+        }
+        
+        // **5. PANEL PARA USUARIOS NORMALES (si hay citas)**
+        if (!esAdmin) {
             const hayCitasCanceladasOCompletadas = citas.some(c => c.estado === 'cancelada' || c.estado === 'completada');
             const hayCitasActivas = citas.some(c => 
                 c.estado === 'aceptada' || 
@@ -8577,7 +8588,7 @@ function resetearFiltrosAdmin() {
             }
         }
         
-        // **3. TERCERO: Crear TÍTULO DE LISTA DE CITAS (FUERA del panel)**
+        // **6. TÍTULO DE LISTA DE CITAS (solo si hay citas)**
         if (esAdmin) {
             const tituloDiv = document.createElement('div');
             tituloDiv.style.margin = '40px 0 20px 0';
@@ -8591,12 +8602,12 @@ function resetearFiltrosAdmin() {
             listaCitas.appendChild(tituloDiv);
         }
         
-        // **4. CUARTO: Crear CONTENEDOR para las citas (FUERA del panel)**
+        // **7. CONTENEDOR PARA LAS CITAS (solo si hay citas)**
         const citasContainer = document.createElement('div');
         citasContainer.id = 'citas-list-container';
         listaCitas.appendChild(citasContainer);
         
-        // **5. QUINTO: Agrupar las citas**
+        // **8. PROCESAR Y AGRUPAR CITAS**
         const citasAgrupadas = {};
         
         citas.forEach(cita => {
@@ -8634,7 +8645,6 @@ function resetearFiltrosAdmin() {
 
         // **ORDENAR las citas agrupadas por fecha y hora (ascendente)**
         const citasOrdenadas = Object.values(citasAgrupadas).sort((a, b) => {
-            // Obtener fecha y hora para comparación
             const fechaHoraA = a.es_bloque ? 
                 `${a.fecha}_${a.hora_principal}` : 
                 `${a.cita.fecha}_${a.cita.hora}`;
@@ -8643,12 +8653,10 @@ function resetearFiltrosAdmin() {
                 `${b.fecha}_${b.hora_principal}` : 
                 `${b.cita.fecha}_${b.cita.hora}`;
             
-            // Comparar por fecha y hora (ascendente)
             return fechaHoraA.localeCompare(fechaHoraB);
         });
         
         // **SEPARAR citas futuras y pasadas**
-        // CAMBIO: Usar 'ahoraDate' en lugar de 'ahora' para evitar conflicto
         const ahoraDate = getYucatanDateTime(new Date().toISOString().split('T')[0], '00:00');
         const citasFuturas = [];
         const citasPasadas = [];
@@ -8671,150 +8679,97 @@ function resetearFiltrosAdmin() {
             }
         });
         
-        // Generar HTML para las citas, primero las futuras y luego las pasadas
-        let htmlCitasList = '';
-        
-        // **Sección de citas futuras**
-        if (citasFuturas.length > 0) {
-            // Agregar encabezado para citas futuras
-            htmlCitasList += `
-                <div class="seccion-citas">
+        // **GENERAR HTML PARA LAS CITAS**
+        if (citasFuturas.length > 0 || citasPasadas.length > 0) {
+            // Crear sección de citas futuras
+            if (citasFuturas.length > 0) {
+                const seccionFuturas = document.createElement('div');
+                seccionFuturas.className = 'seccion-citas';
+                seccionFuturas.innerHTML = `
                     <h4 style="color: #28a745; margin: 30px 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #28a745;">
                         <i class="fas fa-calendar-check"></i> Próximas Citas
                     </h4>
-            `;
+                `;
+                citasContainer.appendChild(seccionFuturas);
+                
+                // Agregar cada cita futura
+                citasFuturas.forEach((grupo, index) => {
+                    const citaItem = document.createElement('div');
+                    citaItem.className = 'cita-item';
+                    citaItem.style.cssText = `
+                        margin-bottom: 25px;
+                        border-radius: 12px;
+                        overflow: hidden;
+                        animation: fadeIn 0.5s ease ${index * 0.1}s both;
+                    `;
+                    
+                    if (grupo.es_bloque && grupo.citas.length > 1) {
+                        const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+                        const horasBloque = grupo.citas.map(c => c.hora).sort();
+                        citaItem.innerHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+                    } else if (grupo.es_bloque && grupo.citas.length === 1) {
+                        citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+                    } else {
+                        citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+                    }
+                    
+                    citasContainer.appendChild(citaItem);
+                });
+            }
             
-            citasFuturas.forEach((grupo, index) => {
-                if (grupo.es_bloque && grupo.citas.length > 1) {
-                    const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-                    const horasBloque = grupo.citas.map(c => c.hora).sort();
-                    htmlCitasList += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
-                } else if (grupo.es_bloque && grupo.citas.length === 1) {
-                    htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
-                } else {
-                    htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
-                }
-            });
-            
-            htmlCitasList += `</div>`;
-        }
-        
-        // **Sección de citas pasadas**
-        if (citasPasadas.length > 0) {
-            htmlCitasList += `
-                <div class="seccion-citas">
+            // Crear sección de citas pasadas
+            if (citasPasadas.length > 0) {
+                const seccionPasadas = document.createElement('div');
+                seccionPasadas.className = 'seccion-citas';
+                seccionPasadas.innerHTML = `
                     <h4 style="color: #6c757d; margin: 30px 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #6c757d;">
                         <i class="fas fa-history"></i> Citas Pasadas
                     </h4>
+                `;
+                citasContainer.appendChild(seccionPasadas);
+                
+                // Agregar cada cita pasada
+                citasPasadas.forEach((grupo, index) => {
+                    const citaItem = document.createElement('div');
+                    citaItem.className = 'cita-item';
+                    citaItem.style.cssText = `
+                        margin-bottom: 25px;
+                        border-radius: 12px;
+                        overflow: hidden;
+                        animation: fadeIn 0.5s ease ${index * 0.1}s both;
+                    `;
+                    
+                    if (grupo.es_bloque && grupo.citas.length > 1) {
+                        const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
+                        const horasBloque = grupo.citas.map(c => c.hora).sort();
+                        citaItem.innerHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
+                    } else if (grupo.es_bloque && grupo.citas.length === 1) {
+                        citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
+                    } else {
+                        citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
+                    }
+                    
+                    citasContainer.appendChild(citaItem);
+                });
+            }
+        } else {
+            // Este caso no debería ocurrir porque ya manejamos el caso sin citas,
+            // pero lo mantenemos por seguridad
+            citasContainer.innerHTML = `
+                <div class="empty-state" style="padding: 40px; text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">📅</div>
+                    <h3 style="margin-bottom: 15px;">No hay citas disponibles</h3>
+                    <p style="color: #aaa;">No se encontraron citas para mostrar</p>
+                </div>
             `;
-            
-            citasPasadas.forEach((grupo, index) => {
-                if (grupo.es_bloque && grupo.citas.length > 1) {
-                    const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-                    const horasBloque = grupo.citas.map(c => c.hora).sort();
-                    htmlCitasList += generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
-                } else if (grupo.es_bloque && grupo.citas.length === 1) {
-                    htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
-                } else {
-                    htmlCitasList += generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
-                }
-            });
-            
-            htmlCitasList += `</div>`;
         }
         
-        // Insertar las citas en el contenedor
-        
-        if (citasFuturas.length > 0 || citasPasadas.length > 0) {
-    // Primero, generar el HTML como antes pero SIN usar htmlCitasList
-    // Crear sección de citas futuras
-    if (citasFuturas.length > 0) {
-        const seccionFuturas = document.createElement('div');
-        seccionFuturas.className = 'seccion-citas';
-        seccionFuturas.innerHTML = `
-            <h4 style="color: #28a745; margin: 30px 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #28a745;">
-                <i class="fas fa-calendar-check"></i> Próximas Citas
-            </h4>
-        `;
-        citasContainer.appendChild(seccionFuturas);
-        
-        // Agregar cada cita futura
-        citasFuturas.forEach((grupo, index) => {
-            const citaItem = document.createElement('div');
-            citaItem.className = 'cita-item';
-            citaItem.style.cssText = `
-                margin-bottom: 25px;
-                border-radius: 12px;
-                overflow: hidden;
-                animation: fadeIn 0.5s ease ${index * 0.1}s both;
-            `;
-            
-            if (grupo.es_bloque && grupo.citas.length > 1) {
-                const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-                const horasBloque = grupo.citas.map(c => c.hora).sort();
-                citaItem.innerHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
-            } else if (grupo.es_bloque && grupo.citas.length === 1) {
-                citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
-            } else {
-                citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
-            }
-            
-            citasContainer.appendChild(citaItem);
-        });
-    }
-    
-    // Crear sección de citas pasadas
-    if (citasPasadas.length > 0) {
-        const seccionPasadas = document.createElement('div');
-        seccionPasadas.className = 'seccion-citas';
-        seccionPasadas.innerHTML = `
-            <h4 style="color: #6c757d; margin: 30px 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #6c757d;">
-                <i class="fas fa-history"></i> Citas Pasadas
-            </h4>
-        `;
-        citasContainer.appendChild(seccionPasadas);
-        
-        // Agregar cada cita pasada
-        citasPasadas.forEach((grupo, index) => {
-            const citaItem = document.createElement('div');
-            citaItem.className = 'cita-item';
-            citaItem.style.cssText = `
-                margin-bottom: 25px;
-                border-radius: 12px;
-                overflow: hidden;
-                animation: fadeIn 0.5s ease ${index * 0.1}s both;
-            `;
-            
-            if (grupo.es_bloque && grupo.citas.length > 1) {
-                const citaPrincipal = grupo.citas.find(c => c.hora === grupo.hora_principal) || grupo.citas[0];
-                const horasBloque = grupo.citas.map(c => c.hora).sort();
-                citaItem.innerHTML = generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin);
-            } else if (grupo.es_bloque && grupo.citas.length === 1) {
-                citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.citas[0], esAdmin);
-            } else {
-                citaItem.innerHTML = generarHTMLCitaIndividualAdmin(grupo.cita, esAdmin);
-            }
-            
-            citasContainer.appendChild(citaItem);
-        });
-    }
-} else {
-    // No hay citas para mostrar
-    citasContainer.innerHTML = `
-        <div class="empty-state" style="padding: 40px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 20px;">📅</div>
-            <h3 style="margin-bottom: 15px;">No hay citas disponibles</h3>
-            <p style="color: #aaa;">No se encontraron citas para mostrar</p>
-        </div>
-    `;
-}
-        
-        // Si es admin, guardar las citas originales para filtros
+        // **GUARDAR CITAS PARA FILTROS (solo admin)**
         if (esAdmin) {
             window.adminCitasOriginales = citas;
         }
         
-        // Iniciar contadores
+        // **INICIAR CONTADORES**
         setTimeout(() => {
             iniciarContadoresCitas();
         }, 100);
