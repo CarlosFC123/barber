@@ -9642,34 +9642,173 @@ async function cambiarEstadoCita(citaId) {
             
         if (error) throw error;
         
+        // Mapeo de estados para mostrar mejor
+        const estadoLabels = {
+            'Aceptada': { icon: '✅', label: 'Aceptada', color: '#10b981' },
+            'completada': { icon: '🏁', label: 'Completada', color: '#3b82f6' },
+            'cancelada': { icon: '❌', label: 'Cancelada', color: '#ef4444' }
+        };
+        
+        const estadoActual = estadoLabels[cita.estado] || { icon: '', label: cita.estado, color: '#6b7280' };
+        
         const { value: nuevoEstado } = await Swal.fire({
-            title: '🔄 Cambiar estado de la cita',
+            title: '<div style="text-align: center; padding-bottom: 10px;">'
+                   + '<div style="font-size: 3.5rem; color: #d4af37; margin-bottom: 10px; animation: pulse 2s infinite;">'
+                   + '<i class="fas fa-sync-alt"></i>'
+                   + '</div>'
+                   + '<span style="font-size: 1.5rem; font-weight: 600; color: #ffffff;">Cambiar Estado de Cita</span>'
+                   + '</div>',
             html: `
                 <div style="text-align: center;">
-                    <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
-                        <i class="fas fa-exchange-alt"></i>
+                    <!-- Estado actual -->
+                    <div style="background: linear-gradient(135deg, #2a2a2a, #1a1a1a); 
+                                padding: 20px; 
+                                border-radius: 12px; 
+                                margin-bottom: 25px;
+                                border-left: 4px solid ${estadoActual.color};
+                                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                        <div style="font-size: 0.9rem; color: #9ca3af; margin-bottom: 5px;">
+                            Estado Actual
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                            <span style="font-size: 1.8rem;">${estadoActual.icon}</span>
+                            <span style="font-size: 1.3rem; font-weight: 600; color: ${estadoActual.color};">
+                                ${estadoActual.label}
+                            </span>
+                        </div>
                     </div>
-                    <p style="color: #ffffff; margin-bottom: 15px;">
-                        Estado actual: <span class="estado-${cita.estado}">${cita.estado}</span>
-                    </p>
-                    <select id="estadoSelect" class="swal2-select" style="width: 100%; padding: 10px; border-radius: 6px; background: #2a2a2a; color: white; border: 1px solid #d4af37;">
-                        <option value="Aceptada">✅ Aceptada</option>
-                        <option value="completada">🏁 Completada</option>
-                        <option value="cancelada">❌ Cancelada</option>
-                    </select>
+                    
+                    <!-- Flecha de transición -->
+                    <div style="margin: 15px 0; color: #d4af37; font-size: 1.5rem;">
+                        <i class="fas fa-arrow-down"></i>
+                    </div>
+                    
+                    <!-- Selector de nuevo estado -->
+                    <div style="background: linear-gradient(135deg, #2a2a2a, #1a1a1a); 
+                                padding: 20px; 
+                                border-radius: 12px;
+                                border-left: 4px solid #d4af37;
+                                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                        <div style="font-size: 0.9rem; color: #9ca3af; margin-bottom: 10px;">
+                            Nuevo Estado
+                        </div>
+                        <select id="estadoSelect" 
+                                class="estado-select"
+                                style="width: 100%; 
+                                       padding: 15px; 
+                                       border-radius: 10px; 
+                                       background: #1f2937; 
+                                       color: white; 
+                                       border: 2px solid #374151;
+                                       font-size: 1rem;
+                                       font-weight: 500;
+                                       cursor: pointer;
+                                       transition: all 0.3s ease;
+                                       outline: none;">
+                            <option value="Aceptada" style="background: #1f2937; padding: 10px; color: #10b981;">
+                                ✅ Aceptada
+                            </option>
+                            <option value="completada" style="background: #1f2937; padding: 10px; color: #3b82f6;">
+                                🏁 Completada
+                            </option>
+                            <option value="cancelada" style="background: #1f2937; padding: 10px; color: #ef4444;">
+                                ❌ Cancelada
+                            </option>
+                        </select>
+                        <div style="margin-top: 10px; font-size: 0.8rem; color: #6b7280; text-align: left;">
+                            <i class="fas fa-info-circle"></i> Selecciona el nuevo estado para la cita
+                        </div>
+                    </div>
                 </div>
+                
+                <style>
+                    .estado-select:focus {
+                        border-color: #d4af37 !important;
+                        box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1) !important;
+                    }
+                    .estado-select option:hover {
+                        background: #374151 !important;
+                    }
+                    @keyframes pulse {
+                        0%, 100% { transform: scale(1); }
+                        50% { transform: scale(1.05); }
+                    }
+                </style>
             `,
             showCancelButton: true,
-            confirmButtonText: 'Cambiar estado',
-            cancelButtonText: 'Cancelar',
+            confirmButtonText: '<i class="fas fa-check-circle"></i> Confirmar Cambio',
+            cancelButtonText: '<i class="fas fa-times"></i> Cancelar',
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#6b7280',
+            width: '500px',
+            padding: '2rem',
+            background: '#111827',
+            color: '#ffffff',
+            backdrop: 'rgba(0, 0, 0, 0.8)',
+            customClass: {
+                confirmButton: 'confirm-btn',
+                cancelButton: 'cancel-btn',
+                popup: 'custom-popup'
+            },
             preConfirm: () => {
                 return document.getElementById('estadoSelect').value;
             },
-            background: '#1a1a1a',
-            color: '#ffffff'
+            didOpen: () => {
+                // Añadir efecto al cambiar opción
+                const select = document.getElementById('estadoSelect');
+                select.addEventListener('change', function() {
+                    const colors = {
+                        'Aceptada': '#10b981',
+                        'completada': '#3b82f6',
+                        'cancelada': '#ef4444'
+                    };
+                    this.style.borderColor = colors[this.value] || '#374151';
+                });
+                
+                // Establecer color inicial
+                select.style.borderColor = '#374151';
+            }
         });
         
         if (!nuevoEstado) return;
+        
+        // Mostrar confirmación antes de actualizar
+        const confirmacion = await Swal.fire({
+            title: '<div style="font-size: 3rem; color: #d4af37; margin-bottom: 15px;">'
+                   + '<i class="fas fa-exclamation-triangle"></i>'
+                   + '</div>',
+            html: `
+                <div style="text-align: center;">
+                    <p style="color: #ffffff; margin-bottom: 10px; font-size: 1.1rem;">
+                        ¿Confirmas cambiar el estado a:
+                    </p>
+                    <div style="background: linear-gradient(135deg, #2a2a2a, #1a1a1a); 
+                                padding: 15px; 
+                                border-radius: 10px;
+                                border-left: 4px solid ${estadoLabels[nuevoEstado]?.color || '#d4af37'};
+                                margin: 15px 0;">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                            <span style="font-size: 1.5rem;">${estadoLabels[nuevoEstado]?.icon || '📝'}</span>
+                            <span style="font-size: 1.2rem; font-weight: 600; color: ${estadoLabels[nuevoEstado]?.color || '#d4af37'};">
+                                ${estadoLabels[nuevoEstado]?.label || nuevoEstado}
+                            </span>
+                        </div>
+                    </div>
+                    <p style="color: #9ca3af; font-size: 0.9rem; margin-top: 10px;">
+                        Esta acción no se puede deshacer
+                    </p>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-check"></i> Sí, cambiar',
+            cancelButtonText: '<i class="fas fa-times"></i> No, cancelar',
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#ef4444',
+            background: '#111827',
+            color: '#ffffff'
+        });
+        
+        if (!confirmacion.isConfirmed) return;
         
         // Actualizar estado en la base de datos
         const { error: updateError } = await supabase
@@ -9679,7 +9818,39 @@ async function cambiarEstadoCita(citaId) {
             
         if (updateError) throw updateError;
         
-        showAlert(`✅ Estado cambiado a: ${nuevoEstado}`, 'success');
+        // Mostrar confirmación de éxito
+        await Swal.fire({
+            title: '<div style="font-size: 3rem; color: #10b981; margin-bottom: 15px;">'
+                   + '<i class="fas fa-check-circle"></i>'
+                   + '</div>',
+            html: `
+                <div style="text-align: center;">
+                    <p style="color: #ffffff; margin-bottom: 15px; font-size: 1.2rem;">
+                        Estado actualizado exitosamente
+                    </p>
+                    <div style="background: linear-gradient(135deg, #1a1a1a, #2a2a2a); 
+                                padding: 20px; 
+                                border-radius: 12px;
+                                border: 1px solid #10b981;">
+                        <div style="font-size: 0.9rem; color: #9ca3af; margin-bottom: 5px;">
+                            Nuevo estado
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                            <span style="font-size: 2rem;">${estadoLabels[nuevoEstado]?.icon || '📝'}</span>
+                            <span style="font-size: 1.5rem; font-weight: 600; color: ${estadoLabels[nuevoEstado]?.color || '#10b981'};">
+                                ${estadoLabels[nuevoEstado]?.label || nuevoEstado}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `,
+            timer: 2000,
+            timerProgressBar: true,
+            showConfirmButton: false,
+            background: '#111827',
+            color: '#ffffff'
+        });
+        
         await cargarMisCitas(); // Recargar la lista
         
     } catch (error) {
