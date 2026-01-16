@@ -2145,133 +2145,464 @@ h2 {
 /* =========================================== */
 /* CARRUSEL SIMPLE DE IMÁGENES */
 /* =========================================== */
-
-.carrusel-simple {
+.carrusel-hero {
     position: relative;
-    max-width: 800px;
-    margin: 0 auto;
+    max-width: 1000px;
+    margin: 40px auto;
     overflow: hidden;
-    border-radius: 12px;
-    background: #000;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+    border: 3px solid #d4af37;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8),
+                0 0 40px rgba(212, 175, 55, 0.2);
+    height: 500px;
 }
 
-.carrusel-imagenes-wrapper {
+.carrusel-viewport {
+    width: 100%;
+    height: 100%;
+    position: relative;
     overflow: hidden;
-    border-radius: 12px;
-    height: 400px;
+    border-radius: 18px;
 }
 
 .carrusel-track {
     display: flex;
-    transition: transform 0.5s ease-in-out;
     height: 100%;
+    transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
 }
 
-.carrusel-img {
+.carrusel-slide {
     min-width: 100%;
     height: 100%;
-    opacity: 0;
-    transition: opacity 0.5s ease;
-    display: none;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-style: preserve-3d;
 }
 
-.carrusel-img.active {
-    opacity: 1;
-    display: block;
+.carrusel-slide::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.4) 0%,
+        rgba(0, 0, 0, 0.1) 20%,
+        rgba(0, 0, 0, 0.1) 80%,
+        rgba(0, 0, 0, 0.4) 100%
+    );
+    z-index: 2;
 }
 
-.carrusel-img img {
+.carrusel-slide img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 12px;
+    object-position: center;
+    transform: scale(1.1);
+    transition: transform 8s ease-out;
+    filter: brightness(0.9) contrast(1.1);
+}
+
+.carrusel-slide.active img {
+    transform: scale(1);
+}
+
+.slide-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 40px;
+    background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.95) 0%,
+        rgba(0, 0, 0, 0.8) 50%,
+        transparent 100%
+    );
+    z-index: 3;
+    transform: translateY(0);
+    transition: transform 0.6s ease;
+}
+
+.carrusel-slide.active .slide-content {
+    transform: translateY(0);
+}
+
+.slide-content h3 {
+    color: #d4af37;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    letter-spacing: 1px;
+}
+
+.slide-content p {
+    color: #ffffff;
+    font-size: 16px;
+    line-height: 1.6;
+    opacity: 0.9;
+    max-width: 600px;
+}
+
+/* Controles del carrusel */
+.carrusel-controls {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    transform: translateY(-50%);
+    z-index: 10;
 }
 
 .carrusel-btn {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(212, 175, 55, 0.8);
-    color: #000;
-    border: none;
-    width: 40px;
-    height: 40px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
-    font-size: 18px;
+    background: rgba(212, 175, 55, 0.9);
+    border: 2px solid #000;
+    color: #000;
+    font-size: 24px;
     cursor: pointer;
-    z-index: 10;
-    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .carrusel-btn:hover {
     background: #d4af37;
-    transform: translateY(-50%) scale(1.1);
+    transform: scale(1.1);
+    box-shadow: 0 12px 40px rgba(212, 175, 55, 0.4);
+}
+
+.carrusel-btn:active {
+    transform: scale(0.95);
 }
 
 .carrusel-btn.prev {
-    left: 15px;
+    transform: translateX(-20px);
 }
 
 .carrusel-btn.next {
-    right: 15px;
+    transform: translateX(20px);
 }
 
-.carrusel-indicadores {
+.carrusel-btn.prev:hover {
+    transform: translateX(-20px) scale(1.1);
+}
+
+.carrusel-btn.next:hover {
+    transform: translateX(20px) scale(1.1);
+}
+
+/* Indicadores */
+.carrusel-indicators {
     position: absolute;
-    bottom: 15px;
+    bottom: 30px;
     left: 0;
     right: 0;
     display: flex;
     justify-content: center;
-    gap: 8px;
+    gap: 12px;
     z-index: 10;
 }
 
-.indicador {
-    width: 10px;
-    height: 10px;
+.carrusel-indicator {
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.3);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    border: 2px solid transparent;
 }
 
-.indicador.active {
+.carrusel-indicator::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 8px;
     background: #d4af37;
-    transform: scale(1.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    transition: transform 0.3s ease;
 }
 
-.indicador:hover {
-    background: rgba(212, 175, 55, 0.7);
+.carrusel-indicator.active {
+    background: transparent;
+    border-color: #d4af37;
+}
+
+.carrusel-indicator.active::before {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.carrusel-indicator:hover {
+    transform: scale(1.2);
+    background: rgba(212, 175, 55, 0.5);
+}
+
+/* Efectos de brillo y partículas */
+.carrusel-slide::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(
+        circle at center,
+        rgba(212, 175, 55, 0.1) 0%,
+        transparent 70%
+    );
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+}
+
+.carrusel-slide.active::after {
+    opacity: 1;
+}
+
+/* Contador de slides */
+.carrusel-counter {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 8px 16px;
+    border-radius: 20px;
+    color: #d4af37;
+    font-weight: 600;
+    font-size: 14px;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+/* Efecto de borde luminoso */
+.carrusel-hero::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    background: linear-gradient(
+        45deg,
+        #d4af37,
+        #f4e4a6,
+        #d4af37,
+        #f4e4a6
+    );
+    border-radius: 23px;
+    z-index: -1;
+    opacity: 0.3;
+    animation: borderGlow 4s ease-in-out infinite alternate;
+}
+
+@keyframes borderGlow {
+    0% {
+        opacity: 0.3;
+        filter: blur(8px);
+    }
+    100% {
+        opacity: 0.5;
+        filter: blur(4px);
+    }
+}
+
+/* Miniaturas */
+.carrusel-thumbnails {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    padding: 20px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #d4af37 #1a1a1a;
+}
+
+.carrusel-thumbnails::-webkit-scrollbar {
+    height: 6px;
+}
+
+.carrusel-thumbnails::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 3px;
+}
+
+.carrusel-thumbnails::-webkit-scrollbar-thumb {
+    background: #d4af37;
+    border-radius: 3px;
+}
+
+.thumbnail {
+    width: 100px;
+    height: 70px;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    flex-shrink: 0;
+}
+
+.thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.thumbnail.active {
+    opacity: 1;
+    border-color: #d4af37;
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+}
+
+.thumbnail:hover {
+    opacity: 0.9;
+    transform: scale(1.05);
+}
+
+/* Animaciones */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+.carrusel-slide.active {
+    animation: slideIn 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-    .carrusel-imagenes-wrapper {
-        height: 300px;
-    }
-    
-    .carrusel-simple {
-        max-width: 95%;
+    .carrusel-hero {
+        height: 400px;
+        margin: 20px auto;
+        border-radius: 15px;
     }
     
     .carrusel-btn {
-        width: 35px;
-        height: 35px;
-        font-size: 16px;
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+    
+    .slide-content {
+        padding: 25px;
+    }
+    
+    .slide-content h3 {
+        font-size: 22px;
+    }
+    
+    .slide-content p {
+        font-size: 14px;
+    }
+    
+    .carrusel-counter {
+        top: 20px;
+        right: 20px;
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    
+    .carrusel-indicator {
+        width: 12px;
+        height: 12px;
+    }
+    
+    .thumbnail {
+        width: 80px;
+        height: 56px;
     }
 }
 
 @media (max-width: 480px) {
-    .carrusel-imagenes-wrapper {
-        height: 250px;
+    .carrusel-hero {
+        height: 300px;
+        border-radius: 12px;
     }
     
-    #carrusel-imagenes h2 {
+    .carrusel-btn {
+        width: 40px;
+        height: 40px;
         font-size: 18px;
+        padding: 0 10px;
+    }
+    
+    .carrusel-btn.prev {
+        transform: translateX(-10px);
+    }
+    
+    .carrusel-btn.next {
+        transform: translateX(10px);
+    }
+    
+    .slide-content {
+        padding: 15px;
+    }
+    
+    .slide-content h3 {
+        font-size: 18px;
+    }
+    
+    .slide-content p {
+        font-size: 12px;
+    }
+    
+    .carrusel-indicators {
+        bottom: 15px;
+        gap: 8px;
+    }
+    
+    .carrusel-thumbnails {
+        gap: 8px;
+        padding: 15px;
+    }
+    
+    .thumbnail {
+        width: 60px;
+        height: 45px;
     }
 }
 
+/* Efecto de parallax en hover */
+.carrusel-viewport:hover .carrusel-slide img {
+    transform: scale(1.05) translateY(-10px);
+}
+
+.carrusel-viewport:hover .carrusel-slide.active img {
+    transform: scale(1) translateY(0);
+}
 .admin-quick-actions .btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
@@ -2626,40 +2957,94 @@ h2 {
             </div>
         </div>
 
-        <!-- Carrusel de Imágenes -->
+        
         <!-- Carrusel de Imágenes -->
 <div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
+    <h2 style="text-align: center; color: #d4af37; margin-bottom: 20px; font-size: 28px;">✨ Nuestros Trabajos ✨</h2>
     
-    <div class="carrusel-simple">
-        <button class="carrusel-btn prev" id="prevBtn">❮</button>
-        <button class="carrusel-btn next" id="nextBtn">❯</button>
-        
-        <div class="carrusel-imagenes-wrapper">
+    <div class="carrusel-hero">
+        <div class="carrusel-viewport">
             <div class="carrusel-track">
-                <div class="carrusel-img active">
-                    <img src="img/1.jpg" alt="Imagen 1">
+                <!-- Slide 1 -->
+                <div class="carrusel-slide active">
+                    <img src="img/1.jpg" alt="Estilo Clásico">
+                    <div class="slide-content">
+                        <h3>Estilo Clásico Premium</h3>
+                        <p>Cortes tradicionales con acabados perfectos para el caballero moderno</p>
+                    </div>
                 </div>
-                <div class="carrusel-img">
-                    <img src="img/2.jpg" alt="Imagen 2">
+                
+                <!-- Slide 2 -->
+                <div class="carrusel-slide">
+                    <img src="img/2.jpg" alt="Estilo Moderno">
+                    <div class="slide-content">
+                        <h3>Diseños Modernos</h3>
+                        <p>Tendencias actuales con técnicas innovadoras y productos de alta calidad</p>
+                    </div>
                 </div>
-                <div class="carrusel-img">
-                    <img src="img/3.jpg" alt="Imagen 3">
+                
+                <!-- Slide 3 -->
+                <div class="carrusel-slide">
+                    <img src="img/3.jpg" alt="Barba Perfecta">
+                    <div class="slide-content">
+                        <h3>Afeitado de Precisión</h3>
+                        <p>Arte en el cuidado facial con navaja tradicional y productos exclusivos</p>
+                    </div>
                 </div>
-                <div class="carrusel-img">
-                    <img src="img/4.jpg" alt="Imagen 4">
+                
+                <!-- Slide 4 -->
+                <div class="carrusel-slide">
+                    <img src="img/4.jpg" alt="Corte Fade">
+                    <div class="slide-content">
+                        <h3>Corte Fade Especializado</h3>
+                        <p>Degradados perfectos y diseños personalizados para tu estilo único</p>
+                    </div>
                 </div>
-                <div class="carrusel-img">
-                    <img src="img/5.jpg" alt="Imagen 5">
+                
+                <!-- Slide 5 -->
+                <div class="carrusel-slide">
+                    <img src="img/5.jpg" alt="Experiencia VIP">
+                    <div class="slide-content">
+                        <h3>Experiencia VIP</h3>
+                        <p>Servicio exclusivo en un ambiente diseñado para tu comodidad</p>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <div class="carrusel-indicadores" id="indicadoresContainer">
-            <span class="indicador active" data-index="0"></span>
-            <span class="indicador" data-index="1"></span>
-            <span class="indicador" data-index="2"></span>
-            <span class="indicador" data-index="3"></span>
-            <span class="indicador" data-index="4"></span>
+        <div class="carrusel-controls">
+            <button class="carrusel-btn prev" id="prevBtn">❮</button>
+            <button class="carrusel-btn next" id="nextBtn">❯</button>
+        </div>
+        
+        <div class="carrusel-indicators" id="indicadoresContainer">
+            <span class="carrusel-indicator active" data-index="0"></span>
+            <span class="carrusel-indicator" data-index="1"></span>
+            <span class="carrusel-indicator" data-index="2"></span>
+            <span class="carrusel-indicator" data-index="3"></span>
+            <span class="carrusel-indicator" data-index="4"></span>
+        </div>
+        
+        <div class="carrusel-counter">
+            <span id="currentSlide">1</span> / <span id="totalSlides">5</span>
+        </div>
+    </div>
+    
+    <div class="carrusel-thumbnails" id="thumbnailsContainer">
+        <div class="thumbnail active" data-index="0">
+            <img src="img/1.jpg" alt="Miniatura 1">
+        </div>
+        <div class="thumbnail" data-index="1">
+            <img src="img/2.jpg" alt="Miniatura 2">
+        </div>
+        <div class="thumbnail" data-index="2">
+            <img src="img/3.jpg" alt="Miniatura 3">
+        </div>
+        <div class="thumbnail" data-index="3">
+            <img src="img/4.jpg" alt="Miniatura 4">
+        </div>
+        <div class="thumbnail" data-index="4">
+            <img src="img/5.jpg" alt="Miniatura 5">
         </div>
     </div>
 </div>
@@ -3144,10 +3529,132 @@ function verificarUsuarioActivo() {
                 iniciarCarruselAutomaticoSimple();
             }
 
-            document.addEventListener('DOMContentLoaded', () => {
-                console.log('📦 DOM cargado - Inicializando carrusel simple');
-                inicializarCarruselSimple();
-            });
+            // Script para el carrusel moderno
+document.addEventListener('DOMContentLoaded', function() {
+    const track = document.querySelector('.carrusel-track');
+    const slides = document.querySelectorAll('.carrusel-slide');
+    const indicators = document.querySelectorAll('.carrusel-indicator');
+    const thumbnails = document.querySelectorAll('.thumbnail');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const currentSlideSpan = document.getElementById('currentSlide');
+    const totalSlidesSpan = document.getElementById('totalSlides');
+    
+    let currentIndex = 0;
+    const totalSlides = slides.length;
+    totalSlidesSpan.textContent = totalSlides;
+    
+    // Auto slide cada 5 segundos
+    let autoSlideInterval = setInterval(nextSlide, 5000);
+    
+    // Reiniciar auto slide al interactuar
+    function resetAutoSlide() {
+        clearInterval(autoSlideInterval);
+        autoSlideInterval = setInterval(nextSlide, 5000);
+    }
+    
+    function updateSlide(index) {
+        // Actualizar índice
+        currentIndex = index;
+        
+        // Mover track
+        track.style.transform = `translateX(-${currentIndex * 100}%)`;
+        
+        // Actualizar clases activas
+        slides.forEach((slide, i) => {
+            slide.classList.toggle('active', i === currentIndex);
+        });
+        
+        indicators.forEach((indicator, i) => {
+            indicator.classList.toggle('active', i === currentIndex);
+        });
+        
+        thumbnails.forEach((thumbnail, i) => {
+            thumbnail.classList.toggle('active', i === currentIndex);
+        });
+        
+        // Actualizar contador
+        currentSlideSpan.textContent = currentIndex + 1;
+        
+        // Reiniciar auto slide
+        resetAutoSlide();
+    }
+    
+    function nextSlide() {
+        currentIndex = (currentIndex + 1) % totalSlides;
+        updateSlide(currentIndex);
+    }
+    
+    function prevSlide() {
+        currentIndex = (currentIndex - 1 + totalSlides) % totalSlides;
+        updateSlide(currentIndex);
+    }
+    
+    // Event Listeners
+    prevBtn.addEventListener('click', () => {
+        prevSlide();
+        resetAutoSlide();
+    });
+    
+    nextBtn.addEventListener('click', () => {
+        nextSlide();
+        resetAutoSlide();
+    });
+    
+    indicators.forEach(indicator => {
+        indicator.addEventListener('click', () => {
+            const index = parseInt(indicator.dataset.index);
+            updateSlide(index);
+        });
+    });
+    
+    thumbnails.forEach(thumbnail => {
+        thumbnail.addEventListener('click', () => {
+            const index = parseInt(thumbnail.dataset.index);
+            updateSlide(index);
+        });
+    });
+    
+    // Pausar auto slide al hover
+    const carrusel = document.querySelector('.carrusel-hero');
+    carrusel.addEventListener('mouseenter', () => {
+        clearInterval(autoSlideInterval);
+    });
+    
+    carrusel.addEventListener('mouseleave', () => {
+        resetAutoSlide();
+    });
+    
+    // Swipe para móviles
+    let startX = 0;
+    let endX = 0;
+    
+    carrusel.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        clearInterval(autoSlideInterval);
+    });
+    
+    carrusel.addEventListener('touchend', (e) => {
+        endX = e.changedTouches[0].clientX;
+        const diff = startX - endX;
+        
+        if (Math.abs(diff) > 50) { // Umbral mínimo de swipe
+            if (diff > 0) {
+                nextSlide();
+            } else {
+                prevSlide();
+            }
+        }
+        
+        resetAutoSlide();
+    });
+    
+    // Efecto de teclado
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') prevSlide();
+        if (e.key === 'ArrowRight') nextSlide();
+    });
+});
             
 window.inicializarCarruselSimple = inicializarCarruselSimple;
 window.moverCarruselSimple = moverCarruselSimple;
