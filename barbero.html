@@ -2141,6 +2141,137 @@ h2 {
     font-weight: bold;
 }
 
+
+/* =========================================== */
+/* CARRUSEL SIMPLE DE IMÁGENES */
+/* =========================================== */
+
+.carrusel-simple {
+    position: relative;
+    max-width: 800px;
+    margin: 0 auto;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #000;
+}
+
+.carrusel-imagenes-wrapper {
+    overflow: hidden;
+    border-radius: 12px;
+    height: 400px;
+}
+
+.carrusel-track {
+    display: flex;
+    transition: transform 0.5s ease-in-out;
+    height: 100%;
+}
+
+.carrusel-img {
+    min-width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    display: none;
+}
+
+.carrusel-img.active {
+    opacity: 1;
+    display: block;
+}
+
+.carrusel-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+}
+
+.carrusel-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(212, 175, 55, 0.8);
+    color: #000;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.3s ease;
+}
+
+.carrusel-btn:hover {
+    background: #d4af37;
+    transform: translateY(-50%) scale(1.1);
+}
+
+.carrusel-btn.prev {
+    left: 15px;
+}
+
+.carrusel-btn.next {
+    right: 15px;
+}
+
+.carrusel-indicadores {
+    position: absolute;
+    bottom: 15px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    z-index: 10;
+}
+
+.indicador {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.indicador.active {
+    background: #d4af37;
+    transform: scale(1.2);
+}
+
+.indicador:hover {
+    background: rgba(212, 175, 55, 0.7);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .carrusel-imagenes-wrapper {
+        height: 300px;
+    }
+    
+    .carrusel-simple {
+        max-width: 95%;
+    }
+    
+    .carrusel-btn {
+        width: 35px;
+        height: 35px;
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .carrusel-imagenes-wrapper {
+        height: 250px;
+    }
+    
+    #carrusel-imagenes h2 {
+        font-size: 18px;
+    }
+}
+
 .admin-quick-actions .btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
@@ -2494,6 +2625,44 @@ h2 {
                 </div>
             </div>
         </div>
+
+        <!-- Carrusel de Imágenes -->
+        <div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
+            <h2 style="text-align: center; color: #d4af37; margin-bottom: 20px; font-size: 22px;">Galería</h2>
+            
+            <div class="carrusel-simple">
+                <button class="carrusel-btn prev" onclick="moverCarruselSimple(-1)">❮</button>
+                <button class="carrusel-btn next" onclick="moverCarruselSimple(1)">❯</button>
+                
+                <div class="carrusel-imagenes-wrapper">
+                    <div class="carrusel-track">
+                        <div class="carrusel-img active">
+                            <img src="img/galeria/img1.jpg" alt="Imagen 1" onerror="this.src='https://via.placeholder.com/800x400/1a1a1a/d4af37?text=Imagen+1'">
+                        </div>
+                        <div class="carrusel-img">
+                            <img src="img/galeria/img2.jpg" alt="Imagen 2" onerror="this.src='https://via.placeholder.com/800x400/1a1a1a/d4af37?text=Imagen+2'">
+                        </div>
+                        <div class="carrusel-img">
+                            <img src="img/galeria/img3.jpg" alt="Imagen 3" onerror="this.src='https://via.placeholder.com/800x400/1a1a1a/d4af37?text=Imagen+3'">
+                        </div>
+                        <div class="carrusel-img">
+                            <img src="img/galeria/img4.jpg" alt="Imagen 4" onerror="this.src='https://via.placeholder.com/800x400/1a1a1a/d4af37?text=Imagen+4'">
+                        </div>
+                        <div class="carrusel-img">
+                            <img src="img/galeria/img5.jpg" alt="Imagen 5" onerror="this.src='https://via.placeholder.com/800x400/1a1a1a/d4af37?text=Imagen+5'">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="carrusel-indicadores">
+                    <span class="indicador active" onclick="irASlideSimple(0)"></span>
+                    <span class="indicador" onclick="irASlideSimple(1)"></span>
+                    <span class="indicador" onclick="irASlideSimple(2)"></span>
+                    <span class="indicador" onclick="irASlideSimple(3)"></span>
+                    <span class="indicador" onclick="irASlideSimple(4)"></span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -2556,11 +2725,17 @@ h2 {
             let timeoutReserva = null;
             let bloqueoLlamadaEnProgreso = false;
             let pollingActivo = false;
+            let slideIndexSimple = 0;
+            let intervaloSimple;
+
+
+
             
             let pollingCitasActivo = false;
             let intervaloPollingCitas = null;
             let ultimaActualizacionCitas = 0;
             const INTERVALO_POLLING_CITAS = 10000;
+
 
             // Control de clics múltiples
             let reservasEnProgreso = new Map(); // {fecha_hora: true} para evitar dobles clics
@@ -2678,6 +2853,8 @@ h2 {
                 console.log(`🔄 Usando cuenta: ${mejorCuenta.nombre} (uso: ${emailjsUsageCount[mejorCuenta.serviceId] || 0}/${EMAILJS_LIMIT})`);
                 return mejorCuenta;
             }
+
+
 
             // ============ SISTEMA DE CACHÉ INTELIGENTE ============
 
@@ -2840,6 +3017,75 @@ function verificarUsuarioActivo() {
                     }
                 }
             }
+
+
+            function inicializarCarruselSimple() {
+                mostrarSlideSimple(slideIndexSimple);
+                iniciarCarruselAutomaticoSimple();
+                
+                const carrusel = document.querySelector('.carrusel-simple');
+                if (carrusel) {
+                    carrusel.addEventListener('mouseenter', () => {
+                        clearInterval(intervaloSimple);
+                    });
+                
+                    carrusel.addEventListener('mouseleave', () => {
+                        iniciarCarruselAutomaticoSimple();
+                    });
+
+                    carrusel.addEventListener('touchstart', () => {
+                        clearInterval(intervaloSimple);
+                    });
+
+                    carrusel.addEventListener('touchend', () => {
+                        setTimeout(() => iniciarCarruselAutomaticoSimple(), 3000);
+                    });
+                }
+            }
+
+            function mostraSlideSimple(n) {
+                const slides = document.querySelectorAll('.carrusel-img');
+                const indicadores = document.querySelectorAll('.carrusel-indicadores .indicador');
+                
+                if (slides.length === 0) return;
+
+                if (n >= slides.length) slideIndexSimple = 0;
+                if (n < 0) slideIndexSimple = slides.length - 1;
+
+                slides.forEach(slide => slide.classList.remove('active'));
+                slides[slideIndexSimple].classList.add('active');
+
+                if (indicadores.length > 0) {
+                    indicadores.forEach((ind, index) => {
+                        ind.classList.remove('active');
+                        if (index === slideIndexSimple) {
+                            ind.classList.add('active');
+                        }
+                    });
+                }
+            }
+
+            function moverCarruselSimple(n) {
+                slideIndexSimple += n;
+                mostrarSlideSimple(slideIndexSimple);
+                reiniciarCarruselAutomaticoSimple();
+            }
+
+            function irASlideSimple(n) {
+                slideIndexSimple = n;
+                mostrarSlideSimple(slideIndexSimple);
+                reiniciarCarruselAutomaticoSimple();
+            }
+
+            function iniciarCarruselAutomaticoSimple() {
+                clearInterval(intervaloSimple);
+                iniciarCarruselAutomaticoSimple();
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                inicializarCarruselSimple();
+            });
+            
 
             // ============ SISTEMA DE POLLING INTELIGENTE ============
 
@@ -11832,6 +12078,9 @@ async function verificarCambiosCitas() {
             // ============ API PÚBLICA ============
 
 window.app = {
+    inicializarCarruselSimple,
+    moverCarruselSimple,
+    irASlideSimple,
     cancelarCita,
     eliminarCita,
     cambiarPestana,
@@ -11862,6 +12111,8 @@ window.app = {
     iniciarPollingCitas,
     detenerPollingCitas,
     agregarBotonActualizarCitas
+
+
 
 };
             // ============ EJECUCIÓN ============
