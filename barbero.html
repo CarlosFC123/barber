@@ -9155,30 +9155,48 @@ async function forzarVerificacionCitas() {
 }
 
 // Función mejorada para generar HTML de bloque VIP
-function generarHTMLBloqueVIP(citaPrincipal, esAdmin) {
+function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) {
     const fechaCitaYucatan = getYucatanDateTime(citaPrincipal.fecha, citaPrincipal.hora);
     const ahora = new Date();
     const citaPasada = fechaCitaYucatan < ahora;
+    const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+    const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+
+    const horasOrdenadas = horasBloque.sort((a, b) => {
+        return a.localeCompare(b);
+    });
     
-    // Determinar si es un bloque VIP (80 minutos)
-    const esVip = (citaPrincipal.duracion || 40) === 80 || 
-                  (citaPrincipal.notas && citaPrincipal.notas.includes('bloque de 80 minutos'));
+    const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
+                        (citaPrincipal.estado === 'aceptada' || citaPrincipal.estado === 'pendiente' || citaPrincipal.estado === 'confirmada');
     
-    // Calcular la hora final para VIP
-    const horaInicio = citaPrincipal.hora;
-    const horaFin = esVip ? calcularHoraFin(citaPrincipal.hora, 80) : citaPrincipal.hora;
+    const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
+    
+    // Detectar si es bloque VIP (80 minutos)
+    const esBloqueVIP = (citaPrincipal.duracion || 40) === 80;
+    
+    // Calcular hora final para bloques VIP
+    let horarioInfo = `<strong>🕐 Horas del bloque:</strong> ${horasOrdenadas.join(', ')}`;
+    if (esBloqueVIP && horasOrdenadas.length === 2) {
+        const horaInicio = horasOrdenadas[0];
+        const horaFin = calcularHoraFin(horaInicio, 80);
+        horarioInfo = `<strong>🕐 Horario:</strong> ${horaInicio} a ${horaFin} (2 horas)`;
+    }
     
     return `
-        <div class="cita-card bloque-vip ${citaPrincipal.estado} ${esAdmin ? 'admin-cita' : ''}" 
+        <div class="cita-card bloque-cita ${citaPrincipal.estado} ${esAdmin ? 'admin-cita' : ''}" 
              data-cita-id="${citaPrincipal.id}" 
              data-fecha="${citaPrincipal.fecha}" 
              data-hora="${citaPrincipal.hora}"
-             data-es-vip="${esVip}"
-             data-estado="${citaPrincipal.estado}">
+             data-es-bloque="true"
+             data-es-vip="${esBloqueVIP}"
+             data-estado="${citaPrincipal.estado}"
+             data-cliente="${citaPrincipal.clientes?.nombre || ''}"
+             data-horas-bloque='${JSON.stringify(horasOrdenadas)}'
+             data-duracion="${citaPrincipal.duracion || 40}">
             <div class="cita-header">
                 <div>
                     <h3>${citaPrincipal.servicios.nombre} 
-                        ${esVip ? '<span class="badge-vip">✨ VIP (2h)</span>' : ''}
+                        ${esBloqueVIP ? '<span class="badge-vip">✨ VIP (80min)</span>' : '<span class="badge-bloque">📦 Bloque</span>'}
                     </h3>
                     ${esAdmin && citaPrincipal.infoCliente ? `<p class="cliente-info">${citaPrincipal.infoCliente}</p>` : ''}
                 </div>
@@ -9186,18 +9204,47 @@ function generarHTMLBloqueVIP(citaPrincipal, esAdmin) {
             </div>
             <div class="cita-detalles">
                 <p><strong>📅 Fecha:</strong> ${citaPrincipal.fecha}</p>
-                <p><strong>🕐 Horario:</strong> ${horaInicio} ${esVip ? `a ${horaFin} (2 horas)` : ''}</p>
-                ${esVip ? `<p><strong>⏱️ Duración:</strong> 80 minutos (Bloque VIP)</p>` : ''}
+                <p>${horarioInfo}</p>
+                <p><strong>⏱️ Duración total:</strong> ${esBloqueVIP ? '80 minutos (Bloque VIP)' : '40 minutos'}</p>
                 <p><strong>👤 Barbero:</strong> ${citaPrincipal.barberos.nombre}</p>
-                <p><strong>💰 Precio:</strong> $${citaPrincipal.servicios.precio}</p>
+                <p><strong>💰 Precio total:</strong> $${citaPrincipal.servicios.precio}</p>
                 ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
                 <div id="contador-${citaPrincipal.id}" class="contador-cita"></div>
             </div>
-            <!-- ... botones de acción ... -->
+            <div class="cita-acciones">
+                ${esAdmin ? `
+                    <button class="btn btn-warning" onclick="app.cambiarEstadoBloqueVIP('${citaPrincipal.id}', ${esBloqueVIP})">
+                        <i class="fas fa-edit"></i> Cambiar Estado
+                    </button>
+                    <button class="btn btn-info" onclick="app.verDetallesBloqueVIP('${citaPrincipal.id}')">
+                        <i class="fas fa-info-circle"></i> Detalles
+                    </button>
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="app.cancelarBloqueVIP('${citaPrincipal.id}', ${esBloqueVIP})">
+                            <i class="fas fa-times"></i> Cancelar Bloque
+                        </button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="app.eliminarBloqueVIP('${citaPrincipal.id}', ${esBloqueVIP})">
+                            <i class="fas fa-trash"></i> Eliminar Bloque
+                        </button>
+                    ` : ''}
+                ` : `
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="app.cancelarBloqueVIP('${citaPrincipal.id}', ${esBloqueVIP})">
+                            Cancelar Bloque Completo
+                        </button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="app.eliminarBloqueVIP('${citaPrincipal.id}', ${esBloqueVIP})">
+                            Eliminar bloque completo
+                        </button>
+                    ` : ''}
+                `}
+            </div>
         </div>
     `;
 }
-
 // Función auxiliar para calcular hora final
 function calcularHoraFin(horaInicio, duracionMinutos) {
     const [hora, minutos] = horaInicio.split(':').map(Number);
@@ -9816,12 +9863,208 @@ async function cancelarCitaAdmin(citaId) {
 }
 
 function cambiarEstadoCitaBloque(citaId) {
-    if (typeof window.app !== 'undefined' && window.app.cambiarEstadoCitaBloque) {
-        return window.app.cambiarEstadoCitaBloque(citaId);
+    if (typeof window.app !== 'undefined' && window.app.cambiarEstadoBloqueVip) {
+        return window.app.cambiarEstadoCitaBloqueVip(citaId);
     } else {
         console.error('Función cambiarEstadoCitaBloque no disponible');
     }
 }
+async function cambiarEstadoBloqueVIP(citaId, esBloqueVIP) {
+    try {
+        // Buscar el bloque VIP completo
+        const bloqueInfo = await buscarBloqueVIPCompleto(citaId);
+        const { todasCitas } = bloqueInfo;
+        
+        if (!esBloqueVIP || todasCitas.length === 1) {
+            // Si no es VIP o solo tiene una cita, usar la función normal
+            return cambiarEstadoCita(citaId);
+        }
+        
+        const citaPrincipal = todasCitas.find(c => !c.es_bloque) || todasCitas[0];
+        
+        const { value: nuevoEstado } = await Swal.fire({
+            title: '🔄 Cambiar estado del bloque VIP',
+            html: `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
+                        <i class="fas fa-exchange-alt"></i>
+                    </div>
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        Bloque VIP de 80 minutos
+                    </p>
+                    <p style="color: #d4af37; margin-bottom: 15px;">
+                        Horas: ${todasCitas.map(c => c.hora).sort().join(', ')}
+                    </p>
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        Estado actual: <span class="estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
+                    </p>
+                    <select id="estadoSelect" class="swal2-select" style="width: 100%; padding: 10px; border-radius: 6px; background: #2a2a2a; color: white; border: 1px solid #d4af37;">
+                        <option value="confirmada">✅ Aceptada</option>
+                        <option value="completada">🏁 Completada</option>
+                        <option value="cancelada">❌ Cancelada</option>
+                    </select>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Cambiar estado de todo el bloque',
+            cancelButtonText: 'Cancelar',
+            preConfirm: () => {
+                return document.getElementById('estadoSelect').value;
+            },
+            background: '#1a1a1a',
+            color: '#ffffff'
+        });
+        
+        if (!nuevoEstado) return;
+        
+        // Actualizar estado de TODAS las citas del bloque VIP
+        const idsParaActualizar = todasCitas.map(c => c.id);
+        
+        const { error: updateError } = await supabase
+            .from('citas')
+            .update({ estado: nuevoEstado })
+            .in('id', idsParaActualizar);
+            
+        if (updateError) throw updateError;
+        
+        showAlert(`✅ Bloque VIP actualizado a: ${nuevoEstado}`, 'success');
+        await cargarMisCitas(); // Recargar la lista
+        
+    } catch (error) {
+        console.error('Error cambiando estado bloque VIP:', error);
+        showAlert('❌ Error al cambiar estado del bloque VIP', 'error');
+    }
+}
+
+async function cancelarBloqueVIP(citaId, esBloqueVIP) {
+    if (!esBloqueVIP) {
+        // Si no es VIP, usar función normal
+        return cancelarCita(citaId);
+    }
+    
+    // Usar la función buscarBloqueVIPCompleto para encontrar todas las horas
+    const bloqueInfo = await buscarBloqueVIPCompleto(citaId);
+    const { todasCitas } = bloqueInfo;
+    
+    // Pasar la primera cita del bloque a la función cancelarCita
+    // que ya tiene lógica para manejar bloques completos
+    const citaPrincipal = todasCitas.find(c => !c.es_bloque) || todasCitas[0];
+    return cancelarCita(citaPrincipal.id);
+}
+
+async function eliminarBloqueVIP(citaId, esBloqueVIP) {
+    if (!esBloqueVIP) {
+        // Si no es VIP, usar función normal
+        return eliminarCita(citaId);
+    }
+    
+    // Usar la función buscarBloqueVIPCompleto para encontrar todas las horas
+    const bloqueInfo = await buscarBloqueVIPCompleto(citaId);
+    const { todasCitas } = bloqueInfo;
+    
+    // Pasar la primera cita del bloque a la función eliminarCita
+    // que ya tiene lógica para manejar bloques completos
+    const citaPrincipal = todasCitas.find(c => !c.es_bloque) || todasCitas[0];
+    return eliminarCita(citaPrincipal.id);
+}
+
+async function verDetallesBloqueVIP(citaId) {
+    try {
+        // Buscar el bloque VIP completo
+        const bloqueInfo = await buscarBloqueVIPCompleto(citaId);
+        const { todasCitas, esBloqueVIP } = bloqueInfo;
+        
+        if (!esBloqueVIP || todasCitas.length <= 1) {
+            // Si no es VIP o solo tiene una cita, usar la función normal
+            return verDetallesCita(citaId);
+        }
+        
+        const citaPrincipal = todasCitas.find(c => !c.es_bloque) || todasCitas[0];
+        
+        // Obtener información completa de la cita principal
+        const { data: citaCompleta, error } = await supabase
+            .from('citas')
+            .select(`
+                *,
+                servicios(nombre, precio, descripcion),
+                barberos(nombre, especialidad),
+                clientes(nombre, email, telefono)
+            `)
+            .eq('id', citaPrincipal.id)
+            .single();
+            
+        if (error) throw error;
+        
+        // Calcular hora final
+        const horaInicio = todasCitas.map(c => c.hora).sort()[0];
+        const horaFin = calcularHoraFin(horaInicio, 80);
+        
+        const fechaCita = getYucatanDateTime(citaPrincipal.fecha, horaInicio);
+        const fechaFormateada = fechaCita.toLocaleString('es-MX', { 
+            timeZone: 'America/Merida',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        await Swal.fire({
+            title: '📋 Detalles del bloque VIP',
+            html: `
+                <div style="text-align: left; max-height: 60vh; overflow-y: auto; padding-right: 10px;">
+                    <div style="background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%); border: 1px solid #d4af37; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                        <h3 style="color: #d4af37; margin-bottom: 15px;">
+                            <i class="fas fa-layer-group"></i> Bloque VIP de 80 minutos
+                        </h3>
+                        <p><strong>📅 Fecha y hora:</strong> ${fechaFormateada}</p>
+                        <p><strong>🕐 Horario:</strong> ${horaInicio} a ${horaFin} (2 horas)</p>
+                        <p><strong>📊 Estado:</strong> <span class="estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span></p>
+                        <p><strong>💰 Precio total:</strong> $${citaCompleta.servicios.precio}</p>
+                        <p><strong>👤 Cliente:</strong> ${citaCompleta.clientes?.nombre || 'No disponible'}</p>
+                        ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
+                    </div>
+                    
+                    <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                        <h3 style="color: #28a745; margin-bottom: 15px;">
+                            <i class="fas fa-clock"></i> Horas del bloque
+                        </h3>
+                        ${todasCitas.map((cita, index) => `
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: ${index < todasCitas.length - 1 ? '1px solid rgba(40, 167, 69, 0.2)' : 'none'}">
+                                <span style="color: #28a745;">
+                                    ${cita.es_bloque ? '📦 Hora de bloque' : '⭐ Hora principal'}: <strong>${cita.hora}</strong>
+                                </span>
+                                <span class="estado-${cita.estado}" style="font-size: 0.9em;">${cita.estado}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <div style="background: rgba(0, 123, 255, 0.1); border: 1px solid #007bff; border-radius: 8px; padding: 20px;">
+                        <h3 style="color: #007bff; margin-bottom: 15px;">Información del servicio</h3>
+                        <p><strong>✂️ Servicio:</strong> ${citaCompleta.servicios.nombre}</p>
+                        <p><strong>📋 Descripción:</strong> ${citaCompleta.servicios.descripcion}</p>
+                        <p><strong>💈 Barbero:</strong> ${citaCompleta.barberos.nombre}</p>
+                    </div>
+                </div>
+            `,
+            width: '600px',
+            showConfirmButton: true,
+            confirmButtonText: 'Cerrar',
+            background: '#1a1a1a',
+            color: '#ffffff'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error obteniendo detalles del bloque VIP:', error);
+        Swal.fire({
+            title: '❌ Error',
+            text: 'No se pudieron cargar los detalles del bloque VIP',
+            icon: 'error'
+        });
+    }
+}
+
 function verDetallesBloque(citaId) {
     if (typeof window.app !== 'undefined' && window.app.verDetallesBloque) {
         return window.app.verDetallesBloque(citaId);
@@ -10177,137 +10420,22 @@ function iniciarLimpiezaAutomaticaBotones() {
     }
     async function marcarComoCompletada(citaId) {
     try {
-        if (!confirm('¿Marcar esta cita como completada?')) {
-            return;
-        }
-
         console.log(`🎯 Iniciando marcarComoCompletada para cita ID: ${citaId}`);
-
-        // 1. Obtener información de la cita
-        const { data: cita, error: errorCita } = await supabase
-            .from('citas')
-            .select('*')
-            .eq('id', citaId)
-            .single();
-
-        if (errorCita) throw errorCita;
-
-        console.log('🔍 INFORMACIÓN DE LA CITA:');
-        console.log(`   ID: ${cita.id}`);
-        console.log(`   Hora: ${cita.hora}`);
-        console.log(`   Estado actual: ${cita.estado}`);
-        console.log(`   Es bloque: ${cita.es_bloque}`);
-        console.log(`   Hora principal: ${cita.hora_principal}`);
-        console.log(`   Duración: ${cita.duracion}`);
-
-        // 2. Preparar array para todas las citas relacionadas
-        let citasRelacionadas = [cita];
         
-        // 3. SI ES HORA PRINCIPAL (no es bloque, duración 80)
-        if (!cita.es_bloque && (cita.duracion || 40) === 80) {
-            console.log('📦 ES HORA PRINCIPAL - Buscando horas de bloque...');
-            
-            // Buscar TODAS las citas de bloque con esta hora_principal
-            // IMPORTANTE: No filtrar por estado aquí
-            const { data: bloques, error: errorBloques } = await supabase
-                .from('citas')
-                .select('*')
-                .eq('fecha', cita.fecha)
-                .eq('hora_principal', cita.hora)
-                .eq('cliente_id', cita.cliente_id);
-                // NOTA: NO usar .eq('estado', 'confirmada') aquí
-                
-            if (errorBloques) {
-                console.error('Error buscando bloques:', errorBloques);
-            } else {
-                console.log(`✅ Encontrados ${bloques?.length || 0} bloques para hora ${cita.hora}`);
-                
-                if (bloques && bloques.length > 0) {
-                    bloques.forEach((bloque, idx) => {
-                        if (bloque.id !== cita.id) {
-                            citasRelacionadas.push(bloque);
-                            console.log(`   ${idx + 1}. Bloque: ${bloque.hora} (ID: ${bloque.id}, estado: ${bloque.estado})`);
-                        }
-                    });
-                }
-            }
-        }
-        // 4. SI ES HORA DE BLOQUE (es_bloque = true)
-        else if (cita.es_bloque) {
-            console.log(`📦 ES HORA DE BLOQUE - Hora principal: ${cita.hora_principal}`);
-            
-            if (cita.hora_principal) {
-                // Buscar la hora principal - NO filtrar por estado
-                const { data: principal, error: errorPrincipal } = await supabase
-                    .from('citas')
-                    .select('*')
-                    .eq('fecha', cita.fecha)
-                    .eq('hora', cita.hora_principal)
-                    .eq('cliente_id', cita.cliente_id)
-                    .eq('es_bloque', false)
-                    .maybeSingle();
-                    
-                if (errorPrincipal) {
-                    console.error('Error buscando hora principal:', errorPrincipal);
-                }
-                
-                if (principal) {
-                    console.log(`✅ Encontrada hora principal: ${principal.hora} (ID: ${principal.id}, estado: ${principal.estado})`);
-                    
-                    // Agregar la hora principal si no está ya
-                    const yaExiste = citasRelacionadas.some(c => c.id === principal.id);
-                    if (!yaExiste) {
-                        citasRelacionadas.push(principal);
-                    }
-                    
-                    // Buscar otros bloques con la misma hora_principal - NO filtrar por estado
-                    const { data: otrosBloques, error: errorOtros } = await supabase
-                        .from('citas')
-                        .select('*')
-                        .eq('fecha', cita.fecha)
-                        .eq('hora_principal', cita.hora_principal)
-                        .eq('cliente_id', cita.cliente_id)
-                        .neq('id', cita.id);
-                        
-                    if (errorOtros) {
-                        console.error('Error buscando otros bloques:', errorOtros);
-                    } else if (otrosBloques && otrosBloques.length > 0) {
-                        console.log(`✅ Encontrados ${otrosBloques.length} otros bloques`);
-                        otrosBloques.forEach(bloque => {
-                            const yaExiste = citasRelacionadas.some(c => c.id === bloque.id);
-                            if (!yaExiste) {
-                                citasRelacionadas.push(bloque);
-                            }
-                        });
-                    }
-                } else {
-                    console.log(`⚠️ No se encontró hora principal ${cita.hora_principal}`);
-                }
-            }
-        }
-
-        // 5. Eliminar duplicados
-        citasRelacionadas = citasRelacionadas.filter((cita, index, self) => 
-            index === self.findIndex(c => c.id === cita.id)
-        );
+        // Usar la nueva función para buscar el bloque VIP completo
+        const bloqueInfo = await buscarBloqueVIPCompleto(citaId);
+        const { esBloqueVIP, todasCitas } = bloqueInfo;
         
-        console.log(`📊 TOTAL CITAS RELACIONADAS: ${citasRelacionadas.length}`);
-        citasRelacionadas.forEach((c, i) => {
-            console.log(`   ${i + 1}. ${c.hora} (ID: ${c.id}, estado: "${c.estado}", es_bloque: ${c.es_bloque})`);
-        });
-
-        // 6. Mostrar confirmación con detalles
-        const horas = citasRelacionadas.map(c => c.hora).sort().join(', ');
-        const estadosActuales = citasRelacionadas.map(c => c.estado).join(', ');
-        
+        // Mostrar confirmación
+        const horas = todasCitas.map(c => c.hora).sort().join(', ');
         const confirmacion = await Swal.fire({
             title: '¿Confirmar completar citas?',
             html: `
                 <div style="text-align: left;">
                     <p><strong>Se marcarán como completadas:</strong></p>
                     <p>${horas}</p>
-                    <p><strong>Estados actuales:</strong> ${estadosActuales}</p>
-                    <p><strong>Total:</strong> ${citasRelacionadas.length} cita(s)</p>
+                    <p><strong>Total:</strong> ${todasCitas.length} cita(s)</p>
+                    ${esBloqueVIP ? `<p style="color: #d4af37;"><strong>✨ Bloque VIP de 80 minutos</strong></p>` : ''}
                 </div>
             `,
             icon: 'question',
@@ -10321,66 +10449,44 @@ function iniciarLimpiezaAutomaticaBotones() {
         if (!confirmacion.isConfirmed) {
             return;
         }
-
-        // 7. Obtener IDs para actualizar
-        const idsParaActualizar = citasRelacionadas.map(c => c.id);
+        
+        // Obtener IDs para actualizar
+        const idsParaActualizar = todasCitas.map(c => c.id);
         console.log(`🎯 IDs a actualizar: ${idsParaActualizar.join(', ')}`);
-
-        // 8. Actualizar TODAS las citas a 'completada'
-        console.log('🔄 Actualizando citas en la base de datos...');
-        const { data: resultado, error: updateError } = await supabase
+        
+        // Actualizar TODAS las citas a 'completada'
+        const { error: updateError } = await supabase
             .from('citas')
             .update({ 
                 estado: 'completada',
                 actualizado_en: new Date().toISOString()
             })
             .in('id', idsParaActualizar);
-
-        if (updateError) {
-            console.error('❌ Error actualizando:', updateError);
-            throw updateError;
-        }
-
-        console.log(`✅ ${idsParaActualizar.length} cita(s) actualizada(s) a "completada"`);
-
-        // 9. Verificar que se actualizaron
-        console.log('🔍 Verificando actualización...');
-        const { data: verificacion, error: errorVerif } = await supabase
-            .from('citas')
-            .select('id, hora, estado')
-            .in('id', idsParaActualizar)
-            .order('hora', { ascending: true });
             
-        if (errorVerif) {
-            console.error('Error verificando:', errorVerif);
-        } else {
-            console.log('📋 RESULTADO FINAL:');
-            verificacion.forEach(c => {
-                console.log(`   - ${c.hora} (ID: ${c.id}, estado: "${c.estado}")`);
-            });
-        }
-
-        // 10. Mensaje de éxito
-        if (citasRelacionadas.length > 1) {
-            showAlert(`✅ Bloque de 80 minutos completado:<br>${horas}`, 'success');
+        if (updateError) throw updateError;
+        
+        console.log(`✅ ${idsParaActualizar.length} cita(s) actualizada(s) a "completada"`);
+        
+        // Mensaje de éxito
+        if (esBloqueVIP) {
+            showAlert(`✅ Bloque VIP de 80 minutos completado:<br>${horas}`, 'success');
         } else {
             showAlert('✅ Cita marcada como completada', 'success');
         }
-
-        // 11. Recargar datos
+        
+        // Recargar datos
         setTimeout(async () => {
             await limpiarCacheDespuesDeAgendar();
             await precargarCitasFuturas();
             await cargarMisCitas();
             iniciarContadoresCitas();
         }, 500);
-
+        
     } catch (error) {
         console.error('❌ ERROR:', error);
         showAlert(`❌ Error: ${error.message}`, 'error');
     }
 }
-
 async function limpiarCitasBloqueHuérfanas() {
     try {
         console.log('🧹 Buscando citas de bloque huérfanas...');
@@ -10596,10 +10702,6 @@ async function cancelarCita(citaId) {
         
         console.log('🔍 Información de la cita a cancelar:', cita);
         
-        // 2. Determinar si es parte de un bloque de 80 minutos
-        // INICIALIZAR LA VARIABLE AQUÍ
-        let todasLasCitasDelBloque = [cita];
-        
         // Verificar que usuarioActual esté definido
         if (!usuarioActual || !usuarioActual.id) {
             console.error('❌ usuarioActual no está definido');
@@ -10630,15 +10732,148 @@ async function cancelarCita(citaId) {
             return;
         }
         
-        // CASO 1: Es hora principal (tiene duración 80 y notas indican que es bloque)
-        if ((cita.duracion || 40) === 80 || 
-            (cita.notas && cita.notas.includes('bloque de 80 minutos'))) {
+        // 2. Determinar si es parte de un bloque de 80 minutos
+        // INICIALIZAR LA VARIABLE AQUÍ
+        let todasLasCitasDelBloque = [cita];
+        
+        // Buscar el bloque VIP completo
+       const bloqueInfo = await buscarBloqueVIPCompleto(citaId);
+        const { esBloqueVIP: esBloqueVIPOriginal, todasCitas } = bloqueInfo; // CAMBIO AQUÍ
+        todasLasCitasDelBloque = todasCitas;
+        
+        console.log('🔍 Resultado de buscarBloqueVIPCompleto:', bloqueInfo);
+        console.log(`📊 Citas del bloque: ${todasLasCitasDelBloque.length}`, todasLasCitasDelBloque);
+        
+        // Si no es un bloque VIP, seguir con la lógica original de búsqueda de bloque de 80 minutos
+        if (!esBloqueVIP) {
+            console.log('🔍 No es bloque VIP, buscando bloque de 80 minutos...');
             
-            console.log('📦 Detectado como hora principal de bloque de 80 minutos');
+            // CASO 1: Es hora principal (tiene duración 80 y notas indican que es bloque)
+            if ((cita.duracion || 40) === 80 || 
+                (cita.notas && cita.notas.includes('bloque de 80 minutos'))) {
+                
+                console.log('📦 Detectado como hora principal de bloque de 80 minutos');
+                
+                try {
+                    // Buscar las horas secundarias que tienen esta hora como hora_principal
+                    const { data: horasSecundarias, error: errorSecundarias } = await supabase
+                        .from('citas')
+                        .select('*')
+                        .eq('fecha', cita.fecha)
+                        .eq('hora_principal', cita.hora)
+                        .eq('cliente_id', usuarioActual.id)
+                        .in('estado', ['aceptada', 'pendiente', 'confirmada']);
+                        
+                    if (errorSecundarias) {
+                        console.error('Error buscando horas secundarias:', errorSecundarias);
+                    }
+                    
+                    if (horasSecundarias && horasSecundarias.length > 0) {
+                        console.log(`✅ Encontradas ${horasSecundarias.length} horas secundarias del bloque`);
+                        todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasSecundarias];
+                    }
+                } catch (error) {
+                    console.error('Error en CASO 1:', error);
+                }
+            }
             
-            try {
-                // Buscar las horas secundarias que tienen esta hora como hora_principal
-                const { data: horasSecundarias, error: errorSecundarias } = await supabase
+            // CASO 2: Es hora secundaria (tiene hora_principal)
+            if (cita.hora_principal) {
+                const horaPrincipal = cita.hora_principal;
+                console.log(`📦 Detectado como hora secundaria. Hora principal: ${horaPrincipal}`);
+                
+                if (horaPrincipal) {
+                    try {
+                        // Buscar la hora principal
+                        const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
+                            .from('citas')
+                            .select('*')
+                            .eq('fecha', cita.fecha)
+                            .eq('hora', horaPrincipal)
+                            .eq('cliente_id', usuarioActual.id)
+                            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                            .maybeSingle();
+                            
+                        if (errorPrincipal) {
+                            console.error('Error buscando hora principal:', errorPrincipal);
+                        }
+                        
+                        if (horaPrincipalCita) {
+                            console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id})`);
+                            
+                            // Verificar que no esté ya en el array
+                            const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
+                            if (!yaExiste) {
+                                todasLasCitasDelBloque.push(horaPrincipalCita);
+                            }
+                            
+                            // Buscar otras horas secundarias del mismo bloque
+                            const { data: otrasHorasBloque, error: errorOtras } = await supabase
+                                .from('citas')
+                                .select('*')
+                                .eq('fecha', cita.fecha)
+                                .eq('hora_principal', horaPrincipal)
+                                .eq('cliente_id', usuarioActual.id)
+                                .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                                .neq('id', cita.id);
+                                
+                            if (errorOtras) {
+                                console.error('Error buscando otras horas del bloque:', errorOtras);
+                            }
+                            
+                            if (otrasHorasBloque && otrasHorasBloque.length > 0) {
+                                console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
+                                
+                                otrasHorasBloque.forEach(otraHora => {
+                                    const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
+                                    if (!yaExiste) {
+                                        todasLasCitasDelBloque.push(otraHora);
+                                    }
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error en CASO 2:', error);
+                    }
+                }
+            }
+            
+            // CASO 3: Buscar por fecha y hora similar (solo si tenemos una sola cita todavía)
+            if (todasLasCitasDelBloque.length === 1) {
+                console.log('🔍 Buscando citas relacionadas por tiempo...');
+                
+                try {
+                    const { data: todasCitasFecha, error: errorTodas } = await supabase
+                        .from('citas')
+                        .select('*')
+                        .eq('fecha', cita.fecha)
+                        .eq('cliente_id', usuarioActual.id)
+                        .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                        .neq('id', cita.id);
+                        
+                    if (!errorTodas && todasCitasFecha && todasCitasFecha.length > 0) {
+                        const horaActualIndex = obtenerIndexHora(cita.hora);
+                        
+                        todasCitasFecha.forEach(citaFecha => {
+                            const otraHoraIndex = obtenerIndexHora(citaFecha.hora);
+                            
+                            if (Math.abs(otraHoraIndex - horaActualIndex) === 1) {
+                                console.log(`🤝 Encontrada cita relacionada: ${citaFecha.hora} (ID: ${citaFecha.id})`);
+                                todasLasCitasDelBloque.push(citaFecha);
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error en CASO 3:', error);
+                }
+            }
+            
+            // CASO A: Es hora principal (es_bloque = false, duración 80)
+            if (!cita.es_bloque && (cita.duracion || 40) === 80) {
+                console.log('📦 Detectado como hora principal de bloque de 80 minutos');
+                
+                // Buscar las horas de bloque que tienen esta hora como hora_principal
+                const { data: horasBloque, error: errorBloque } = await supabase
                     .from('citas')
                     .select('*')
                     .eq('fecha', cita.fecha)
@@ -10646,194 +10881,68 @@ async function cancelarCita(citaId) {
                     .eq('cliente_id', usuarioActual.id)
                     .in('estado', ['aceptada', 'pendiente', 'confirmada']);
                     
-                if (errorSecundarias) {
-                    console.error('Error buscando horas secundarias:', errorSecundarias);
+                if (errorBloque) {
+                    console.error('Error buscando horas de bloque:', errorBloque);
                 }
                 
-                if (horasSecundarias && horasSecundarias.length > 0) {
-                    console.log(`✅ Encontradas ${horasSecundarias.length} horas secundarias del bloque`);
-                    todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasSecundarias];
+                if (horasBloque && horasBloque.length > 0) {
+                    console.log(`✅ Encontradas ${horasBloque.length} horas de bloque`);
+                    todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasBloque];
                 }
-            } catch (error) {
-                console.error('Error en CASO 1:', error);
             }
-        }
-        
-        // CASO 2: Es hora secundaria (tiene hora_principal)
-        if (cita.hora_principal) {
-            const horaPrincipal = cita.hora_principal;
-            console.log(`📦 Detectado como hora secundaria. Hora principal: ${horaPrincipal}`);
             
-            if (horaPrincipal) {
-                try {
-                    // Buscar la hora principal
-                    const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
+            // CASO B: Es hora de bloque (es_bloque = true, tiene hora_principal)
+            else if (cita.es_bloque && cita.hora_principal) {
+                console.log(`📦 Detectado como hora de bloque. Hora principal: ${cita.hora_principal}`);
+                
+                // Buscar la hora principal
+                const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
+                    .from('citas')
+                    .select('*')
+                    .eq('fecha', cita.fecha)
+                    .eq('hora', cita.hora_principal)
+                    .eq('es_bloque', false)
+                    .eq('cliente_id', usuarioActual.id)
+                    .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                    .maybeSingle();
+                    
+                if (errorPrincipal) {
+                    console.error('Error buscando hora principal:', errorPrincipal);
+                }
+                
+                if (horaPrincipalCita) {
+                    console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id})`);
+                    
+                    // Verificar que no esté ya en el array
+                    const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
+                    if (!yaExiste) {
+                        todasLasCitasDelBloque.push(horaPrincipalCita);
+                    }
+                    
+                    // Buscar otras horas de bloque del mismo bloque
+                    const { data: otrasHorasBloque, error: errorOtras } = await supabase
                         .from('citas')
                         .select('*')
                         .eq('fecha', cita.fecha)
-                        .eq('hora', horaPrincipal)
+                        .eq('hora_principal', cita.hora_principal)
                         .eq('cliente_id', usuarioActual.id)
                         .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                        .maybeSingle();
+                        .neq('id', cita.id);
                         
-                    if (errorPrincipal) {
-                        console.error('Error buscando hora principal:', errorPrincipal);
+                    if (errorOtras) {
+                        console.error('Error buscando otras horas del bloque:', errorOtras);
                     }
                     
-                    if (horaPrincipalCita) {
-                        console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id})`);
+                    if (otrasHorasBloque && otrasHorasBloque.length > 0) {
+                        console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
                         
-                        // Verificar que no esté ya en el array
-                        const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
-                        if (!yaExiste) {
-                            todasLasCitasDelBloque.push(horaPrincipalCita);
-                        }
-                        
-                        // Buscar otras horas secundarias del mismo bloque
-                        const { data: otrasHorasBloque, error: errorOtras } = await supabase
-                            .from('citas')
-                            .select('*')
-                            .eq('fecha', cita.fecha)
-                            .eq('hora_principal', horaPrincipal)
-                            .eq('cliente_id', usuarioActual.id)
-                            .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                            .neq('id', cita.id);
-                            
-                        if (errorOtras) {
-                            console.error('Error buscando otras horas del bloque:', errorOtras);
-                        }
-                        
-                        if (otrasHorasBloque && otrasHorasBloque.length > 0) {
-                            console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
-                            
-                            otrasHorasBloque.forEach(otraHora => {
-                                const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
-                                if (!yaExiste) {
-                                    todasLasCitasDelBloque.push(otraHora);
-                                }
-                            });
-                        }
+                        otrasHorasBloque.forEach(otraHora => {
+                            const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
+                            if (!yaExiste) {
+                                todasLasCitasDelBloque.push(otraHora);
+                            }
+                        });
                     }
-                } catch (error) {
-                    console.error('Error en CASO 2:', error);
-                }
-            }
-        }
-        
-        // CASO 3: Buscar por fecha y hora similar (solo si tenemos una sola cita todavía)
-        if (todasLasCitasDelBloque.length === 1) {
-            console.log('🔍 Buscando citas relacionadas por tiempo...');
-            
-            try {
-                const { data: todasCitasFecha, error: errorTodas } = await supabase
-                    .from('citas')
-                    .select('*')
-                    .eq('fecha', cita.fecha)
-                    .eq('cliente_id', usuarioActual.id)
-                    .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                    .neq('id', cita.id);
-                    
-                if (!errorTodas && todasCitasFecha && todasCitasFecha.length > 0) {
-                    const horaActualIndex = obtenerIndexHora(cita.hora);
-                    
-                    todasCitasFecha.forEach(citaFecha => {
-                        const otraHoraIndex = obtenerIndexHora(citaFecha.hora);
-                        
-                        if (Math.abs(otraHoraIndex - horaActualIndex) === 1) {
-                            console.log(`🤝 Encontrada cita relacionada: ${citaFecha.hora} (ID: ${citaFecha.id})`);
-                            todasLasCitasDelBloque.push(citaFecha);
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('Error en CASO 3:', error);
-            }
-        }
-        
-        // Eliminar duplicados
-        todasLasCitasDelBloque = todasLasCitasDelBloque.filter((cita, index, self) => 
-            index === self.findIndex(c => c.id === cita.id)
-        );
-        
-        console.log(`📊 Citas únicas del bloque: ${todasLasCitasDelBloque.length}`, todasLasCitasDelBloque);
-        
-        // 2. Buscar todas las citas relacionadas del bloque de 80 minutos
-        todasLasCitasDelBloque = [cita];
-        
-        // CASO A: Es hora principal (es_bloque = false, duración 80)
-        if (!cita.es_bloque && (cita.duracion || 40) === 80) {
-            console.log('📦 Detectado como hora principal de bloque de 80 minutos');
-            
-            // Buscar las horas de bloque que tienen esta hora como hora_principal
-            const { data: horasBloque, error: errorBloque } = await supabase
-                .from('citas')
-                .select('*')
-                .eq('fecha', cita.fecha)
-                .eq('hora_principal', cita.hora)
-                .eq('cliente_id', usuarioActual.id)
-                .in('estado', ['aceptada', 'pendiente', 'confirmada']);
-                
-            if (errorBloque) {
-                console.error('Error buscando horas de bloque:', errorBloque);
-            }
-            
-            if (horasBloque && horasBloque.length > 0) {
-                console.log(`✅ Encontradas ${horasBloque.length} horas de bloque`);
-                todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasBloque];
-            }
-        }
-        
-        // CASO B: Es hora de bloque (es_bloque = true, tiene hora_principal)
-        else if (cita.es_bloque && cita.hora_principal) {
-            console.log(`📦 Detectado como hora de bloque. Hora principal: ${cita.hora_principal}`);
-            
-            // Buscar la hora principal
-            const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
-                .from('citas')
-                .select('*')
-                .eq('fecha', cita.fecha)
-                .eq('hora', cita.hora_principal)
-                .eq('es_bloque', false)
-                .eq('cliente_id', usuarioActual.id)
-                .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                .maybeSingle();
-                
-            if (errorPrincipal) {
-                console.error('Error buscando hora principal:', errorPrincipal);
-            }
-            
-            if (horaPrincipalCita) {
-                console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id})`);
-                
-                // Verificar que no esté ya en el array
-                const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
-                if (!yaExiste) {
-                    todasLasCitasDelBloque.push(horaPrincipalCita);
-                }
-                
-                // Buscar otras horas de bloque del mismo bloque
-                const { data: otrasHorasBloque, error: errorOtras } = await supabase
-                    .from('citas')
-                    .select('*')
-                    .eq('fecha', cita.fecha)
-                    .eq('hora_principal', cita.hora_principal)
-                    .eq('cliente_id', usuarioActual.id)
-                    .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                    .neq('id', cita.id);
-                    
-                if (errorOtras) {
-                    console.error('Error buscando otras horas del bloque:', errorOtras);
-                }
-                
-                if (otrasHorasBloque && otrasHorasBloque.length > 0) {
-                    console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
-                    
-                    otrasHorasBloque.forEach(otraHora => {
-                        const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
-                        if (!yaExiste) {
-                            todasLasCitasDelBloque.push(otraHora);
-                        }
-                    });
                 }
             }
         }
@@ -10934,143 +11043,105 @@ async function cancelarCita(citaId) {
         const esBloqueCompleto = todasLasCitasDelBloque.length > 1;
         const horasBloque = todasLasCitasDelBloque.map(c => c.hora).sort();
         
-        if (esBloqueCompleto) {
-            // Confirmación para bloque de citas
-            const { isConfirmed } = await Swal.fire({
-                title: '🗓️ Cancelar bloque de citas',
+        // Definir el título y mensaje según el tipo de bloque
+        const esBloqueVIP = todasLasCitasDelBloque.length > 2; // Más de 2 citas = probablemente VIP
+        const tituloCancelacion = esBloqueVIP ? '✨ Cancelar sesión VIP completa' : 
+                                  esBloqueCompleto ? '🗓️ Cancelar bloque de citas' : 
+                                  '📅 Cancelar cita';
+        const mensajeConfirmacion = esBloqueVIP ? 
+            `<p style="color: #ffffff; margin-bottom: 15px;">
+                Estás a punto de cancelar una <strong style="color: #d4af37;">sesión VIP completa de ${todasLasCitasDelBloque.length} horas</strong>.
+            </p>` :
+            esBloqueCompleto ?
+            `<p style="color: #ffffff; margin-bottom: 15px;">
+                Estás a punto de cancelar un <strong style="color: #d4af37;">bloque de ${todasLasCitasDelBloque.length} citas</strong>.
+            </p>` :
+            `<p style="color: #ffffff; margin-bottom: 15px;">
+                ¿Cancelar la cita de las <strong style="color: #d4af37;">${cita.hora}</strong>?
+            </p>`;
+        
+        // Construir HTML para la confirmación
+        const htmlConfirmacion = `
+            <div style="text-align: center;">
+                <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
+                    <i class="fas fa-calendar-times"></i>
+                </div>
+                ${mensajeConfirmacion}
+                <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                    ${esBloqueCompleto || esBloqueVIP ? `
+                        <p style="margin: 10px 0; color: #d4af37;"><strong>Horas a cancelar:</strong></p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
+                            ${horasBloque.map(hora => `
+                                <span style="background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%); color: #000000; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
+                                    ${hora}
+                                </span>
+                            `).join('')}
+                        </div>
+                    ` : `
+                        <p style="margin: 8px 0; color: #d4af37;"><strong>Fecha:</strong> ${cita.fecha}</p>
+                        <p style="margin: 8px 0; color: #d4af37;"><strong>Hora:</strong> ${cita.hora}</p>
+                        <p style="margin: 8px 0; color: #d4af37;"><strong>Estado:</strong> <span style="color: #d4af37;">${cita.estado}</span></p>
+                    `}
+                </div>
+                <p style="color: #ff6b6b; font-size: 0.9em; margin-top: 20px;">
+                    <i class="fas fa-exclamation-circle"></i> Esta acción no se puede deshacer
+                </p>
+            </div>
+        `;
+        
+        const { isConfirmed } = await Swal.fire({
+            title: tituloCancelacion,
+            html: htmlConfirmacion,
+            showCancelButton: true,
+            confirmButtonText: esBloqueCompleto || esBloqueVIP ? 
+                (esBloqueVIP ? 'Sí, cancelar sesión VIP' : 'Sí, cancelar bloque') : 
+                'Sí, cancelar cita',
+            cancelButtonText: 'No, conservar ' + (esBloqueVIP ? 'sesión' : esBloqueCompleto ? 'citas' : 'cita'),
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            background: '#1a1a1a',
+            color: '#ffffff',
+            showCloseButton: true,
+            reverseButtons: true,
+            backdrop: 'rgba(0,0,0,0.7)',
+            width: esBloqueVIP ? '550px' : (esBloqueCompleto ? '500px' : '450px'),
+            customClass: {
+                popup: 'sweet-alert-custom',
+                confirmButton: 'btn-danger',
+                cancelButton: 'btn-secondary'
+            }
+        });
+        
+        if (!isConfirmed) {
+            Swal.fire({
+                title: esBloqueVIP ? '👌 Cancelación interrumpida' : 
+                       esBloqueCompleto ? '👌 Cancelación interrumpida' : '👍 Acción cancelada',
                 html: `
                     <div style="text-align: center;">
                         <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
-                            <i class="fas fa-calendar-times"></i>
+                            <i class="fas fa-check"></i>
                         </div>
                         <p style="color: #ffffff; margin-bottom: 15px;">
-                            Estás a punto de cancelar un <strong style="color: #d4af37;">bloque de ${todasLasCitasDelBloque.length} citas</strong>.
+                            ${esBloqueVIP ? 'La sesión VIP se mantiene activa.' : 
+                            esBloqueCompleto ? 'Las citas se mantienen activas.' : 
+                            'Tu cita sigue activa.'}
                         </p>
-                        <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <p style="margin: 10px 0; color: #d4af37;"><strong>Horas a cancelar:</strong></p>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
-                                ${horasBloque.map(hora => `
-                                    <span style="background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%); color: #000000; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
-                                        ${hora}
-                                    </span>
-                                `).join('')}
-                            </div>
+                        <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px;">
+                            <p style="color: #d4af37; margin: 0;">¡Gracias por confirmar tu asistencia!</p>
                         </div>
-                        <p style="color: #ff6b6b; font-size: 0.9em; margin-top: 20px;">
-                            <i class="fas fa-exclamation-circle"></i> Esta acción no se puede deshacer
-                        </p>
                     </div>
                 `,
-                showCancelButton: true,
-                confirmButtonText: 'Sí, cancelar bloque',
-                cancelButtonText: 'No, conservar citas',
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d',
+                icon: false,
                 background: '#1a1a1a',
                 color: '#ffffff',
-                showCloseButton: true,
-                reverseButtons: true,
-                backdrop: 'rgba(0,0,0,0.7)',
-                width: '500px',
+                confirmButtonText: 'Aceptar',
+                confirmButtonColor: '#d4af37',
+                timer: 3000,
                 customClass: {
-                    popup: 'sweet-alert-custom',
-                    confirmButton: 'btn-danger',
-                    cancelButton: 'btn-secondary'
+                    popup: 'sweet-alert-custom'
                 }
             });
-            
-            if (!isConfirmed) {
-                Swal.fire({
-                    title: '👌 Cancelación interrumpida',
-                    html: `
-                        <div style="text-align: center;">
-                            <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
-                                <i class="fas fa-check"></i>
-                            </div>
-                            <p style="color: #ffffff; margin-bottom: 15px;">Las citas se mantienen activas.</p>
-                            <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px;">
-                                <p style="color: #d4af37; margin: 0;">¡Gracias por confirmar tu asistencia!</p>
-                            </div>
-                        </div>
-                    `,
-                    icon: false,
-                    background: '#1a1a1a',
-                    color: '#ffffff',
-                    confirmButtonText: 'Aceptar',
-                    confirmButtonColor: '#d4af37',
-                    timer: 3000,
-                    customClass: {
-                        popup: 'sweet-alert-custom'
-                    }
-                });
-                return;
-            }
-        } else {
-            // Confirmación para cita individual
-            const { isConfirmed } = await Swal.fire({
-                title: '📅 Cancelar cita',
-                html: `
-                    <div style="text-align: center;">
-                        <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
-                            <i class="fas fa-calendar-minus"></i>
-                        </div>
-                        <p style="color: #ffffff; margin-bottom: 15px;">
-                            ¿Cancelar la cita de las <strong style="color: #d4af37;">${cita.hora}</strong>?
-                        </p>
-                        <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <p style="margin: 8px 0; color: #d4af37;"><strong>Fecha:</strong> ${cita.fecha}</p>
-                            <p style="margin: 8px 0; color: #d4af37;"><strong>Hora:</strong> ${cita.hora}</p>
-                            <p style="margin: 8px 0; color: #d4af37;"><strong>Estado:</strong> <span style="color: #d4af37;">${cita.estado}</span></p>
-                        </div>
-                        <p style="color: #ff6b6b; font-size: 0.9em;">
-                            <i class="fas fa-info-circle"></i> La cita se eliminará automáticamente en 2 horas
-                        </p>
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Sí, cancelar cita',
-                cancelButtonText: 'No, mantener cita',
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d',
-                background: '#1a1a1a',
-                color: '#ffffff',
-                showCloseButton: true,
-                reverseButtons: true,
-                backdrop: 'rgba(0,0,0,0.7)',
-                width: '450px',
-                customClass: {
-                    popup: 'sweet-alert-custom',
-                    confirmButton: 'btn-danger',
-                    cancelButton: 'btn-secondary'
-                }
-            });
-            
-            if (!isConfirmed) {
-                Swal.fire({
-                    title: '👍 Acción cancelada',
-                    html: `
-                        <div style="text-align: center;">
-                            <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
-                                <i class="fas fa-calendar-check"></i>
-                            </div>
-                            <p style="color: #ffffff; margin-bottom: 15px;">Tu cita sigue activa.</p>
-                            <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px;">
-                                <p style="color: #d4af37; margin: 0;">¡Nos vemos en tu cita!</p>
-                            </div>
-                        </div>
-                    `,
-                    icon: false,
-                    background: '#1a1a1a',
-                    color: '#ffffff',
-                    confirmButtonText: 'Aceptar',
-                    confirmButtonColor: '#d4af37',
-                    timer: 3000,
-                    customClass: {
-                        popup: 'sweet-alert-custom'
-                    }
-                });
-                return;
-            }
+            return;
         }
         
         // 5. Cancelar TODAS las citas del bloque
@@ -11088,7 +11159,9 @@ async function cancelarCita(citaId) {
                     </div>
                     <p style="color: #ffffff; margin-bottom: 10px;">Procesando la cancelación...</p>
                     <small style="color: #d4af37;">
-                        ${esBloqueCompleto ? `Cancelando ${todasLasCitasDelBloque.length} citas` : 'Cancelando cita individual'}
+                        ${esBloqueVIP ? `Cancelando sesión VIP de ${todasLasCitasDelBloque.length} horas` : 
+                         esBloqueCompleto ? `Cancelando ${todasLasCitasDelBloque.length} citas` : 
+                         'Cancelando cita individual'}
                     </small>
                 </div>
                 <style>
@@ -11124,74 +11197,94 @@ async function cancelarCita(citaId) {
         Swal.close();
         
         // 6. Mostrar mensaje de éxito
-        if (esBloqueCompleto) {
-            Swal.fire({
-                title: '✨ Bloque cancelado exitosamente',
-                html: `
-                    <div style="text-align: center;">
-                        <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
-                            <i class="fas fa-calendar-check"></i>
-                        </div>
-                        <p style="color: #ffffff; margin-bottom: 15px;">
-                            Se cancelaron <strong style="color: #d4af37;">${todasLasCitasDelBloque.length} citas</strong>
-                        </p>
-                        <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <p style="margin: 10px 0; color: #28a745;"><strong>Horas liberadas:</strong></p>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
-                                ${horasBloque.map(hora => `
-                                    <span style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
-                                        ${hora}
-                                    </span>
-                                `).join('')}
-                            </div>
-                        </div>
-                        <p style="color: #cccccc; font-size: 0.85em;">
-                            <i class="fas fa-clock" style="color: #d4af37;"></i> 
-                            Las citas se eliminarán automáticamente en 2 horas
-                        </p>
+        let tituloExito, htmlExito;
+        
+        if (esBloqueVIP) {
+            tituloExito = '✨ Sesión VIP cancelada exitosamente';
+            htmlExito = `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
+                        <i class="fas fa-crown"></i>
                     </div>
-                `,
-                icon: false,
-                background: '#1a1a1a',
-                color: '#ffffff',
-                confirmButtonText: 'Entendido',
-                confirmButtonColor: '#28a745',
-                showConfirmButton: true,
-                customClass: {
-                    popup: 'sweet-alert-custom'
-                }
-            });
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        Se canceló la <strong style="color: #d4af37;">sesión VIP completa de ${todasLasCitasDelBloque.length} horas</strong>
+                    </p>
+                    <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <p style="margin: 10px 0; color: #28a745;"><strong>Horas liberadas:</strong></p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
+                            ${horasBloque.map(hora => `
+                                <span style="background: linear-gradient(135deg, #d4af37 0%, #28a745 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
+                                    ${hora}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <p style="color: #cccccc; font-size: 0.85em;">
+                        <i class="fas fa-clock" style="color: #d4af37;"></i> 
+                        Las horas se eliminarán automáticamente en 2 horas
+                    </p>
+                </div>
+            `;
+        } else if (esBloqueCompleto) {
+            tituloExito = '✨ Bloque cancelado exitosamente';
+            htmlExito = `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        Se cancelaron <strong style="color: #d4af37;">${todasLasCitasDelBloque.length} citas</strong>
+                    </p>
+                    <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <p style="margin: 10px 0; color: #28a745;"><strong>Horas liberadas:</strong></p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
+                            ${horasBloque.map(hora => `
+                                <span style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
+                                    ${hora}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <p style="color: #cccccc; font-size: 0.85em;">
+                        <i class="fas fa-clock" style="color: #d4af37;"></i> 
+                        Las citas se eliminarán automáticamente en 2 horas
+                    </p>
+                </div>
+            `;
         } else {
-            Swal.fire({
-                title: '✅ Cita cancelada',
-                html: `
-                    <div style="text-align: center;">
-                        <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <p style="color: #ffffff; margin-bottom: 15px;">
-                            Tu cita de las <strong style="color: #d4af37;">${cita.hora}</strong> ha sido cancelada
-                        </p>
-                        <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <p style="color: #28a745; margin: 0;">La hora ha sido liberada para nuevos agendamientos</p>
-                        </div>
-                        <p style="color: #cccccc; font-size: 0.85em;">
-                            <i class="fas fa-info-circle" style="color: #d4af37;"></i> 
-                            Se eliminará automáticamente de tu historial en 2 horas
-                        </p>
+            tituloExito = '✅ Cita cancelada';
+            htmlExito = `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
+                        <i class="fas fa-check-circle"></i>
                     </div>
-                `,
-                icon: false,
-                background: '#1a1a1a',
-                color: '#ffffff',
-                confirmButtonText: 'Aceptar',
-                confirmButtonColor: '#28a745',
-                showConfirmButton: true,
-                customClass: {
-                    popup: 'sweet-alert-custom'
-                }
-            });
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        Tu cita de las <strong style="color: #d4af37;">${cita.hora}</strong> ha sido cancelada
+                    </p>
+                    <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <p style="color: #28a745; margin: 0;">La hora ha sido liberada para nuevos agendamientos</p>
+                    </div>
+                    <p style="color: #cccccc; font-size: 0.85em;">
+                        <i class="fas fa-info-circle" style="color: #d4af37;"></i> 
+                        Se eliminará automáticamente de tu historial en 2 horas
+                    </p>
+                </div>
+            `;
         }
+        
+        Swal.fire({
+            title: tituloExito,
+            html: htmlExito,
+            icon: false,
+            background: '#1a1a1a',
+            color: '#ffffff',
+            confirmButtonText: 'Aceptar',
+            confirmButtonColor: '#28a745',
+            showConfirmButton: true,
+            customClass: {
+                popup: 'sweet-alert-custom'
+            }
+        });
         
         // 7. Actualizar caché y notificar
         await limpiarCacheDespuesDeAgendar();
@@ -11256,8 +11349,8 @@ async function cancelarCita(citaId) {
         console.log('🕐 Verificando citas pasadas...');
         console.log('   - Hora LOCAL:', ahoraLocal.toLocaleString('es-MX'));
         
-        // Buscar todas las citas activas del usuario
-        const { data: citasActivas, error } = await supabase
+        // Buscar TODAS las citas activas del usuario (incluyendo bloques)
+        const { data: todasCitasActivas, error } = await supabase
             .from('citas')
             .select('id, fecha, hora, estado, hora_principal, duracion, notas, es_bloque')
             .eq('cliente_id', usuarioActual.id)
@@ -11265,117 +11358,251 @@ async function cancelarCita(citaId) {
             
         if (error) throw error;
         
-        if (citasActivas && citasActivas.length > 0) {
-            const citasYaProcesadas = new Set();
-            
-            for (const cita of citasActivas) {
-                // Si ya procesamos esta cita, saltarla
-                if (citasYaProcesadas.has(cita.id)) {
-                    continue;
-                }
-                
-                // Convertir fecha/hora de la cita a objeto Date (ya está en hora local)
-                const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
-                
-                console.log(`   - Cita ${cita.id}: ${cita.fecha} ${cita.hora}`);
-                console.log(`     Hora cita (local): ${fechaCita.toLocaleString('es-MX')}`);
-                console.log(`     Hora actual (local): ${ahoraLocal.toLocaleString('es-MX')}`);
-                console.log(`     Pasó? ${ahoraLocal > fechaCita}`);
-                console.log(`     Es bloque: ${cita.es_bloque}, Duración: ${cita.duracion || 40}`);
-                
-                // Verificar si la hora de la cita YA PASÓ (comparación LOCAL)
-                if (ahoraLocal > fechaCita) {
-                    console.log(`✅ Cita ${cita.id} pasó: ${cita.fecha} ${cita.hora}`);
-                    
-                    // Buscar todas las citas del bloque si es parte de un bloque
-                    let todasCitasBloque = [cita];
-                    citasYaProcesadas.add(cita.id);
-                    
-                    // Si es hora principal (es_bloque = false, duración 80)
-                    if (!cita.es_bloque && (cita.duracion || 40) === 80) {
-                        console.log(`   📦 Es hora principal de bloque, buscando horas de bloque...`);
-                        
-                        // Buscar horas de bloque
-                        for (const otraCita of citasActivas) {
-                            if (otraCita.hora_principal === cita.hora && 
-                                otraCita.fecha === cita.fecha &&
-                                !citasYaProcesadas.has(otraCita.id)) {
-                                todasCitasBloque.push(otraCita);
-                                citasYaProcesadas.add(otraCita.id);
-                                console.log(`     + Hora bloque encontrada: ${otraCita.id}`);
-                            }
-                        }
-                    }
-                    // Si es hora de bloque (es_bloque = true)
-                    else if (cita.es_bloque && cita.hora_principal) {
-                        console.log(`   📦 Es hora de bloque, buscando hora principal y otras horas de bloque...`);
-                        
-                        // Buscar la hora principal
-                        for (const otraCita of citasActivas) {
-                            if (!otraCita.es_bloque && 
-                                otraCita.hora === cita.hora_principal && 
-                                otraCita.fecha === cita.fecha &&
-                                !citasYaProcesadas.has(otraCita.id)) {
-                                todasCitasBloque.push(otraCita);
-                                citasYaProcesadas.add(otraCita.id);
-                                console.log(`     + Hora principal encontrada: ${otraCita.id}`);
-                            }
-                        }
-                        
-                        // Buscar otras horas de bloque del mismo bloque
-                        for (const otraCita of citasActivas) {
-                            if (otraCita.es_bloque && 
-                                otraCita.hora_principal === cita.hora_principal && 
-                                otraCita.fecha === cita.fecha &&
-                                otraCita.id !== cita.id &&
-                                !citasYaProcesadas.has(otraCita.id)) {
-                                todasCitasBloque.push(otraCita);
-                                citasYaProcesadas.add(otraCita.id);
-                                console.log(`     + Otra hora bloque encontrada: ${otraCita.id}`);
-                            }
-                        }
-                    } else {
-                        console.log(`   📦 Cita simple, no es parte de un bloque`);
-                    }
-                    
-                    // Marcar todas las citas del bloque como completadas
-                    const idsAMarcar = todasCitasBloque.map(c => c.id);
-                    
-                    console.log(`📦 Marcando ${idsAMarcar.length} citas del bloque como completadas: ${idsAMarcar.join(', ')}`);
-                    
-                    // IMPORTANTE: Solo actualizamos el estado
-                    // El trigger se encargará de establecer expira_en automáticamente
-                    const { error: updateError } = await supabase
-                        .from('citas')
-                        .update({
-                            estado: 'completada'
-                        })
-                        .in('id', idsAMarcar);
-                        
-                    if (updateError) throw updateError;
-                    
-                    console.log(`✅ ${idsAMarcar.length} citas marcadas como completadas`);
-                }
-            }
-            
-            if (citasYaProcesadas.size > 0) {
-                console.log('✅ Citas marcadas como completadas - Trigger establecerá expira_en automáticamente');
-                console.log(`   Total citas procesadas: ${citasYaProcesadas.size}`);
-                
-                // Recargar citas y actualizar UI
-                await cargarMisCitas();
-                setTimeout(() => {
-                    iniciarContadoresCitas();
-                }, 500);
-            } else {
-                console.log('✅ No hay citas pasadas que procesar');
-            }
-        } else {
+        if (!todasCitasActivas || todasCitasActivas.length === 0) {
             console.log('✅ No hay citas activas para verificar');
+            return;
+        }
+        
+        console.log(`📊 Total citas activas encontradas: ${todasCitasActivas.length}`);
+        
+        // Separar citas principales y de bloque
+        const citasPrincipales = todasCitasActivas.filter(c => !c.es_bloque);
+        const citasBloque = todasCitasActivas.filter(c => c.es_bloque);
+        
+        console.log(`   - Citas principales: ${citasPrincipales.length}`);
+        console.log(`   - Citas de bloque: ${citasBloque.length}`);
+        
+        // Set para llevar registro de IDs ya procesados
+        const idsYaProcesados = new Set();
+        let totalProcesados = 0;
+        
+        // Procesar primero las citas principales que han pasado
+        for (const cita of citasPrincipales) {
+            if (idsYaProcesados.has(cita.id)) continue;
+            
+            const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
+            
+            // Verificar si la hora de la cita YA PASÓ
+            if (ahoraLocal > fechaCita) {
+                console.log(`✅ Cita principal pasó: ${cita.fecha} ${cita.hora}`);
+                
+                // Determinar si es parte de un bloque VIP (80 minutos)
+                const esBloqueVIP = (cita.duracion || 40) === 80;
+                
+                // Buscar TODAS las citas relacionadas
+                let todasCitasRelacionadas = [cita];
+                idsYaProcesados.add(cita.id);
+                
+                // Si es bloque VIP, buscar horas de bloque asociadas
+                if (esBloqueVIP) {
+                    console.log(`📦 Es bloque VIP de 80 minutos - buscando horas de bloque...`);
+                    
+                    // Buscar horas de bloque que tengan esta hora como hora_principal
+                    const horasBloqueAsociadas = citasBloque.filter(bloque => 
+                        bloque.hora_principal === cita.hora && 
+                        bloque.fecha === cita.fecha
+                    );
+                    
+                    if (horasBloqueAsociadas.length > 0) {
+                        console.log(`✅ Encontradas ${horasBloqueAsociadas.length} horas de bloque`);
+                        
+                        horasBloqueAsociadas.forEach(bloque => {
+                            if (!idsYaProcesados.has(bloque.id)) {
+                                todasCitasRelacionadas.push(bloque);
+                                idsYaProcesados.add(bloque.id);
+                                console.log(`   + Hora de bloque: ${bloque.hora} (ID: ${bloque.id})`);
+                            }
+                        });
+                    }
+                }
+                
+                // Actualizar TODAS las citas del bloque
+                const idsAMarcar = todasCitasRelacionadas.map(c => c.id);
+                
+                console.log(`📦 Marcando ${idsAMarcar.length} citas como completadas: ${idsAMarcar.join(', ')}`);
+                
+                const { error: updateError } = await supabase
+                    .from('citas')
+                    .update({ estado: 'completada' })
+                    .in('id', idsAMarcar);
+                    
+                if (updateError) throw updateError;
+                
+                console.log(`✅ ${idsAMarcar.length} citas marcadas como completadas`);
+                totalProcesados += idsAMarcar.length;
+            }
+        }
+        
+        // Procesar horas de bloque que no tengan hora principal asociada (casos huérfanos)
+        for (const bloque of citasBloque) {
+            if (idsYaProcesados.has(bloque.id)) continue;
+            
+            // Verificar si la hora de bloque ha pasado
+            const fechaCitaBloque = getYucatanDateTime(bloque.fecha, bloque.hora);
+            
+            if (ahoraLocal > fechaCitaBloque) {
+                console.log(`🔄 Hora de bloque huérfana pasó: ${bloque.fecha} ${bloque.hora}`);
+                
+                // Buscar la hora principal si existe
+                const horaPrincipal = citasPrincipales.find(c => 
+                    c.hora === bloque.hora_principal && 
+                    c.fecha === bloque.fecha
+                );
+                
+                let idsAMarcar = [bloque.id];
+                idsYaProcesados.add(bloque.id);
+                
+                // Si encontramos hora principal, también marcarla
+                if (horaPrincipal && !idsYaProcesados.has(horaPrincipal.id)) {
+                    idsAMarcar.push(horaPrincipal.id);
+                    idsYaProcesados.add(horaPrincipal.id);
+                    console.log(`   + Hora principal asociada: ${horaPrincipal.hora} (ID: ${horaPrincipal.id})`);
+                }
+                
+                // Buscar otras horas de bloque del mismo bloque
+                const otrasHorasBloque = citasBloque.filter(b => 
+                    b.hora_principal === bloque.hora_principal && 
+                    b.fecha === bloque.fecha &&
+                    b.id !== bloque.id &&
+                    !idsYaProcesados.has(b.id)
+                );
+                
+                if (otrasHorasBloque.length > 0) {
+                    otrasHorasBloque.forEach(b => {
+                        idsAMarcar.push(b.id);
+                        idsYaProcesados.add(b.id);
+                        console.log(`   + Otra hora de bloque: ${b.hora} (ID: ${b.id})`);
+                    });
+                }
+                
+                console.log(`📦 Marcando ${idsAMarcar.length} citas huérfanas como completadas`);
+                
+                const { error: updateError } = await supabase
+                    .from('citas')
+                    .update({ estado: 'completada' })
+                    .in('id', idsAMarcar);
+                    
+                if (updateError) throw updateError;
+                
+                console.log(`✅ ${idsAMarcar.length} citas huérfanas marcadas como completadas`);
+                totalProcesados += idsAMarcar.length;
+            }
+        }
+        
+        if (totalProcesados > 0) {
+            console.log(`✅ Total de ${totalProcesados} citas marcadas como completadas`);
+            
+            // Recargar citas y actualizar UI
+            await cargarMisCitas();
+            setTimeout(() => {
+                iniciarContadoresCitas();
+            }, 500);
+        } else {
+            console.log('✅ No hay citas pasadas que procesar');
         }
         
     } catch (error) {
         console.error('Error verificando citas pasadas:', error);
+    }
+}
+
+// Función auxiliar para buscar TODAS las citas de un bloque VIP
+async function buscarBloqueVIPCompleto(citaId) {
+    try {
+        // Primero obtener la cita
+        const { data: cita, error } = await supabase
+            .from('citas')
+            .select('*')
+            .eq('id', citaId)
+            .single();
+            
+        if (error) throw error;
+        
+        // Array para todas las citas del bloque
+        let todasCitasBloque = [cita];
+        
+        // CASO 1: Es hora principal de bloque VIP
+        if (!cita.es_bloque && (cita.duracion || 40) === 80) {
+            console.log(`📦 Buscando bloque VIP completo para hora principal: ${cita.hora}`);
+            
+            // Buscar TODAS las horas de bloque con esta hora_principal
+            const { data: horasBloque, error: errorBloque } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('fecha', cita.fecha)
+                .eq('hora_principal', cita.hora)
+                .eq('cliente_id', usuarioActual.id);
+                
+            if (!errorBloque && horasBloque) {
+                horasBloque.forEach(bloque => {
+                    if (bloque.id !== cita.id) {
+                        todasCitasBloque.push(bloque);
+                        console.log(`   + Hora de bloque: ${bloque.hora} (ID: ${bloque.id})`);
+                    }
+                });
+            }
+        }
+        // CASO 2: Es hora de bloque
+        else if (cita.es_bloque && cita.hora_principal) {
+            console.log(`📦 Buscando bloque VIP completo para hora de bloque: ${cita.hora}`);
+            
+            // Buscar la hora principal
+            const { data: horaPrincipal, error: errorPrincipal } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('fecha', cita.fecha)
+                .eq('hora', cita.hora_principal)
+                .eq('es_bloque', false)
+                .eq('cliente_id', usuarioActual.id)
+                .maybeSingle();
+                
+            if (!errorPrincipal && horaPrincipal) {
+                // Agregar hora principal si no está ya
+                const yaExiste = todasCitasBloque.some(c => c.id === horaPrincipal.id);
+                if (!yaExiste) {
+                    todasCitasBloque.push(horaPrincipal);
+                    console.log(`   + Hora principal: ${horaPrincipal.hora} (ID: ${horaPrincipal.id})`);
+                }
+                
+                // Buscar otras horas de bloque del mismo bloque
+                const { data: otrasHorasBloque, error: errorOtras } = await supabase
+                    .from('citas')
+                    .select('*')
+                    .eq('fecha', cita.fecha)
+                    .eq('hora_principal', cita.hora_principal)
+                    .eq('cliente_id', usuarioActual.id)
+                    .neq('id', cita.id);
+                    
+                if (!errorOtras && otrasHorasBloque) {
+                    otrasHorasBloque.forEach(bloque => {
+                        const yaExiste = todasCitasBloque.some(c => c.id === bloque.id);
+                        if (!yaExiste) {
+                            todasCitasBloque.push(bloque);
+                            console.log(`   + Otra hora de bloque: ${bloque.hora} (ID: ${bloque.id})`);
+                        }
+                    });
+                }
+            }
+        }
+        
+        // Eliminar duplicados
+        todasCitasBloque = todasCitasBloque.filter((cita, index, self) => 
+            index === self.findIndex(c => c.id === cita.id)
+        );
+        
+        console.log(`📊 Total citas en bloque VIP: ${todasCitasBloque.length}`);
+        
+        return {
+            esBloqueVIP: todasCitasBloque.length > 1,
+            todasCitas: todasCitasBloque
+        };
+        
+    } catch (error) {
+        console.error('❌ Error buscando bloque VIP:', error);
+        return {
+            esBloqueVIP: false,
+            todasCitas: []
+        };
     }
 }
 
@@ -11404,6 +11631,7 @@ async function cancelarCita(citaId) {
             console.error('Error verificando timestamps:', error);
         }
     }
+    
 async function eliminarCita(citaId) {
     try {
         console.log('🗑️ Iniciando eliminación de cita:', citaId);
@@ -11459,86 +11687,99 @@ async function eliminarCita(citaId) {
         // 2. Buscar todas las citas relacionadas (bloque de 80 minutos)
         let todasLasCitasDelBloque = [cita];
         
-        // CASO A: Es hora principal (es_bloque = false, duración 80)
-        if (!cita.es_bloque && (cita.duracion || 40) === 80) {
-            console.log('📦 Detectado como hora principal de bloque de 80 minutos');
-            
-            // Buscar las horas de bloque que tienen esta hora como hora_principal
-            const { data: horasBloque, error: errorBloque } = await supabase
-                .from('citas')
-                .select('*')
-                .eq('fecha', cita.fecha)
-                .eq('hora_principal', cita.hora) // Buscar por hora_principal
-                .eq('cliente_id', usuarioActual.id)
-                .in('estado', ['completada', 'cancelada']);
-                
-            if (errorBloque) {
-                console.error('Error buscando horas de bloque:', errorBloque);
-            }
-            
-            if (horasBloque && horasBloque.length > 0) {
-                console.log(`✅ Encontradas ${horasBloque.length} horas de bloque`);
-                todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasBloque];
-                
-                // DEBUG: Mostrar las horas encontradas
-                horasBloque.forEach((horaBloque, index) => {
-                    console.log(`   ${index + 1}. Hora de bloque: ${horaBloque.hora} (ID: ${horaBloque.id}, es_bloque: ${horaBloque.es_bloque})`);
-                });
-            }
-        }
+        // Buscar el bloque VIP completo (si aplica)
+        const bloqueInfo = await buscarBloqueVIPCompleto(citaId);
+        const { esBloqueVIP, todasCitas } = bloqueInfo;
+        todasLasCitasDelBloque = todasCitas;
         
-        // CASO B: Es hora de bloque (es_bloque = true, tiene hora_principal)
-        else if (cita.es_bloque && cita.hora_principal) {
-            console.log(`📦 Detectado como hora de bloque. Hora principal: ${cita.hora_principal}`);
+        console.log('🔍 Resultado de buscarBloqueVIPCompleto:', bloqueInfo);
+        console.log(`📊 Citas del bloque: ${todasLasCitasDelBloque.length}`, todasLasCitasDelBloque);
+        
+        // Si no es un bloque VIP, seguir con la lógica original de búsqueda de bloque de 80 minutos
+        if (!esBloqueVIP) {
+            console.log('🔍 No es bloque VIP, buscando bloque de 80 minutos...');
             
-            // Buscar la hora principal
-            const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
-                .from('citas')
-                .select('*')
-                .eq('fecha', cita.fecha)
-                .eq('hora', cita.hora_principal)
-                .eq('es_bloque', false) // Buscar hora principal (es_bloque = false)
-                .eq('cliente_id', usuarioActual.id)
-                .in('estado', ['completada', 'cancelada'])
-                .maybeSingle();
+            // CASO A: Es hora principal (es_bloque = false, duración 80)
+            if (!cita.es_bloque && (cita.duracion || 40) === 80) {
+                console.log('📦 Detectado como hora principal de bloque de 80 minutos');
                 
-            if (errorPrincipal) {
-                console.error('Error buscando hora principal:', errorPrincipal);
-            }
-            
-            if (horaPrincipalCita) {
-                console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id}, es_bloque: ${horaPrincipalCita.es_bloque})`);
-                
-                // Verificar que no esté ya en el array
-                const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
-                if (!yaExiste) {
-                    todasLasCitasDelBloque.push(horaPrincipalCita);
-                }
-                
-                // Buscar otras horas de bloque del mismo bloque
-                const { data: otrasHorasBloque, error: errorOtras } = await supabase
+                // Buscar las horas de bloque que tienen esta hora como hora_principal
+                const { data: horasBloque, error: errorBloque } = await supabase
                     .from('citas')
                     .select('*')
                     .eq('fecha', cita.fecha)
-                    .eq('hora_principal', cita.hora_principal)
+                    .eq('hora_principal', cita.hora) // Buscar por hora_principal
                     .eq('cliente_id', usuarioActual.id)
-                    .in('estado', ['completada', 'cancelada'])
-                    .neq('id', cita.id); // Excluir la cita actual
+                    .in('estado', ['completada', 'cancelada']);
                     
-                if (errorOtras) {
-                    console.error('Error buscando otras horas del bloque:', errorOtras);
+                if (errorBloque) {
+                    console.error('Error buscando horas de bloque:', errorBloque);
                 }
                 
-                if (otrasHorasBloque && otrasHorasBloque.length > 0) {
-                    console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
+                if (horasBloque && horasBloque.length > 0) {
+                    console.log(`✅ Encontradas ${horasBloque.length} horas de bloque`);
+                    todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasBloque];
                     
-                    // Agregar solo las que no están ya en el array
-                    otrasHorasBloque.forEach(otraHora => {
-                        const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
-                        if (!yaExiste) {
-                            todasLasCitasDelBloque.push(otraHora);
-                        }
+                    // DEBUG: Mostrar las horas encontradas
+                    horasBloque.forEach((horaBloque, index) => {
+                        console.log(`   ${index + 1}. Hora de bloque: ${horaBloque.hora} (ID: ${horaBloque.id}, es_bloque: ${horaBloque.es_bloque})`);
                     });
+                }
+            }
+            
+            // CASO B: Es hora de bloque (es_bloque = true, tiene hora_principal)
+            else if (cita.es_bloque && cita.hora_principal) {
+                console.log(`📦 Detectado como hora de bloque. Hora principal: ${cita.hora_principal}`);
+                
+                // Buscar la hora principal
+                const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
+                    .from('citas')
+                    .select('*')
+                    .eq('fecha', cita.fecha)
+                    .eq('hora', cita.hora_principal)
+                    .eq('es_bloque', false) // Buscar hora principal (es_bloque = false)
+                    .eq('cliente_id', usuarioActual.id)
+                    .in('estado', ['completada', 'cancelada'])
+                    .maybeSingle();
+                    
+                if (errorPrincipal) {
+                    console.error('Error buscando hora principal:', errorPrincipal);
+                }
+                
+                if (horaPrincipalCita) {
+                    console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id}, es_bloque: ${horaPrincipalCita.es_bloque})`);
+                    
+                    // Verificar que no esté ya en el array
+                    const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
+                    if (!yaExiste) {
+                        todasLasCitasDelBloque.push(horaPrincipalCita);
+                    }
+                    
+                    // Buscar otras horas de bloque del mismo bloque
+                    const { data: otrasHorasBloque, error: errorOtras } = await supabase
+                        .from('citas')
+                        .select('*')
+                        .eq('fecha', cita.fecha)
+                        .eq('hora_principal', cita.hora_principal)
+                        .eq('cliente_id', usuarioActual.id)
+                        .in('estado', ['completada', 'cancelada'])
+                        .neq('id', cita.id); // Excluir la cita actual
+                        
+                    if (errorOtras) {
+                        console.error('Error buscando otras horas del bloque:', errorOtras);
+                    }
+                    
+                    if (otrasHorasBloque && otrasHorasBloque.length > 0) {
+                        console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
+                        
+                        // Agregar solo las que no están ya en el array
+                        otrasHorasBloque.forEach(otraHora => {
+                            const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
+                            if (!yaExiste) {
+                                todasLasCitasDelBloque.push(otraHora);
+                            }
+                        });
+                    }
                 }
             }
         }
@@ -11558,150 +11799,113 @@ async function eliminarCita(citaId) {
         const esBloqueCompleto = todasLasCitasDelBloque.length > 1;
         const horasBloque = todasLasCitasDelBloque.map(c => c.hora).sort();
         
-        if (esBloqueCompleto) {
-            // Confirmación para bloque completo
-            const { isConfirmed } = await Swal.fire({
-                title: '⚠️ Eliminar bloque de 80 minutos',
+        // Definir el título y mensaje según el tipo de bloque
+        const esBloqueVIPCompleto = todasLasCitasDelBloque.length > 2; // Más de 2 citas = probablemente VIP
+        const tituloEliminacion = esBloqueVIPCompleto ? '⚠️ Eliminar sesión VIP completa' : 
+                                 esBloqueCompleto ? '⚠️ Eliminar bloque de 80 minutos' : 
+                                 '⚠️ Eliminar cita permanentemente';
+        
+        const mensajeEliminacion = esBloqueVIPCompleto ? 
+            `<p style="color: #ffffff; margin-bottom: 15px;">
+                Estás a punto de eliminar permanentemente una <strong style="color: #ff6b6b;">sesión VIP completa de ${todasLasCitasDelBloque.length} horas</strong>.
+            </p>` :
+            esBloqueCompleto ?
+            `<p style="color: #ffffff; margin-bottom: 15px;">
+                Estás a punto de eliminar permanentemente un <strong style="color: #ff6b6b;">bloque de ${todasLasCitasDelBloque.length} citas</strong>.
+            </p>` :
+            `<p style="color: #ffffff; margin-bottom: 15px;">
+                ¿Eliminar permanentemente la cita de las <strong style="color: #d4af37;">${cita.hora}</strong>?
+            </p>`;
+        
+        // Construir HTML para la confirmación
+        const htmlConfirmacion = `
+            <div style="text-align: center;">
+                <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
+                    ${esBloqueVIPCompleto ? '<i class="fas fa-crown"></i>' : 
+                     esBloqueCompleto ? '<i class="fas fa-trash-alt"></i>' : 
+                     '<i class="fas fa-trash"></i>'}
+                </div>
+                ${mensajeEliminacion}
+                <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                    ${esBloqueCompleto || esBloqueVIPCompleto ? `
+                        <p style="margin: 10px 0; color: #d4af37;"><strong>Horas a eliminar:</strong></p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
+                            ${horasBloque.map(hora => `
+                                <span style="background: linear-gradient(135deg, #ff6b6b 0%, #dc3545 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
+                                    ${hora}
+                                </span>
+                            `).join('')}
+                        </div>
+                    ` : `
+                        <p style="margin: 8px 0; color: #d4af37;"><strong>Fecha:</strong> ${cita.fecha}</p>
+                        <p style="margin: 8px 0; color: #d4af37;"><strong>Hora:</strong> ${cita.hora}</p>
+                        <p style="margin: 8px 0; color: #d4af37;"><strong>Estado:</strong> <span style="color: ${cita.estado === 'completada' ? '#28a745' : '#ff6b6b'}">${cita.estado}</span></p>
+                        <p style="margin: 8px 0; color: #d4af37;"><strong>Tipo:</strong> ${cita.es_bloque ? 'Hora de bloque' : 'Hora principal'}</p>
+                    `}
+                </div>
+                <div style="background: rgba(255, 107, 107, 0.05); border: 1px solid #ff6b6b; border-radius: 8px; padding: 12px; margin: 15px 0;">
+                    <p style="color: #ff6b6b; font-size: 0.9em; margin: 5px 0;">
+                        <i class="fas fa-exclamation-circle"></i> 
+                        <strong>${esBloqueVIPCompleto ? 'Atención máxima:' : 'Importante:'}</strong> Esta acción es permanente y no se puede deshacer.
+                    </p>
+                </div>
+            </div>
+        `;
+        
+        const { isConfirmed } = await Swal.fire({
+            title: tituloEliminacion,
+            html: htmlConfirmacion,
+            showCancelButton: true,
+            confirmButtonText: esBloqueVIPCompleto ? 'Sí, eliminar sesión VIP' : 
+                              esBloqueCompleto ? 'Sí, eliminar bloque' : 
+                              'Sí, eliminar',
+            cancelButtonText: 'No, conservar ' + (esBloqueVIPCompleto ? 'sesión' : esBloqueCompleto ? 'citas' : 'cita'),
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            background: '#1a1a1a',
+            color: '#ffffff',
+            showCloseButton: true,
+            reverseButtons: true,
+            backdrop: 'rgba(0,0,0,0.7)',
+            width: esBloqueVIPCompleto ? '550px' : (esBloqueCompleto ? '500px' : '450px'),
+            customClass: {
+                popup: 'sweet-alert-custom',
+                confirmButton: 'btn-danger',
+                cancelButton: 'btn-secondary'
+            }
+        });
+        
+        if (!isConfirmed) {
+            const tituloCancelado = esBloqueVIPCompleto ? '👌 Eliminación cancelada' : 
+                                   esBloqueCompleto ? '👌 Eliminación cancelada' : '👍 Acción cancelada';
+            const mensajeCancelado = esBloqueVIPCompleto ? 'La sesión VIP se mantiene en tu historial.' : 
+                                     esBloqueCompleto ? 'El bloque de citas se mantiene en tu historial.' : 
+                                     'La cita se mantiene en tu historial.';
+            
+            Swal.fire({
+                title: tituloCancelado,
                 html: `
                     <div style="text-align: center;">
-                        <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
-                            <i class="fas fa-trash-alt"></i>
+                        <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
+                            <i class="fas fa-check"></i>
                         </div>
-                        <p style="color: #ffffff; margin-bottom: 15px;">
-                            Estás a punto de eliminar permanentemente un <strong style="color: #ff6b6b;">bloque de ${todasLasCitasDelBloque.length} citas</strong>.
-                        </p>
-                        <div style="background: rgba(255, 107, 107, 0.1); border: 1px solid #ff6b6b; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <p style="margin: 10px 0; color: #d4af37;"><strong>Horas a eliminar:</strong></p>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
-                                ${horasBloque.map(hora => `
-                                    <span style="background: linear-gradient(135deg, #ff6b6b 0%, #dc3545 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
-                                        ${hora}
-                                    </span>
-                                `).join('')}
-                            </div>
-                        </div>
-                        <div style="background: rgba(212, 175, 55, 0.05); border: 1px solid #d4af37; border-radius: 8px; padding: 12px; margin: 15px 0;">
-                            <p style="color: #d4af37; font-size: 0.9em; margin: 5px 0;">
-                                <i class="fas fa-exclamation-triangle"></i> 
-                                <strong>Atención:</strong> Esta acción es permanente y no se puede deshacer.
-                            </p>
+                        <p style="color: #ffffff; margin-bottom: 15px;">${mensajeCancelado}</p>
+                        <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px;">
+                            <p style="color: #d4af37; margin: 0;">No se realizaron cambios permanentes.</p>
                         </div>
                     </div>
                 `,
-                showCancelButton: true,
-                confirmButtonText: 'Sí, eliminar bloque',
-                cancelButtonText: 'No, conservar citas',
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d',
+                icon: false,
                 background: '#1a1a1a',
                 color: '#ffffff',
-                showCloseButton: true,
-                reverseButtons: true,
-                backdrop: 'rgba(0,0,0,0.7)',
-                width: '500px',
+                confirmButtonText: 'Aceptar',
+                confirmButtonColor: '#d4af37',
+                timer: 3000,
                 customClass: {
-                    popup: 'sweet-alert-custom',
-                    confirmButton: 'btn-danger',
-                    cancelButton: 'btn-secondary'
+                    popup: 'sweet-alert-custom'
                 }
             });
-            
-            if (!isConfirmed) {
-                Swal.fire({
-                    title: '👌 Eliminación cancelada',
-                    html: `
-                        <div style="text-align: center;">
-                            <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
-                                <i class="fas fa-check"></i>
-                            </div>
-                            <p style="color: #ffffff; margin-bottom: 15px;">El bloque de citas se mantiene en tu historial.</p>
-                            <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px;">
-                                <p style="color: #d4af37; margin: 0;">No se realizaron cambios permanentes.</p>
-                            </div>
-                        </div>
-                    `,
-                    icon: false,
-                    background: '#1a1a1a',
-                    color: '#ffffff',
-                    confirmButtonText: 'Aceptar',
-                    confirmButtonColor: '#d4af37',
-                    timer: 3000,
-                    customClass: {
-                        popup: 'sweet-alert-custom'
-                    }
-                });
-                return;
-            }
-        } else {
-            // Confirmación para cita individual
-            const { isConfirmed } = await Swal.fire({
-                title: '⚠️ Eliminar cita permanentemente',
-                html: `
-                    <div style="text-align: center;">
-                        <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
-                            <i class="fas fa-trash"></i>
-                        </div>
-                        <p style="color: #ffffff; margin-bottom: 15px;">
-                            ¿Eliminar permanentemente la cita de las <strong style="color: #d4af37;">${cita.hora}</strong>?
-                        </p>
-                        <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <p style="margin: 8px 0; color: #d4af37;"><strong>Fecha:</strong> ${cita.fecha}</p>
-                            <p style="margin: 8px 0; color: #d4af37;"><strong>Hora:</strong> ${cita.hora}</p>
-                            <p style="margin: 8px 0; color: #d4af37;"><strong>Estado:</strong> <span style="color: ${cita.estado === 'completada' ? '#28a745' : '#ff6b6b'}">${cita.estado}</span></p>
-                            <p style="margin: 8px 0; color: #d4af37;"><strong>Tipo:</strong> ${cita.es_bloque ? 'Hora de bloque' : 'Hora principal'}</p>
-                        </div>
-                        <div style="background: rgba(255, 107, 107, 0.05); border: 1px solid #ff6b6b; border-radius: 8px; padding: 12px; margin: 15px 0;">
-                            <p style="color: #ff6b6b; font-size: 0.9em; margin: 5px 0;">
-                                <i class="fas fa-exclamation-circle"></i> 
-                                <strong>Importante:</strong> Esta acción borrará permanentemente la cita y no se puede recuperar.
-                            </p>
-                        </div>
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Sí, eliminar',
-                cancelButtonText: 'No, conservar',
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d',
-                background: '#1a1a1a',
-                color: '#ffffff',
-                showCloseButton: true,
-                reverseButtons: true,
-                backdrop: 'rgba(0,0,0,0.7)',
-                width: '450px',
-                customClass: {
-                    popup: 'sweet-alert-custom',
-                    confirmButton: 'btn-danger',
-                    cancelButton: 'btn-secondary'
-                }
-            });
-            
-            if (!isConfirmed) {
-                Swal.fire({
-                    title: '👍 Acción cancelada',
-                    html: `
-                        <div style="text-align: center;">
-                            <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
-                                <i class="fas fa-times-circle"></i>
-                            </div>
-                            <p style="color: #ffffff; margin-bottom: 15px;">La cita se mantiene en tu historial.</p>
-                            <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px;">
-                                <p style="color: #d4af37; margin: 0;">No se realizó ninguna eliminación.</p>
-                            </div>
-                        </div>
-                    `,
-                    icon: false,
-                    background: '#1a1a1a',
-                    color: '#ffffff',
-                    confirmButtonText: 'Aceptar',
-                    confirmButtonColor: '#d4af37',
-                    timer: 3000,
-                    customClass: {
-                        popup: 'sweet-alert-custom'
-                    }
-                });
-                return;
-            }
+            return;
         }
         
         // 4. Eliminar TODAS las citas del bloque
@@ -11719,7 +11923,9 @@ async function eliminarCita(citaId) {
                     </div>
                     <p style="color: #ffffff; margin-bottom: 10px;">Eliminando permanentemente...</p>
                     <small style="color: #d4af37;">
-                        ${esBloqueCompleto ? `Eliminando ${todasLasCitasDelBloque.length} citas del bloque` : 'Eliminando cita individual'}
+                        ${esBloqueVIPCompleto ? `Eliminando sesión VIP de ${todasLasCitasDelBloque.length} horas` : 
+                         esBloqueCompleto ? `Eliminando ${todasLasCitasDelBloque.length} citas del bloque` : 
+                         'Eliminando cita individual'}
                     </small>
                 </div>
                 <style>
@@ -11751,74 +11957,94 @@ async function eliminarCita(citaId) {
         Swal.close();
         
         // 5. Mostrar mensaje de éxito
-        if (esBloqueCompleto) {
-            Swal.fire({
-                title: '✨ Bloque eliminado permanentemente',
-                html: `
-                    <div style="text-align: center;">
-                        <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px;">
-                            <i class="fas fa-trash-restore"></i>
-                        </div>
-                        <p style="color: #ffffff; margin-bottom: 15px;">
-                            Se eliminaron permanentemente <strong style="color: #28a745;">${todasLasCitasDelBloque.length} citas</strong> del bloque de 80 minutos.
-                        </p>
-                        <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <p style="margin: 10px 0; color: #28a745;"><strong>Horas eliminadas:</strong></p>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
-                                ${horasBloque.map(hora => `
-                                    <span style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
-                                        ${hora}
-                                    </span>
-                                `).join('')}
-                            </div>
-                        </div>
-                        <p style="color: #cccccc; font-size: 0.85em;">
-                            <i class="fas fa-check-circle" style="color: #28a745;"></i> 
-                            Las citas han sido eliminadas permanentemente de tu historial.
-                        </p>
+        let tituloExito, htmlExito;
+        
+        if (esBloqueVIPCompleto) {
+            tituloExito = '✨ Sesión VIP eliminada permanentemente';
+            htmlExito = `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px;">
+                        <i class="fas fa-crown"></i>
                     </div>
-                `,
-                icon: false,
-                background: '#1a1a1a',
-                color: '#ffffff',
-                confirmButtonText: 'Entendido',
-                confirmButtonColor: '#28a745',
-                showConfirmButton: true,
-                customClass: {
-                    popup: 'sweet-alert-custom'
-                }
-            });
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        Se eliminó permanentemente la <strong style="color: #28a745;">sesión VIP completa de ${todasLasCitasDelBloque.length} horas</strong>.
+                    </p>
+                    <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <p style="margin: 10px 0; color: #28a745;"><strong>Horas eliminadas:</strong></p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
+                            ${horasBloque.map(hora => `
+                                <span style="background: linear-gradient(135deg, #d4af37 0%, #28a745 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
+                                    ${hora}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <p style="color: #cccccc; font-size: 0.85em;">
+                        <i class="fas fa-check-circle" style="color: #28a745;"></i> 
+                        La sesión VIP ha sido eliminada permanentemente de tu historial.
+                    </p>
+                </div>
+            `;
+        } else if (esBloqueCompleto) {
+            tituloExito = '✨ Bloque eliminado permanentemente';
+            htmlExito = `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px;">
+                        <i class="fas fa-trash-restore"></i>
+                    </div>
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        Se eliminaron permanentemente <strong style="color: #28a745;">${todasLasCitasDelBloque.length} citas</strong> del bloque de 80 minutos.
+                    </p>
+                    <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <p style="margin: 10px 0; color: #28a745;"><strong>Horas eliminadas:</strong></p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;">
+                            ${horasBloque.map(hora => `
+                                <span style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #ffffff; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em;">
+                                    ${hora}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <p style="color: #cccccc; font-size: 0.85em;">
+                        <i class="fas fa-check-circle" style="color: #28a745;"></i> 
+                        Las citas han sido eliminadas permanentemente de tu historial.
+                    </p>
+                </div>
+            `;
         } else {
-            Swal.fire({
-                title: '✅ Cita eliminada permanentemente',
-                html: `
-                    <div style="text-align: center;">
-                        <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px;">
-                            <i class="fas fa-check-double"></i>
-                        </div>
-                        <p style="color: #ffffff; margin-bottom: 15px;">
-                            La cita de las <strong style="color: #28a745;">${cita.hora}</strong> ha sido eliminada permanentemente.
-                        </p>
-                        <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                            <p style="color: #28a745; margin: 0;">La información de la cita ha sido completamente borrada.</p>
-                        </div>
-                        <p style="color: #cccccc; font-size: 0.85em;">
-                            <i class="fas fa-info-circle" style="color: #28a745;"></i> 
-                            Ya no aparecerá en tu historial de citas.
-                        </p>
+            tituloExito = '✅ Cita eliminada permanentemente';
+            htmlExito = `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; color: #28a745; margin-bottom: 15px;">
+                        <i class="fas fa-check-double"></i>
                     </div>
-                `,
-                icon: false,
-                background: '#1a1a1a',
-                color: '#ffffff',
-                confirmButtonText: 'Aceptar',
-                confirmButtonColor: '#28a745',
-                showConfirmButton: true,
-                customClass: {
-                    popup: 'sweet-alert-custom'
-                }
-            });
+                    <p style="color: #ffffff; margin-bottom: 15px;">
+                        La cita de las <strong style="color: #28a745;">${cita.hora}</strong> ha sido eliminada permanentemente.
+                    </p>
+                    <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <p style="color: #28a745; margin: 0;">La información de la cita ha sido completamente borrada.</p>
+                    </div>
+                    <p style="color: #cccccc; font-size: 0.85em;">
+                        <i class="fas fa-info-circle" style="color: #28a745;"></i> 
+                        Ya no aparecerá en tu historial de citas.
+                    </p>
+                </div>
+            `;
         }
+        
+        Swal.fire({
+            title: tituloExito,
+            html: htmlExito,
+            icon: false,
+            background: '#1a1a1a',
+            color: '#ffffff',
+            confirmButtonText: 'Aceptar',
+            confirmButtonColor: '#28a745',
+            showConfirmButton: true,
+            customClass: {
+                popup: 'sweet-alert-custom'
+            }
+        });
         
         // 6. Actualizar caché
         await limpiarCacheDespuesDeAgendar();
@@ -12415,10 +12641,10 @@ window.app = {
     verDetallesCita,
     cancelarCitaAdmin: cancelarCita, // Puedes reutilizar la función existente
     eliminarCitaAdmin: eliminarCita, // Puedes reutilizar la función existente
-    cambiarEstadoCitaBloque: cambiarEstadoCita, // Reutiliza para bloques
-    verDetallesBloque: verDetallesCita, // Reutiliza para bloques
-    cancelarBloqueAdmin: cancelarCita, // Reutiliza para bloques
-    eliminarBloqueAdmin: eliminarCita, // Reutiliza para bloques
+    cambiarEstadoBloqueVIP,
+    cancelarBloqueVIP,
+    eliminarBloqueVIP,
+    verDetallesBloqueVIP,// Reutiliza para bloques
     forzarVerificacionCitas,
     iniciarPollingCitas,
     detenerPollingCitas,
