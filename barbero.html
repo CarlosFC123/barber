@@ -3020,58 +3020,98 @@ function verificarUsuarioActivo() {
 
 
             function inicializarCarruselSimple() {
-                mostrarSlideSimple(slideIndexSimple);
-                iniciarCarruselAutomaticoSimple();
-                
-                const carrusel = document.querySelector('.carrusel-simple');
-                if (carrusel) {
-                    carrusel.addEventListener('mouseenter', () => {
-                        clearInterval(intervaloSimple);
-                    });
-                
-                    carrusel.addEventListener('mouseleave', () => {
-                        iniciarCarruselAutomaticoSimple();
-                    });
+    console.log('🖼️ Inicializando carrusel simple...');
+    mostrarSlideSimple(slideIndexSimple);
+    
+    // Configurar botones
+    document.getElementById('prevBtn').addEventListener('click', () => {
+        moverCarruselSimple(-1);
+    });
+    
+    document.getElementById('nextBtn').addEventListener('click', () => {
+        moverCarruselSimple(1);
+    });
+    
+    // Configurar indicadores
+    document.querySelectorAll('.indicador').forEach((indicador, index) => {
+        indicador.addEventListener('click', () => {
+            irASlideSimple(index);
+        });
+    });
+    
+    // Iniciar movimiento automático
+    iniciarCarruselAutomaticoSimple();
+    
+    // Pausar al pasar el mouse
+    const carrusel = document.querySelector('.carrusel-simple');
+    if (carrusel) {
+        carrusel.addEventListener('mouseenter', () => {
+            clearInterval(intervaloSimple);
+        });
+        
+        carrusel.addEventListener('mouseleave', () => {
+            iniciarCarruselAutomaticoSimple();
+        });
 
-                    carrusel.addEventListener('touchstart', () => {
-                        clearInterval(intervaloSimple);
-                    });
+        carrusel.addEventListener('touchstart', () => {
+            clearInterval(intervaloSimple);
+        });
 
-                    carrusel.addEventListener('touchend', () => {
-                        setTimeout(() => iniciarCarruselAutomaticoSimple(), 3000);
-                    });
-                }
-            }
+        carrusel.addEventListener('touchend', () => {
+            setTimeout(() => iniciarCarruselAutomaticoSimple(), 3000);
+        });
+    }
+}
 
-            function mostraSlideSimple(n) {
+            function mostrarSlideSimple(n) {
                 const slides = document.querySelectorAll('.carrusel-img');
                 const indicadores = document.querySelectorAll('.carrusel-indicadores .indicador');
                 
-                if (slides.length === 0) return;
+                if (slides.length === 0) 
+                {
+                    console.error('No se encontraron slides en el carrusel');
+                    return;
 
-                if (n >= slides.length) slideIndexSimple = 0;
-                if (n < 0) slideIndexSimple = slides.length - 1;
-
-                slides.forEach(slide => slide.classList.remove('active'));
-                slides[slideIndexSimple].classList.add('active');
-
-                if (indicadores.length > 0) {
-                    indicadores.forEach((ind, index) => {
-                        ind.classList.remove('active');
-                        if (index === slideIndexSimple) {
-                            ind.classList.add('active');
-                        }
-                    });
                 }
+
+                if (n >= slides.length) {
+                    slideIndexSimple = 0;
+                } else if (n < 0) {
+                    slideIndexSimple = slides.length - 1;
+                }else {
+                    slideIndexSimple = n;
+                }
+
+                slides.forEach(slide => {
+                    slide.classList.remove('active');
+                    slide.style.display = 'none';
+                });
+
+                slides[slideIndexSimple].classList.add('active');
+                slides[slideIndexSimple].style.display = 'block';
+
+                
+                indicadores.forEach((ind, index) => {
+                    ind.classList.remove('active');
+                    if (index === slideIndexSimple) {
+                        ind.classList.add('active');
+                    }
+                });
+
+                console.log(`🖼️ Mostrando slide ${slideIndexSimple + 1} de ${slides.length}`);
             }
 
+            
+
             function moverCarruselSimple(n) {
+                console.log(`➡️ Moviendo carrusel simple en ${n > 0 ? 'adelante' : 'atrás'}`);
                 slideIndexSimple += n;
                 mostrarSlideSimple(slideIndexSimple);
                 reiniciarCarruselAutomaticoSimple();
             }
 
             function irASlideSimple(n) {
+                console.log(`➡️ Navegando al slide ${n}`);
                 slideIndexSimple = n;
                 mostrarSlideSimple(slideIndexSimple);
                 reiniciarCarruselAutomaticoSimple();
@@ -3079,14 +3119,26 @@ function verificarUsuarioActivo() {
 
             function iniciarCarruselAutomaticoSimple() {
                 clearInterval(intervaloSimple);
+                intervaloSimple = setInterval(() => {
+                    moverCarruselSimple(1);
+                }, 5000); // Cambiar cada 5 segundos
+                console.log('⏱️ Carrusel automático iniciado (5s)');
+            }
+
+            function reiniciarCarruselAutomaticoSimple() {
+                console.log('🔄 Reiniciando carrusel automático');
+                clearInterval(intervaloSimple);
                 iniciarCarruselAutomaticoSimple();
             }
 
             document.addEventListener('DOMContentLoaded', () => {
+                console.log('📦 DOM cargado - Inicializando carrusel simple');
                 inicializarCarruselSimple();
             });
             
-
+window.inicializarCarruselSimple = inicializarCarruselSimple;
+window.moverCarruselSimple = moverCarruselSimple;
+window.irASlideSimple = irASlideSimple;
             // ============ SISTEMA DE POLLING INTELIGENTE ============
 
 
