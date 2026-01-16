@@ -9215,7 +9215,7 @@ function calcularEstadisticasAdmin(citas) {
     const hoy = formatDate(new Date());
     const citasHoy = citasPrincipales.filter(c => c.fecha === hoy).length;
     const citasPendientes = citasPrincipales.filter(c => c.estado === 'pendiente').length;
-    const citasConfirmadas = citasPrincipales.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
+    const citasConfirmadas = citasPrincipales.filter(c => c.estado === 'aceptada' || c.estado === 'confirmada').length;
     const citasCanceladas = citasPrincipales.filter(c => c.estado === 'cancelada').length;
     const citasCompletadas = citasPrincipales.filter(c => c.estado === 'completada').length;
     
@@ -9488,7 +9488,7 @@ function actualizarEstadisticasAdmin(citas) {
     const hoy = formatDate(new Date());
     const citasHoy = citasPrincipales.filter(c => c.fecha === hoy).length;
     const citasPendientes = citasPrincipales.filter(c => c.estado === 'pendiente').length;
-    const citasConfirmadas = citasPrincipales.filter(c => c.estado === 'confirmada' || c.estado === 'aceptada').length;
+    const citasConfirmadas = citasPrincipales.filter(c => c.estado === 'aceptada' || c.estado === 'confirmada').length;
     const citasCanceladas = citasPrincipales.filter(c => c.estado === 'cancelada').length;
     const citasCompletadas = citasPrincipales.filter(c => c.estado === 'completada').length;
     
@@ -9705,7 +9705,7 @@ async function cambiarEstadoCita(citaId) {
                                        cursor: pointer;
                                        transition: all 0.3s ease;
                                        outline: none;">
-                            <option value="confirmada" style="background: #1f2937; padding: 10px; color: #10b981;">
+                            <option value="aceptada" style="background: #1f2937; padding: 10px; color: #10b981;">
                                 ✅ Aceptada
                             </option>
                             <option value="completada" style="background: #1f2937; padding: 10px; color: #3b82f6;">
