@@ -10340,6 +10340,8 @@ function iniciarLimpiezaAutomaticaBotones() {
         await limpiarCacheDespuesDeAgendar();
         await precargarCitasFuturas();
         await cargarMisCitas();
+
+        await debugCitasBloque(citaId);
         
         setTimeout(() => {
             iniciarContadoresCitas();
@@ -10348,6 +10350,58 @@ function iniciarLimpiezaAutomaticaBotones() {
     } catch (error) {
         console.error('❌ Error marcando cita(s) como completada(s):', error);
         showAlert(`❌ Error al marcar la cita(s) como completada(s): ${error.message}`, 'error');
+    }
+}
+
+
+async function debugCitasBloque(citaId) {
+    try {
+        console.log('🔍 DEBUG: Buscando citas relacionadas...');
+        
+        const { data: cita, error } = await supabase
+            .from('citas')
+            .select('*')
+            .eq('id', citaId)
+            .single();
+            
+        if (error) throw error;
+        
+        console.log('📊 Cita objetivo:');
+        console.log(`   - ID: ${cita.id}`);
+        console.log(`   - Hora: ${cita.hora}`);
+        console.log(`   - Fecha: ${cita.fecha}`);
+        console.log(`   - Es bloque: ${cita.es_bloque}`);
+        console.log(`   - Hora principal: ${cita.hora_principal}`);
+        console.log(`   - Duración: ${cita.duracion}`);
+        console.log(`   - Estado: ${cita.estado}`);
+        
+        // Buscar todas las citas del mismo cliente en la misma fecha
+        const { data: todasCitasFecha, error: errorTodas } = await supabase
+            .from('citas')
+            .select('*')
+            .eq('fecha', cita.fecha)
+            .eq('cliente_id', usuarioActual.id);
+            
+        if (errorTodas) throw errorTodas;
+        
+        console.log(`📊 Total citas en ${cita.fecha}: ${todasCitasFecha?.length || 0}`);
+        
+        if (todasCitasFecha) {
+            todasCitasFecha.forEach(c => {
+                console.log(`   - ${c.hora} (ID: ${c.id}, es_bloque: ${c.es_bloque}, hora_principal: ${c.hora_principal}, estado: ${c.estado})`);
+            });
+            
+            // Buscar específicamente relaciones de bloque
+            if (!cita.es_bloque && cita.duracion === 80) {
+                const horasBloque = todasCitasFecha.filter(c => 
+                    c.es_bloque && c.hora_principal === cita.hora
+                );
+                console.log(`📦 Horas de bloque encontradas para ${cita.hora}: ${horasBloque.length}`);
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error en debug:', error);
     }
 }
 function getYucatanTimeString(date = new Date()) {
