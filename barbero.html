@@ -2627,42 +2627,42 @@ h2 {
         </div>
 
         <!-- Carrusel de Imágenes -->
-        <div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
-            <h2 style="text-align: center; color: #d4af37; margin-bottom: 20px; font-size: 22px;">Galería</h2>
-            
-            <div class="carrusel-simple">
-                <button class="carrusel-btn prev" onclick="moverCarruselSimple(-1)">❮</button>
-                <button class="carrusel-btn next" onclick="moverCarruselSimple(1)">❯</button>
-                
-                <div class="carrusel-imagenes-wrapper">
-                    <div class="carrusel-track">
-                        <div class="carrusel-img active">
-                            <img src="img/1.jpg" alt="Imagen 1">
-                        </div>
-                        <div class="carrusel-img">
-                            <img src="img/2.jpg" alt="Imagen 2">
-                        </div>
-                        <div class="carrusel-img">
-                            <img src="img/3.jpg" alt="Imagen 3">
-                        </div>
-                        <div class="carrusel-img">
-                            <img src="img/4.jpg" alt="Imagen 4">
-                        </div>
-                        <div class="carrusel-img">
-                            <img src="img/5.jpg" alt="Imagen 5">
-                        </div>
-                    </div>
+        <!-- Carrusel de Imágenes -->
+<div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
+    
+    <div class="carrusel-simple">
+        <button class="carrusel-btn prev" id="prevBtn">❮</button>
+        <button class="carrusel-btn next" id="nextBtn">❯</button>
+        
+        <div class="carrusel-imagenes-wrapper">
+            <div class="carrusel-track">
+                <div class="carrusel-img active">
+                    <img src="img/1.jpg" alt="Imagen 1">
                 </div>
-                
-                <div class="carrusel-indicadores">
-                    <span class="indicador active" onclick="irASlideSimple(0)"></span>
-                    <span class="indicador" onclick="irASlideSimple(1)"></span>
-                    <span class="indicador" onclick="irASlideSimple(2)"></span>
-                    <span class="indicador" onclick="irASlideSimple(3)"></span>
-                    <span class="indicador" onclick="irASlideSimple(4)"></span>
+                <div class="carrusel-img">
+                    <img src="img/2.jpg" alt="Imagen 2">
+                </div>
+                <div class="carrusel-img">
+                    <img src="img/3.jpg" alt="Imagen 3">
+                </div>
+                <div class="carrusel-img">
+                    <img src="img/4.jpg" alt="Imagen 4">
+                </div>
+                <div class="carrusel-img">
+                    <img src="img/5.jpg" alt="Imagen 5">
                 </div>
             </div>
         </div>
+        
+        <div class="carrusel-indicadores" id="indicadoresContainer">
+            <span class="indicador active" data-index="0"></span>
+            <span class="indicador" data-index="1"></span>
+            <span class="indicador" data-index="2"></span>
+            <span class="indicador" data-index="3"></span>
+            <span class="indicador" data-index="4"></span>
+        </div>
+    </div>
+</div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
