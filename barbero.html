@@ -10201,91 +10201,85 @@ function iniciarLimpiezaAutomaticaBotones() {
         // 2. Buscar todas las citas relacionadas del bloque de 80 minutos
         let todasLasCitasDelBloque = [cita];
         
-        // CASO 1: Es hora principal (tiene duración 80 o notas indican que es bloque)
-        if ((cita.duracion || 40) === 80 || 
-            (cita.notas && cita.notas.includes('bloque de 80 minutos'))) {
-            
+        // CASO A: Es hora principal (es_bloque = false, tiene duración 80)
+        if (!cita.es_bloque && (cita.duracion || 40) === 80) {
             console.log('📦 Detectado como hora principal de bloque de 80 minutos');
             
-            // Buscar las horas secundarias que tienen esta hora como hora_principal
-            const { data: horasSecundarias, error: errorSecundarias } = await supabase
+            // Buscar las horas de bloque que tienen esta hora como hora_principal
+            const { data: horasBloque, error: errorBloque } = await supabase
                 .from('citas')
                 .select('*')
                 .eq('fecha', cita.fecha)
-                .eq('hora_principal', cita.hora)
+                .eq('hora_principal', cita.hora) // Buscar por hora_principal
                 .eq('cliente_id', usuarioActual.id)
                 .in('estado', ['aceptada', 'pendiente', 'confirmada']);
                 
-            if (errorSecundarias) {
-                console.error('Error buscando horas secundarias:', errorSecundarias);
+            if (errorBloque) {
+                console.error('Error buscando horas de bloque:', errorBloque);
             }
             
-            if (horasSecundarias && horasSecundarias.length > 0) {
-                console.log(`✅ Encontradas ${horasSecundarias.length} horas secundarias del bloque`);
-                todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasSecundarias];
+            if (horasBloque && horasBloque.length > 0) {
+                console.log(`✅ Encontradas ${horasBloque.length} horas de bloque`);
+                todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasBloque];
             }
         }
         
-        // CASO 2: Es hora secundaria (tiene hora_principal)
-        if (cita.hora_principal || 
-            (cita.notas && cita.notas.includes('Parte de bloque de 80 minutos'))) {
+        // CASO B: Es hora de bloque (es_bloque = true, tiene hora_principal)
+        else if (cita.es_bloque && cita.hora_principal) {
+            console.log(`📦 Detectado como hora de bloque. Hora principal: ${cita.hora_principal}`);
             
-            const horaPrincipal = cita.hora_principal;
-            console.log(`📦 Detectado como hora secundaria. Hora principal: ${horaPrincipal}`);
+            // Buscar la hora principal
+            const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('fecha', cita.fecha)
+                .eq('hora', cita.hora_principal)
+                .eq('es_bloque', false) // Buscar la hora principal (es_bloque = false)
+                .eq('cliente_id', usuarioActual.id)
+                .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                .maybeSingle();
+                
+            if (errorPrincipal) {
+                console.error('Error buscando hora principal:', errorPrincipal);
+            }
             
-            if (horaPrincipal) {
-                // Buscar la hora principal
-                const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
+            if (horaPrincipalCita) {
+                console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id})`);
+                
+                // Verificar que no esté ya en el array
+                const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
+                if (!yaExiste) {
+                    todasLasCitasDelBloque.push(horaPrincipalCita);
+                }
+                
+                // Buscar otras horas de bloque del mismo bloque
+                const { data: otrasHorasBloque, error: errorOtras } = await supabase
                     .from('citas')
                     .select('*')
                     .eq('fecha', cita.fecha)
-                    .eq('hora', horaPrincipal)
+                    .eq('hora_principal', cita.hora_principal)
                     .eq('cliente_id', usuarioActual.id)
                     .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                    .maybeSingle();
+                    .neq('id', cita.id); // Excluir la cita actual
                     
-                if (errorPrincipal) {
-                    console.error('Error buscando hora principal:', errorPrincipal);
+                if (errorOtras) {
+                    console.error('Error buscando otras horas del bloque:', errorOtras);
                 }
                 
-                if (horaPrincipalCita) {
-                    console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id})`);
+                if (otrasHorasBloque && otrasHorasBloque.length > 0) {
+                    console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
                     
-                    // Verificar que no esté ya en el array
-                    const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
-                    if (!yaExiste) {
-                        todasLasCitasDelBloque.push(horaPrincipalCita);
-                    }
-                    
-                    // Buscar otras horas secundarias del mismo bloque
-                    const { data: otrasHorasBloque, error: errorOtras } = await supabase
-                        .from('citas')
-                        .select('*')
-                        .eq('fecha', cita.fecha)
-                        .eq('hora_principal', horaPrincipal)
-                        .eq('cliente_id', usuarioActual.id)
-                        .in('estado', ['aceptada', 'pendiente', 'confirmada'])
-                        .neq('id', cita.id); // Excluir la cita actual
-                        
-                    if (errorOtras) {
-                        console.error('Error buscando otras horas del bloque:', errorOtras);
-                    }
-                    
-                    if (otrasHorasBloque && otrasHorasBloque.length > 0) {
-                        console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
-                        
-                        // Agregar solo las que no están ya en el array
-                        otrasHorasBloque.forEach(otraHora => {
-                            const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
-                            if (!yaExiste) {
-                                todasLasCitasDelBloque.push(otraHora);
-                            }
-                        });
-                    }
+                    // Agregar solo las que no están ya en el array
+                    otrasHorasBloque.forEach(otraHora => {
+                        const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
+                        if (!yaExiste) {
+                            todasLasCitasDelBloque.push(otraHora);
+                        }
+                    });
                 }
             }
         }
-
+        
         // Eliminar duplicados
         const idsUnicos = [...new Set(todasLasCitasDelBloque.map(c => c.id))];
         todasLasCitasDelBloque = todasLasCitasDelBloque.filter((cita, index, self) => 
@@ -10301,14 +10295,10 @@ function iniciarLimpiezaAutomaticaBotones() {
         const idsAMarcar = todasLasCitasDelBloque.map(c => c.id);
         console.log(`🎯 IDs a marcar como completadas: ${idsAMarcar.join(', ')}`);
         
-        // IMPORTANTE: Solo actualizamos el estado
-        // El trigger se encargará de establecer expira_en automáticamente
         const { data: updatedCitas, error } = await supabase
             .from('citas')
             .update({ 
                 estado: 'completada'
-                // NOTA: NO establecemos expira_en ni actualizado_en aquí
-                // El trigger lo hará automáticamente
             })
             .in('id', idsAMarcar)
             .select('id, hora, estado, expira_en');
@@ -10616,6 +10606,94 @@ async function cancelarCita(citaId) {
                 }
             } catch (error) {
                 console.error('Error en CASO 3:', error);
+            }
+        }
+        
+        // Eliminar duplicados
+        todasLasCitasDelBloque = todasLasCitasDelBloque.filter((cita, index, self) => 
+            index === self.findIndex(c => c.id === cita.id)
+        );
+        
+        console.log(`📊 Citas únicas del bloque: ${todasLasCitasDelBloque.length}`, todasLasCitasDelBloque);
+        
+        // 2. Buscar todas las citas relacionadas del bloque de 80 minutos
+        todasLasCitasDelBloque = [cita];
+        
+        // CASO A: Es hora principal (es_bloque = false, duración 80)
+        if (!cita.es_bloque && (cita.duracion || 40) === 80) {
+            console.log('📦 Detectado como hora principal de bloque de 80 minutos');
+            
+            // Buscar las horas de bloque que tienen esta hora como hora_principal
+            const { data: horasBloque, error: errorBloque } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('fecha', cita.fecha)
+                .eq('hora_principal', cita.hora)
+                .eq('cliente_id', usuarioActual.id)
+                .in('estado', ['aceptada', 'pendiente', 'confirmada']);
+                
+            if (errorBloque) {
+                console.error('Error buscando horas de bloque:', errorBloque);
+            }
+            
+            if (horasBloque && horasBloque.length > 0) {
+                console.log(`✅ Encontradas ${horasBloque.length} horas de bloque`);
+                todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasBloque];
+            }
+        }
+        
+        // CASO B: Es hora de bloque (es_bloque = true, tiene hora_principal)
+        else if (cita.es_bloque && cita.hora_principal) {
+            console.log(`📦 Detectado como hora de bloque. Hora principal: ${cita.hora_principal}`);
+            
+            // Buscar la hora principal
+            const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
+                .from('citas')
+                .select('*')
+                .eq('fecha', cita.fecha)
+                .eq('hora', cita.hora_principal)
+                .eq('es_bloque', false)
+                .eq('cliente_id', usuarioActual.id)
+                .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                .maybeSingle();
+                
+            if (errorPrincipal) {
+                console.error('Error buscando hora principal:', errorPrincipal);
+            }
+            
+            if (horaPrincipalCita) {
+                console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id})`);
+                
+                // Verificar que no esté ya en el array
+                const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
+                if (!yaExiste) {
+                    todasLasCitasDelBloque.push(horaPrincipalCita);
+                }
+                
+                // Buscar otras horas de bloque del mismo bloque
+                const { data: otrasHorasBloque, error: errorOtras } = await supabase
+                    .from('citas')
+                    .select('*')
+                    .eq('fecha', cita.fecha)
+                    .eq('hora_principal', cita.hora_principal)
+                    .eq('cliente_id', usuarioActual.id)
+                    .in('estado', ['aceptada', 'pendiente', 'confirmada'])
+                    .neq('id', cita.id);
+                    
+                if (errorOtras) {
+                    console.error('Error buscando otras horas del bloque:', errorOtras);
+                }
+                
+                if (otrasHorasBloque && otrasHorasBloque.length > 0) {
+                    console.log(`✅ Encontradas ${otrasHorasBloque.length} otras horas del bloque`);
+                    
+                    otrasHorasBloque.forEach(otraHora => {
+                        const yaExiste = todasLasCitasDelBloque.some(c => c.id === otraHora.id);
+                        if (!yaExiste) {
+                            todasLasCitasDelBloque.push(otraHora);
+                        }
+                    });
+                }
             }
         }
         
@@ -11040,17 +11118,17 @@ async function cancelarCita(citaId) {
         // Buscar todas las citas activas del usuario
         const { data: citasActivas, error } = await supabase
             .from('citas')
-            .select('id, fecha, hora, estado, hora_principal, duracion, notas')
+            .select('id, fecha, hora, estado, hora_principal, duracion, notas, es_bloque')
             .eq('cliente_id', usuarioActual.id)
             .in('estado', ['aceptada', 'pendiente', 'confirmada']);
             
         if (error) throw error;
         
         if (citasActivas && citasActivas.length > 0) {
-            const citasYaProcesadas = new Set(); // Para evitar procesar la misma cita múltiples veces
+            const citasYaProcesadas = new Set();
             
             for (const cita of citasActivas) {
-                // Si ya procesamos esta cita (por ejemplo, como parte de un bloque), saltarla
+                // Si ya procesamos esta cita, saltarla
                 if (citasYaProcesadas.has(cita.id)) {
                     continue;
                 }
@@ -11062,6 +11140,7 @@ async function cancelarCita(citaId) {
                 console.log(`     Hora cita (local): ${fechaCita.toLocaleString('es-MX')}`);
                 console.log(`     Hora actual (local): ${ahoraLocal.toLocaleString('es-MX')}`);
                 console.log(`     Pasó? ${ahoraLocal > fechaCita}`);
+                console.log(`     Es bloque: ${cita.es_bloque}, Duración: ${cita.duracion || 40}`);
                 
                 // Verificar si la hora de la cita YA PASÓ (comparación LOCAL)
                 if (ahoraLocal > fechaCita) {
@@ -11071,33 +11150,56 @@ async function cancelarCita(citaId) {
                     let todasCitasBloque = [cita];
                     citasYaProcesadas.add(cita.id);
                     
-                    // Si es hora principal de un bloque (duración 80 minutos)
-                    if ((cita.duracion || 40) === 80) {
-                        // Buscar horas secundarias
+                    // Si es hora principal (es_bloque = false, duración 80)
+                    if (!cita.es_bloque && (cita.duracion || 40) === 80) {
+                        console.log(`   📦 Es hora principal de bloque, buscando horas de bloque...`);
+                        
+                        // Buscar horas de bloque
                         for (const otraCita of citasActivas) {
                             if (otraCita.hora_principal === cita.hora && 
                                 otraCita.fecha === cita.fecha &&
                                 !citasYaProcesadas.has(otraCita.id)) {
                                 todasCitasBloque.push(otraCita);
                                 citasYaProcesadas.add(otraCita.id);
+                                console.log(`     + Hora bloque encontrada: ${otraCita.id}`);
                             }
                         }
                     }
-                    // Si es hora secundaria
-                    else if (cita.hora_principal) {
+                    // Si es hora de bloque (es_bloque = true)
+                    else if (cita.es_bloque && cita.hora_principal) {
+                        console.log(`   📦 Es hora de bloque, buscando hora principal y otras horas de bloque...`);
+                        
                         // Buscar la hora principal
                         for (const otraCita of citasActivas) {
-                            if (otraCita.hora === cita.hora_principal && 
+                            if (!otraCita.es_bloque && 
+                                otraCita.hora === cita.hora_principal && 
                                 otraCita.fecha === cita.fecha &&
                                 !citasYaProcesadas.has(otraCita.id)) {
                                 todasCitasBloque.push(otraCita);
                                 citasYaProcesadas.add(otraCita.id);
+                                console.log(`     + Hora principal encontrada: ${otraCita.id}`);
                             }
                         }
+                        
+                        // Buscar otras horas de bloque del mismo bloque
+                        for (const otraCita of citasActivas) {
+                            if (otraCita.es_bloque && 
+                                otraCita.hora_principal === cita.hora_principal && 
+                                otraCita.fecha === cita.fecha &&
+                                otraCita.id !== cita.id &&
+                                !citasYaProcesadas.has(otraCita.id)) {
+                                todasCitasBloque.push(otraCita);
+                                citasYaProcesadas.add(otraCita.id);
+                                console.log(`     + Otra hora bloque encontrada: ${otraCita.id}`);
+                            }
+                        }
+                    } else {
+                        console.log(`   📦 Cita simple, no es parte de un bloque`);
                     }
                     
                     // Marcar todas las citas del bloque como completadas
                     const idsAMarcar = todasCitasBloque.map(c => c.id);
+                    
                     console.log(`📦 Marcando ${idsAMarcar.length} citas del bloque como completadas: ${idsAMarcar.join(', ')}`);
                     
                     // IMPORTANTE: Solo actualizamos el estado
@@ -11117,13 +11219,18 @@ async function cancelarCita(citaId) {
             
             if (citasYaProcesadas.size > 0) {
                 console.log('✅ Citas marcadas como completadas - Trigger establecerá expira_en automáticamente');
+                console.log(`   Total citas procesadas: ${citasYaProcesadas.size}`);
                 
                 // Recargar citas y actualizar UI
                 await cargarMisCitas();
                 setTimeout(() => {
                     iniciarContadoresCitas();
                 }, 500);
+            } else {
+                console.log('✅ No hay citas pasadas que procesar');
             }
+        } else {
+            console.log('✅ No hay citas activas para verificar');
         }
         
     } catch (error) {
@@ -11211,37 +11318,37 @@ async function eliminarCita(citaId) {
         // 2. Buscar todas las citas relacionadas (bloque de 80 minutos)
         let todasLasCitasDelBloque = [cita];
         
-        // CASO A: Es hora principal (tiene duración 80)
-        if ((cita.duracion || 40) === 80) {
+        // CASO A: Es hora principal (es_bloque = false, duración 80)
+        if (!cita.es_bloque && (cita.duracion || 40) === 80) {
             console.log('📦 Detectado como hora principal de bloque de 80 minutos');
             
-            // Buscar las horas secundarias que tienen esta hora como hora_principal
-            const { data: horasSecundarias, error: errorSecundarias } = await supabase
+            // Buscar las horas de bloque que tienen esta hora como hora_principal
+            const { data: horasBloque, error: errorBloque } = await supabase
                 .from('citas')
                 .select('*')
                 .eq('fecha', cita.fecha)
-                .eq('hora_principal', cita.hora)
+                .eq('hora_principal', cita.hora) // Buscar por hora_principal
                 .eq('cliente_id', usuarioActual.id)
                 .in('estado', ['completada', 'cancelada']);
                 
-            if (errorSecundarias) {
-                console.error('Error buscando horas secundarias:', errorSecundarias);
+            if (errorBloque) {
+                console.error('Error buscando horas de bloque:', errorBloque);
             }
             
-            if (horasSecundarias && horasSecundarias.length > 0) {
-                console.log(`✅ Encontradas ${horasSecundarias.length} horas secundarias del bloque`);
-                todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasSecundarias];
+            if (horasBloque && horasBloque.length > 0) {
+                console.log(`✅ Encontradas ${horasBloque.length} horas de bloque`);
+                todasLasCitasDelBloque = [...todasLasCitasDelBloque, ...horasBloque];
                 
                 // DEBUG: Mostrar las horas encontradas
-                horasSecundarias.forEach((horaSec, index) => {
-                    console.log(`   ${index + 1}. Hora secundaria: ${horaSec.hora} (ID: ${horaSec.id})`);
+                horasBloque.forEach((horaBloque, index) => {
+                    console.log(`   ${index + 1}. Hora de bloque: ${horaBloque.hora} (ID: ${horaBloque.id}, es_bloque: ${horaBloque.es_bloque})`);
                 });
             }
         }
         
-        // CASO B: Es hora secundaria (tiene hora_principal)
-        if (cita.hora_principal) {
-            console.log(`📦 Detectado como hora secundaria. Hora principal: ${cita.hora_principal}`);
+        // CASO B: Es hora de bloque (es_bloque = true, tiene hora_principal)
+        else if (cita.es_bloque && cita.hora_principal) {
+            console.log(`📦 Detectado como hora de bloque. Hora principal: ${cita.hora_principal}`);
             
             // Buscar la hora principal
             const { data: horaPrincipalCita, error: errorPrincipal } = await supabase
@@ -11249,6 +11356,7 @@ async function eliminarCita(citaId) {
                 .select('*')
                 .eq('fecha', cita.fecha)
                 .eq('hora', cita.hora_principal)
+                .eq('es_bloque', false) // Buscar hora principal (es_bloque = false)
                 .eq('cliente_id', usuarioActual.id)
                 .in('estado', ['completada', 'cancelada'])
                 .maybeSingle();
@@ -11258,7 +11366,7 @@ async function eliminarCita(citaId) {
             }
             
             if (horaPrincipalCita) {
-                console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id})`);
+                console.log(`✅ Encontrada hora principal: ${horaPrincipalCita.hora} (ID: ${horaPrincipalCita.id}, es_bloque: ${horaPrincipalCita.es_bloque})`);
                 
                 // Verificar que no esté ya en el array
                 const yaExiste = todasLasCitasDelBloque.some(c => c.id === horaPrincipalCita.id);
@@ -11266,7 +11374,7 @@ async function eliminarCita(citaId) {
                     todasLasCitasDelBloque.push(horaPrincipalCita);
                 }
                 
-                // Buscar otras horas secundarias del mismo bloque
+                // Buscar otras horas de bloque del mismo bloque
                 const { data: otrasHorasBloque, error: errorOtras } = await supabase
                     .from('citas')
                     .select('*')
@@ -11302,7 +11410,7 @@ async function eliminarCita(citaId) {
         
         console.log(`📊 Citas únicas del bloque: ${todasLasCitasDelBloque.length}`);
         todasLasCitasDelBloque.forEach((c, i) => {
-            console.log(`   ${i + 1}. ${c.hora} (ID: ${c.id}, estado: ${c.estado})`);
+            console.log(`   ${i + 1}. ${c.hora} (ID: ${c.id}, estado: ${c.estado}, es_bloque: ${c.es_bloque})`);
         });
         
         // 3. Confirmación de eliminación
@@ -11399,6 +11507,7 @@ async function eliminarCita(citaId) {
                             <p style="margin: 8px 0; color: #d4af37;"><strong>Fecha:</strong> ${cita.fecha}</p>
                             <p style="margin: 8px 0; color: #d4af37;"><strong>Hora:</strong> ${cita.hora}</p>
                             <p style="margin: 8px 0; color: #d4af37;"><strong>Estado:</strong> <span style="color: ${cita.estado === 'completada' ? '#28a745' : '#ff6b6b'}">${cita.estado}</span></p>
+                            <p style="margin: 8px 0; color: #d4af37;"><strong>Tipo:</strong> ${cita.es_bloque ? 'Hora de bloque' : 'Hora principal'}</p>
                         </div>
                         <div style="background: rgba(255, 107, 107, 0.05); border: 1px solid #ff6b6b; border-radius: 8px; padding: 12px; margin: 15px 0;">
                             <p style="color: #ff6b6b; font-size: 0.9em; margin: 5px 0;">
@@ -11469,7 +11578,7 @@ async function eliminarCita(citaId) {
                     </div>
                     <p style="color: #ffffff; margin-bottom: 10px;">Eliminando permanentemente...</p>
                     <small style="color: #d4af37;">
-                        ${esBloqueCompleto ? `Eliminando ${todasLasCitasDelBloque.length} citas` : 'Eliminando cita individual'}
+                        ${esBloqueCompleto ? `Eliminando ${todasLasCitasDelBloque.length} citas del bloque` : 'Eliminando cita individual'}
                     </small>
                 </div>
                 <style>
