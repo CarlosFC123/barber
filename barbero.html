@@ -9997,9 +9997,15 @@ async function cancelarCitaAdmin(citaId) {
     }
 }
 
-function cambiarEstadoCitaBloque(citaId) {
+function cambiarEstadoCitaBloque(citaId, nuevoEstado = null) {
     if (typeof window.app !== 'undefined' && window.app.cambiarEstadoCitaBloque) {
-        return window.app.cambiarEstadoCitaBloque(citaId);
+        if (nuevoEstado) {
+            // Si ya se seleccionó un estado desde el modal
+            return window.app.cambiarEstadoCitaBloque(citaId, nuevoEstado);
+        } else {
+            // Si se llama desde el botón antiguo (para retrocompatibilidad)
+            return mostrarModalCambiarEstado(citaId, true);
+        }
     } else {
         console.error('Función cambiarEstadoCitaBloque no disponible');
     }
