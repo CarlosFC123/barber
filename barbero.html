@@ -9644,9 +9644,9 @@ async function cambiarEstadoCita(citaId) {
         
         // Mapeo de estados para mostrar mejor
         const estadoLabels = {
-            'Aceptada': { icon: '✅', label: 'Aceptada', color: '#10b981' },
-            'completada': { icon: '🏁', label: 'Completada', color: '#3b82f6' },
-            'cancelada': { icon: '❌', label: 'Cancelada', color: '#ef4444' }
+            'Aceptada': { icon: '', label: 'Aceptada', color: '#10b981' },
+            'completada': { icon: '', label: 'Completada', color: '#3b82f6' },
+            'cancelada': { icon: '', label: 'Cancelada', color: '#ef4444' }
         };
         
         const estadoActual = estadoLabels[cita.estado] || { icon: '', label: cita.estado, color: '#6b7280' };
@@ -10583,7 +10583,7 @@ async function cancelarCita(citaId) {
 
         if (cita.estado === 'completada') {
             Swal.fire({
-                title: '🏁 Cita completada',
+                title: ' Cita completada',
                 html: `
                     <div style="text-align: center;">
                         <div style="font-size: 4rem; color: #d4af37; margin-bottom: 15px;">
