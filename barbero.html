@@ -2855,7 +2855,20 @@ h2 {
             }
 
 
+// Debug del carrusel
+console.log('🔍 Elementos del carrusel encontrados:');
+console.log('- Botón anterior:', document.getElementById('prevBtn'));
+console.log('- Botón siguiente:', document.getElementById('nextBtn'));
+console.log('- Imágenes:', document.querySelectorAll('.carrusel-img').length);
+console.log('- Indicadores:', document.querySelectorAll('.indicador').length);
 
+// Forzar inicialización si hay elementos
+if (document.querySelector('.carrusel-simple')) {
+    console.log('🎯 Inicializando carrusel forzadamente...');
+    setTimeout(() => {
+        inicializarCarruselSimple();
+    }, 1000);
+}
             // ============ SISTEMA DE CACHÉ INTELIGENTE ============
 
             function actualizarCacheLocal(fecha, hora, estado, usuarioId = null) {
