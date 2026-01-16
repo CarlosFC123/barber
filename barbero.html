@@ -9788,7 +9788,7 @@ async function cambiarEstadoCita(citaId) {
                                 border-left: 4px solid ${estadoLabels[nuevoEstado]?.color || '#d4af37'};
                                 margin: 15px 0;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-                            <span style="font-size: 1.5rem;">${estadoLabels[nuevoEstado]?.icon || '📝'}</span>
+                            <span style="font-size: 1.5rem;">${estadoLabels[nuevoEstado]?.icon || ''}</span>
                             <span style="font-size: 1.2rem; font-weight: 600; color: ${estadoLabels[nuevoEstado]?.color || '#d4af37'};">
                                 ${estadoLabels[nuevoEstado]?.label || nuevoEstado}
                             </span>
@@ -9836,7 +9836,7 @@ async function cambiarEstadoCita(citaId) {
                             Nuevo estado
                         </div>
                         <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-                            <span style="font-size: 2rem;">${estadoLabels[nuevoEstado]?.icon || '📝'}</span>
+                            <span style="font-size: 2rem;">${estadoLabels[nuevoEstado]?.icon || ''}</span>
                             <span style="font-size: 1.5rem; font-weight: 600; color: ${estadoLabels[nuevoEstado]?.color || '#10b981'};">
                                 ${estadoLabels[nuevoEstado]?.label || nuevoEstado}
                             </span>
