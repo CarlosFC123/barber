@@ -9229,204 +9229,6 @@ function calcularEstadisticasAdmin(citas) {
     };
 }
 
-// Nueva función para mostrar el modal de cambiar estado
-function mostrarModalCambiarEstado(citaId, esBloque = false) {
-    // Crear modal
-    const modalHTML = `
-        <div class="modal-overlay" id="modal-cambiar-estado">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Cambiar Estado de Cita</h3>
-                    <button class="modal-close" onclick="cerrarModalCambiarEstado()">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="estado-options">
-                        <div class="estado-option" onclick="seleccionarEstado('pendiente', '${citaId}', ${esBloque})">
-                            <div class="estado-indicador estado-pendiente"></div>
-                            <span>Pendiente</span>
-                        </div>
-                        <div class="estado-option" onclick="seleccionarEstado('aceptada', '${citaId}', ${esBloque})">
-                            <div class="estado-indicador estado-aceptada"></div>
-                            <span>Aceptada</span>
-                        </div>
-                        <div class="estado-option" onclick="seleccionarEstado('confirmada', '${citaId}', ${esBloque})">
-                            <div class="estado-indicador estado-confirmada"></div>
-                            <span>Confirmada</span>
-                        </div>
-                        <div class="estado-option" onclick="seleccionarEstado('completada', '${citaId}', ${esBloque})">
-                            <div class="estado-indicador estado-completada"></div>
-                            <span>Completada</span>
-                        </div>
-                        <div class="estado-option" onclick="seleccionarEstado('cancelada', '${citaId}', ${esBloque})">
-                            <div class="estado-indicador estado-cancelada"></div>
-                            <span>Cancelada</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Agregar modal al body
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Agregar estilos CSS para el modal
-    agregarEstilosModal();
-}
-
-function agregarEstilosModal() {
-    const estilos = `
-        <style>
-            .modal-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.5);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 1000;
-            }
-            
-            .modal-content {
-                background: white;
-                border-radius: 10px;
-                width: 90%;
-                max-width: 500px;
-                box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-                overflow: hidden;
-            }
-            
-            .modal-header {
-                background: #f8f9fa;
-                padding: 20px;
-                border-bottom: 1px solid #dee2e6;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-            
-            .modal-header h3 {
-                margin: 0;
-                color: #333;
-            }
-            
-            .modal-close {
-                background: none;
-                border: none;
-                font-size: 24px;
-                cursor: pointer;
-                color: #666;
-            }
-            
-            .modal-body {
-                padding: 20px;
-            }
-            
-            .estado-options {
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-            }
-            
-            .estado-option {
-                display: flex;
-                align-items: center;
-                padding: 15px;
-                border: 2px solid #e9ecef;
-                border-radius: 8px;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            }
-            
-            .estado-option:hover {
-                background: #f8f9fa;
-                border-color: #007bff;
-                transform: translateY(-2px);
-            }
-            
-            .estado-indicador {
-                width: 20px;
-                height: 20px;
-                border-radius: 50%;
-                margin-right: 15px;
-            }
-            
-            .estado-pendiente {
-                background: #ffc107;
-            }
-            
-            .estado-aceptada {
-                background: #17a2b8;
-            }
-            
-            .estado-confirmada {
-                background: #28a745;
-            }
-            
-            .estado-completada {
-                background: #007bff;
-            }
-            
-            .estado-cancelada {
-                background: #dc3545;
-            }
-            
-            .estado-option span {
-                font-size: 16px;
-                font-weight: 500;
-                color: #333;
-            }
-        </style>
-    `;
-    
-    // Agregar estilos solo si no existen
-    if (!document.querySelector('#estilos-modal-estado')) {
-        const styleElement = document.createElement('style');
-        styleElement.id = 'estilos-modal-estado';
-        styleElement.textContent = estilos;
-        document.head.appendChild(styleElement);
-    }
-}
-
-function seleccionarEstado(nuevoEstado, citaId, esBloque) {
-    // Cerrar modal primero
-    cerrarModalCambiarEstado();
-    
-    // Mostrar confirmación
-    if (confirm(`¿Estás seguro de cambiar el estado a "${nuevoEstado}"?`)) {
-        if (esBloque) {
-            // Para bloques
-            cambiarEstadoCitaBloque(citaId, nuevoEstado);
-        } else {
-            // Para citas individuales
-            app.cambiarEstadoCita(citaId, nuevoEstado);
-        }
-    }
-}
-
-function cerrarModalCambiarEstado() {
-    const modal = document.getElementById('modal-cambiar-estado');
-    if (modal) {
-        modal.remove();
-    }
-}
-
-function cambiarEstadoCitaBloque(citaId, nuevoEstado = null) {
-    if (typeof window.app !== 'undefined' && window.app.cambiarEstadoCitaBloque) {
-        if (nuevoEstado) {
-            // Si ya se seleccionó un estado desde el modal
-            return window.app.cambiarEstadoCitaBloque(citaId, nuevoEstado);
-        } else {
-            // Si se llama desde el botón antiguo (para retrocompatibilidad)
-            return mostrarModalCambiarEstado(citaId, true);
-        }
-    } else {
-        console.error('Función cambiarEstadoCitaBloque no disponible');
-    }
-}
 // Función auxiliar para generar HTML de bloque de citas
 function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) {
     const fechaCitaYucatan = getYucatanDateTime(citaPrincipal.fecha, citaPrincipal.hora);
@@ -9470,7 +9272,7 @@ function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) 
             </div>
             <div class="cita-acciones">
                 ${esAdmin ? `
-                    <button class="btn btn-warning cambiar-estado-btn" onclick="mostrarModalCambiarEstado('${citaPrincipal.id}', true)">
+                    <button class="btn btn-warning" onclick="cambiarEstadoCitaBloque('${citaPrincipal.id}')">
                         <i class="fas fa-edit"></i> Cambiar Estado
                     </button>
                     <button class="btn btn-info" onclick="verDetallesBloque('${citaPrincipal.id}')">
@@ -9498,7 +9300,6 @@ function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) 
         </div>
     `;
 }
-
 // Función auxiliar para generar HTML de cita individual
 function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
     const fechaCitaYucatan = getYucatanDateTime(cita.fecha, cita.hora);
@@ -9551,6 +9352,9 @@ function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
                 <div>
                     <h3>${cita.servicios.nombre}</h3>
                     <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                        <span style="color: #d4af37; font-weight: 600; font-size: 0.9em;">
+                            
+                        </span>
                         <span style="color: #28a745; font-weight: 600; font-size: 0.9em;">
                             <i class="fas fa-clock"></i> ${cita.hora}
                         </span>
@@ -9570,7 +9374,7 @@ function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
             <div class="cita-acciones">
             ${esAdmin ? `
                 <!-- Botones de administrador -->
-                <button class="btn btn-warning cambiar-estado-btn" onclick="mostrarModalCambiarEstado('${cita.id}', false)">
+                <button class="btn btn-warning" onclick="app.cambiarEstadoCita('${cita.id}')">
                     <i class="fas fa-edit"></i> Cambiar Estado
                 </button>
                 <button class="btn btn-info" onclick="app.verDetallesCita('${cita.id}')">
@@ -9601,7 +9405,6 @@ function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
         </div>
     `;
 }
-
 
 // Funciones de filtrado para admin
 function filtrarCitasAdmin() {
@@ -10012,7 +9815,13 @@ async function cancelarCitaAdmin(citaId) {
     }
 }
 
-
+function cambiarEstadoCitaBloque(citaId) {
+    if (typeof window.app !== 'undefined' && window.app.cambiarEstadoCitaBloque) {
+        return window.app.cambiarEstadoCitaBloque(citaId);
+    } else {
+        console.error('Función cambiarEstadoCitaBloque no disponible');
+    }
+}
 function verDetallesBloque(citaId) {
     if (typeof window.app !== 'undefined' && window.app.verDetallesBloque) {
         return window.app.verDetallesBloque(citaId);
@@ -12356,11 +12165,7 @@ window.app = {
     verDetallesCita,
     cancelarCitaAdmin: cancelarCita, // Puedes reutilizar la función existente
     eliminarCitaAdmin: eliminarCita, // Puedes reutilizar la función existente
-    mostrarModalCambiarEstado,
-    seleccionarEstado,
-    cerrarModalCambiarEstado,
-    cambiarEstadoCitaBloque,
-    
+    cambiarEstadoCitaBloque: cambiarEstadoCita, // Reutiliza para bloques
     verDetallesBloque: verDetallesCita, // Reutiliza para bloques
     cancelarBloqueAdmin: cancelarCita, // Reutiliza para bloques
     eliminarBloqueAdmin: eliminarCita, // Reutiliza para bloques
@@ -12372,12 +12177,6 @@ window.app = {
 
 
 };
-
-window.mostrarModalCambiarEstado = mostrarModalCambiarEstado;
-window.seleccionarEstado = seleccionarEstado;
-window.cerrarModalCambiarEstado = cerrarModalCambiarEstado;
-
-
             // ============ EJECUCIÓN ============
 
             verificarAutenticacion();
