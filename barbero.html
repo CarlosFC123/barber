@@ -9229,181 +9229,6 @@ function calcularEstadisticasAdmin(citas) {
     };
 }
 
-// Función auxiliar para generar HTML de bloque de citas
-function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) {
-    const fechaCitaYucatan = getYucatanDateTime(citaPrincipal.fecha, citaPrincipal.hora);
-    const ahora = new Date();
-    const citaPasada = fechaCitaYucatan < ahora;
-    const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
-    const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
-
-    const horasOrdenadas = horasBloque.sort((a, b) => {
-        return a.localeCompare(b);
-    });
-    
-    const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
-                        (citaPrincipal.estado === 'aceptada' || citaPrincipal.estado === 'pendiente' || citaPrincipal.estado === 'confirmada');
-    
-    const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
-    
-    return `
-        <div class="cita-card bloque-cita ${citaPrincipal.estado} ${esAdmin ? 'admin-cita' : ''}" 
-             data-cita-id="${citaPrincipal.id}" 
-             data-fecha="${citaPrincipal.fecha}" 
-             data-hora="${citaPrincipal.hora}"
-             data-es-bloque="true"
-             data-estado="${citaPrincipal.estado}"
-             data-cliente="${citaPrincipal.clientes?.nombre || ''}">
-            <div class="cita-header">
-                <div>
-                    <h3>${citaPrincipal.servicios.nombre} <span class="badge-bloque">📦 Bloque</span></h3>
-                    ${esAdmin && citaPrincipal.infoCliente ? `<p class="cliente-info">${citaPrincipal.infoCliente}</p>` : ''}
-                </div>
-                <span class="cita-estado estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
-            </div>
-            <div class="cita-detalles">
-                <p><strong>📅 Fecha:</strong> ${citaPrincipal.fecha}</p>
-                <p><strong>🕐 Horas del bloque:</strong> ${horasOrdenadas.join(', ')}</p>
-                <p><strong>⏱️ Duración total:</strong> 80 minutos</p>
-                <p><strong>👤 Barbero:</strong> ${citaPrincipal.barberos.nombre}</p>
-                <p><strong>💰 Precio total:</strong> $${citaPrincipal.servicios.precio}</p>
-                ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
-                <div id="contador-${citaPrincipal.id}" class="contador-cita"></div>
-            </div>
-            <div class="cita-acciones">
-                ${esAdmin ? `
-                    <button class="btn btn-warning cambiar-estado-btn" onclick="mostrarModalCambiarEstado('${citaPrincipal.id}', true)">
-                        <i class="fas fa-edit"></i> Cambiar Estado
-                    </button>
-                    <button class="btn btn-info" onclick="verDetallesBloque('${citaPrincipal.id}')">
-                        <i class="fas fa-info-circle"></i> Detalles
-                    </button>
-                    ${puedeCancelar ? `
-                        <button class="btn btn-danger" onclick="cancelarBloqueAdmin('${citaPrincipal.id}')">
-                            <i class="fas fa-times"></i> Cancelar Bloque
-                        </button>
-                    ` : ''}
-                    ${puedeEliminar ? `
-                        <button class="btn btn-secondary" onclick="eliminarBloqueAdmin('${citaPrincipal.id}')">
-                            <i class="fas fa-trash"></i> Eliminar Bloque
-                        </button>
-                    ` : ''}
-                ` : `
-                    ${puedeCancelar ? `
-                        <button class="btn btn-danger" onclick="app.cancelarCita('${citaPrincipal.id}')">Cancelar Bloque Completo</button>
-                    ` : ''}
-                    ${puedeEliminar ? `
-                        <button class="btn btn-secondary" onclick="app.eliminarCita('${citaPrincipal.id}')">Eliminar bloque completo</button>
-                    ` : ''}
-                `}
-            </div>
-        </div>
-    `;
-}
-
-// Función auxiliar para generar HTML de cita individual
-function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
-    const fechaCitaYucatan = getYucatanDateTime(cita.fecha, cita.hora);
-    const ahora = new Date();
-    const citaPasada = fechaCitaYucatan < ahora;
-    const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
-    const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
-    const fechaMostrar = formatearFechaParaMostrar(cita.fecha);
-
-    const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
-                        (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
-    
-    const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
-    
-    // Formatear fecha de agendamiento
-    let fechaAgendamientoHTML = '';
-    if (cita.creado_en) {
-        const fechaAgendamiento = new Date(cita.creado_en);
-        const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', { 
-            timeZone: 'America/Merida',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        // fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fechaFormateada}</p>`;
-    }
-    
-    // Formatear fecha de la cita
-    const fechaCitaFormateada = fechaCitaYucatan.toLocaleString('es-MX', { 
-        timeZone: 'America/Merida',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-    
-    return `
-        <div class="cita-card ${cita.estado} ${esAdmin ? 'admin-cita' : ''} ${citaPasada ? 'pasada' : 'futura'}" 
-             id="cita-${cita.id}" 
-             data-cita-id="${cita.id}" 
-             data-fecha="${cita.fecha}" 
-             data-hora="${cita.hora}"
-             data-estado="${cita.estado}"
-             data-cliente="${cita.clientes?.nombre || ''}"
-             data-fecha-hora="${cita.fecha}_${cita.hora}">
-            <div class="cita-header">
-                <div>
-                    <h3>${cita.servicios.nombre}</h3>
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
-                        <span style="color: #28a745; font-weight: 600; font-size: 0.9em;">
-                            <i class="fas fa-clock"></i> ${cita.hora}
-                        </span>
-                    </div>
-                    ${esAdmin && cita.infoCliente ? `<p class="cliente-info">${cita.infoCliente}</p>` : ''}
-                </div>
-                <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
-            </div>
-            <div class="cita-detalles">
-                <p><strong>📅 Fecha de la cita:</strong> ${fechaCitaFormateada}</p>
-                ${fechaAgendamientoHTML}
-                <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
-                <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
-                ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
-                <div id="contador-${cita.id}" class="contador-cita"></div>
-            </div>
-            <div class="cita-acciones">
-            ${esAdmin ? `
-                <!-- Botones de administrador -->
-                <button class="btn btn-warning cambiar-estado-btn" onclick="mostrarModalCambiarEstado('${cita.id}', false)">
-                    <i class="fas fa-edit"></i> Cambiar Estado
-                </button>
-                <button class="btn btn-info" onclick="app.verDetallesCita('${cita.id}')">
-                    <i class="fas fa-info-circle"></i> Detalles
-                </button>
-                ${puedeCancelar ? `
-                    <button class="btn btn-danger" onclick="app.cancelarCitaAdmin('${cita.id}')">
-                        <i class="fas fa-times"></i> Cancelar
-                    </button>
-                ` : ''}
-                ${puedeEliminar ? `
-                    <button class="btn btn-secondary" onclick="app.eliminarCitaAdmin('${cita.id}')">
-                        <i class="fas fa-trash"></i> Eliminar
-                    </button>
-                ` : ''}
-            ` : `
-                <!-- Botones de usuario normal -->
-                ${puedeCancelar ? `
-                    <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
-                ` : ''}
-                ${!puedeCancelar && !citaPasada && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
-                    <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
-                ` : ''}
-                ${puedeEliminar ? `
-                    <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
-                ` : ''}
-            `}
-        </div>
-    `;
-}
-
 // Nueva función para mostrar el modal de cambiar estado
 function mostrarModalCambiarEstado(citaId, esBloque = false) {
     // Crear modal
@@ -9588,6 +9413,196 @@ function cerrarModalCambiarEstado() {
         modal.remove();
     }
 }
+
+function cambiarEstadoCitaBloque(citaId, nuevoEstado = null) {
+    if (typeof window.app !== 'undefined' && window.app.cambiarEstadoCitaBloque) {
+        if (nuevoEstado) {
+            // Si ya se seleccionó un estado desde el modal
+            return window.app.cambiarEstadoCitaBloque(citaId, nuevoEstado);
+        } else {
+            // Si se llama desde el botón antiguo (para retrocompatibilidad)
+            return mostrarModalCambiarEstado(citaId, true);
+        }
+    } else {
+        console.error('Función cambiarEstadoCitaBloque no disponible');
+    }
+}
+// Función auxiliar para generar HTML de bloque de citas
+function generarHTMLBloqueCitaAdmin(citaPrincipal, grupo, horasBloque, esAdmin) {
+    const fechaCitaYucatan = getYucatanDateTime(citaPrincipal.fecha, citaPrincipal.hora);
+    const ahora = new Date();
+    const citaPasada = fechaCitaYucatan < ahora;
+    const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+    const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+
+    const horasOrdenadas = horasBloque.sort((a, b) => {
+        return a.localeCompare(b);
+    });
+    
+    const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
+                        (citaPrincipal.estado === 'aceptada' || citaPrincipal.estado === 'pendiente' || citaPrincipal.estado === 'confirmada');
+    
+    const puedeEliminar = citaPrincipal.estado === 'completada' || citaPrincipal.estado === 'cancelada';
+    
+    return `
+        <div class="cita-card bloque-cita ${citaPrincipal.estado} ${esAdmin ? 'admin-cita' : ''}" 
+             data-cita-id="${citaPrincipal.id}" 
+             data-fecha="${citaPrincipal.fecha}" 
+             data-hora="${citaPrincipal.hora}"
+             data-es-bloque="true"
+             data-estado="${citaPrincipal.estado}"
+             data-cliente="${citaPrincipal.clientes?.nombre || ''}">
+            <div class="cita-header">
+                <div>
+                    <h3>${citaPrincipal.servicios.nombre} <span class="badge-bloque">📦 Bloque</span></h3>
+                    ${esAdmin && citaPrincipal.infoCliente ? `<p class="cliente-info">${citaPrincipal.infoCliente}</p>` : ''}
+                </div>
+                <span class="cita-estado estado-${citaPrincipal.estado}">${citaPrincipal.estado}</span>
+            </div>
+            <div class="cita-detalles">
+                <p><strong>📅 Fecha:</strong> ${citaPrincipal.fecha}</p>
+                <p><strong>🕐 Horas del bloque:</strong> ${horasOrdenadas.join(', ')}</p>
+                <p><strong>⏱️ Duración total:</strong> 80 minutos</p>
+                <p><strong>👤 Barbero:</strong> ${citaPrincipal.barberos.nombre}</p>
+                <p><strong>💰 Precio total:</strong> $${citaPrincipal.servicios.precio}</p>
+                ${citaPrincipal.notas ? `<p><strong>📝 Notas:</strong> ${citaPrincipal.notas}</p>` : ''}
+                <div id="contador-${citaPrincipal.id}" class="contador-cita"></div>
+            </div>
+            <div class="cita-acciones">
+                ${esAdmin ? `
+                    <button class="btn btn-warning cambiar-estado-btn" onclick="mostrarModalCambiarEstado('${citaPrincipal.id}', true)">
+                        <i class="fas fa-edit"></i> Cambiar Estado
+                    </button>
+                    <button class="btn btn-info" onclick="verDetallesBloque('${citaPrincipal.id}')">
+                        <i class="fas fa-info-circle"></i> Detalles
+                    </button>
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="cancelarBloqueAdmin('${citaPrincipal.id}')">
+                            <i class="fas fa-times"></i> Cancelar Bloque
+                        </button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="eliminarBloqueAdmin('${citaPrincipal.id}')">
+                            <i class="fas fa-trash"></i> Eliminar Bloque
+                        </button>
+                    ` : ''}
+                ` : `
+                    ${puedeCancelar ? `
+                        <button class="btn btn-danger" onclick="app.cancelarCita('${citaPrincipal.id}')">Cancelar Bloque Completo</button>
+                    ` : ''}
+                    ${puedeEliminar ? `
+                        <button class="btn btn-secondary" onclick="app.eliminarCita('${citaPrincipal.id}')">Eliminar bloque completo</button>
+                    ` : ''}
+                `}
+            </div>
+        </div>
+    `;
+}
+
+// Función auxiliar para generar HTML de cita individual
+function generarHTMLCitaIndividualAdmin(cita, esAdmin) {
+    const fechaCitaYucatan = getYucatanDateTime(cita.fecha, cita.hora);
+    const ahora = new Date();
+    const citaPasada = fechaCitaYucatan < ahora;
+    const tiempoParaCita = fechaCitaYucatan.getTime() - ahora.getTime();
+    const faltaMenosDeUnaHora = tiempoParaCita <= (60 * 60 * 1000);
+    const fechaMostrar = formatearFechaParaMostrar(cita.fecha);
+
+    const puedeCancelar = !citaPasada && !faltaMenosDeUnaHora && 
+                        (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada');
+    
+    const puedeEliminar = cita.estado === 'completada' || cita.estado === 'cancelada';
+    
+    // Formatear fecha de agendamiento
+    let fechaAgendamientoHTML = '';
+    if (cita.creado_en) {
+        const fechaAgendamiento = new Date(cita.creado_en);
+        const fechaFormateada = fechaAgendamiento.toLocaleDateString('es-MX', { 
+            timeZone: 'America/Merida',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        // fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fechaFormateada}</p>`;
+    }
+    
+    // Formatear fecha de la cita
+    const fechaCitaFormateada = fechaCitaYucatan.toLocaleString('es-MX', { 
+        timeZone: 'America/Merida',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    return `
+        <div class="cita-card ${cita.estado} ${esAdmin ? 'admin-cita' : ''} ${citaPasada ? 'pasada' : 'futura'}" 
+             id="cita-${cita.id}" 
+             data-cita-id="${cita.id}" 
+             data-fecha="${cita.fecha}" 
+             data-hora="${cita.hora}"
+             data-estado="${cita.estado}"
+             data-cliente="${cita.clientes?.nombre || ''}"
+             data-fecha-hora="${cita.fecha}_${cita.hora}">
+            <div class="cita-header">
+                <div>
+                    <h3>${cita.servicios.nombre}</h3>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                        <span style="color: #28a745; font-weight: 600; font-size: 0.9em;">
+                            <i class="fas fa-clock"></i> ${cita.hora}
+                        </span>
+                    </div>
+                    ${esAdmin && cita.infoCliente ? `<p class="cliente-info">${cita.infoCliente}</p>` : ''}
+                </div>
+                <span class="cita-estado estado-${cita.estado}">${cita.estado}</span>
+            </div>
+            <div class="cita-detalles">
+                <p><strong>📅 Fecha de la cita:</strong> ${fechaCitaFormateada}</p>
+                ${fechaAgendamientoHTML}
+                <p><strong>👤 Barbero:</strong> ${cita.barberos.nombre}</p>
+                <p><strong>💰 Precio:</strong> $${cita.servicios.precio}</p>
+                ${cita.notas ? `<p><strong>📝 Notas:</strong> ${cita.notas}</p>` : ''}
+                <div id="contador-${cita.id}" class="contador-cita"></div>
+            </div>
+            <div class="cita-acciones">
+            ${esAdmin ? `
+                <!-- Botones de administrador -->
+                <button class="btn btn-warning cambiar-estado-btn" onclick="mostrarModalCambiarEstado('${cita.id}', false)">
+                    <i class="fas fa-edit"></i> Cambiar Estado
+                </button>
+                <button class="btn btn-info" onclick="app.verDetallesCita('${cita.id}')">
+                    <i class="fas fa-info-circle"></i> Detalles
+                </button>
+                ${puedeCancelar ? `
+                    <button class="btn btn-danger" onclick="app.cancelarCitaAdmin('${cita.id}')">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                ` : ''}
+                ${puedeEliminar ? `
+                    <button class="btn btn-secondary" onclick="app.eliminarCitaAdmin('${cita.id}')">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
+                ` : ''}
+            ` : `
+                <!-- Botones de usuario normal -->
+                ${puedeCancelar ? `
+                    <button class="btn btn-danger" onclick="app.cancelarCita('${cita.id}')">Cancelar</button>
+                ` : ''}
+                ${!puedeCancelar && !citaPasada && (cita.estado === 'aceptada' || cita.estado === 'pendiente' || cita.estado === 'confirmada') ? `
+                    <button class="btn btn-danger" disabled style="background: #6c757d; cursor: not-allowed;">No se puede cancelar</button>
+                ` : ''}
+                ${puedeEliminar ? `
+                    <button class="btn btn-secondary" onclick="app.eliminarCita('${cita.id}')">Eliminar ahora</button>
+                ` : ''}
+            `}
+        </div>
+    `;
+}
+
+
 // Funciones de filtrado para admin
 function filtrarCitasAdmin() {
     if (!window.adminCitasOriginales) return;
@@ -9997,19 +10012,7 @@ async function cancelarCitaAdmin(citaId) {
     }
 }
 
-function cambiarEstadoCitaBloque(citaId, nuevoEstado = null) {
-    if (typeof window.app !== 'undefined' && window.app.cambiarEstadoCitaBloque) {
-        if (nuevoEstado) {
-            // Si ya se seleccionó un estado desde el modal
-            return window.app.cambiarEstadoCitaBloque(citaId, nuevoEstado);
-        } else {
-            // Si se llama desde el botón antiguo (para retrocompatibilidad)
-            return mostrarModalCambiarEstado(citaId, true);
-        }
-    } else {
-        console.error('Función cambiarEstadoCitaBloque no disponible');
-    }
-}
+
 function verDetallesBloque(citaId) {
     if (typeof window.app !== 'undefined' && window.app.verDetallesBloque) {
         return window.app.verDetallesBloque(citaId);
