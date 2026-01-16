@@ -12356,7 +12356,11 @@ window.app = {
     verDetallesCita,
     cancelarCitaAdmin: cancelarCita, // Puedes reutilizar la función existente
     eliminarCitaAdmin: eliminarCita, // Puedes reutilizar la función existente
-    cambiarEstadoCitaBloque: cambiarEstadoCita, // Reutiliza para bloques
+    mostrarModalCambiarEstado,
+    seleccionarEstado,
+    cerrarModalCambiarEstado,
+    cambiarEstadoCitaBloque,
+    
     verDetallesBloque: verDetallesCita, // Reutiliza para bloques
     cancelarBloqueAdmin: cancelarCita, // Reutiliza para bloques
     eliminarBloqueAdmin: eliminarCita, // Reutiliza para bloques
@@ -12368,6 +12372,12 @@ window.app = {
 
 
 };
+
+window.mostrarModalCambiarEstado = mostrarModalCambiarEstado;
+window.seleccionarEstado = seleccionarEstado;
+window.cerrarModalCambiarEstado = cerrarModalCambiarEstado;
+
+
             // ============ EJECUCIÓN ============
 
             verificarAutenticacion();
