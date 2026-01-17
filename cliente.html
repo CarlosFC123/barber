@@ -1502,6 +1502,139 @@ h2 {
     100% { box-shadow: 0 0 5px rgba(139, 69, 19, 0.5); }
 }
 
+
+/* =========================================== */
+/* CARRUSEL SIMPLE DE IMÁGENES */
+/* =========================================== */
+
+.carrusel-simple {
+    position: relative;
+    max-width: 800px;
+    margin: 0 auto;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #000;
+}
+
+.carrusel-imagenes-wrapper {
+    overflow: hidden;
+    border-radius: 12px;
+    height: 400px;
+}
+
+.carrusel-track {
+    display: flex;
+    transition: transform 0.5s ease-in-out;
+    height: 100%;
+}
+
+.carrusel-img {
+    min-width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    display: none;
+}
+
+.carrusel-img.active {
+    opacity: 1;
+    display: block;
+}
+
+.carrusel-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+}
+
+.carrusel-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(212, 175, 55, 0.8);
+    color: #000;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.3s ease;
+}
+
+.carrusel-btn:hover {
+    background: #d4af37;
+    transform: translateY(-50%) scale(1.1);
+}
+
+.carrusel-btn.prev {
+    left: 15px;
+}
+
+.carrusel-btn.next {
+    right: 15px;
+}
+
+.carrusel-indicadores {
+    position: absolute;
+    bottom: 15px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    z-index: 10;
+}
+
+.indicador {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.indicador.active {
+    background: #d4af37;
+    transform: scale(1.2);
+}
+
+.indicador:hover {
+    background: rgba(212, 175, 55, 0.7);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .carrusel-imagenes-wrapper {
+        height: 300px;
+    }
+    
+    .carrusel-simple {
+        max-width: 95%;
+    }
+    
+    .carrusel-btn {
+        width: 35px;
+        height: 35px;
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .carrusel-imagenes-wrapper {
+        height: 250px;
+    }
+    
+    #carrusel-imagenes h2 {
+        font-size: 18px;
+    }
+}
+
+
+
 .hora-btn.mi-reserva-activa small {
     animation: pulse-text 1s infinite alternate;
 }
