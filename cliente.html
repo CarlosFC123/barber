@@ -2426,6 +2426,9 @@ function verificarUsuarioActivo() {
 window.inicializarCarruselSimple = inicializarCarruselSimple;
 window.moverCarruselSimple = moverCarruselSimple;
 window.irASlideSimple = irASlideSimple;
+// Inicializar variable global
+window.botonSeleccionadoActual = null;
+
 
             // ============ SISTEMA DE POLLING INTELIGENTE ============
 
@@ -2446,7 +2449,7 @@ function iniciarPollingInteligente() {
     
     // Polling más inteligente y menos agresivo
     let ultimaEjecucion = 0;
-    const intervaloBase = 4000; // 2 segundos base
+    const intervaloBase = 2000; // 2 segundos base
     
     intervaloPolling = setInterval(async () => {
         try {
@@ -2492,12 +2495,23 @@ function iniciarPollingInteligente() {
                 await new Promise(resolve => setTimeout(resolve, 100));
                 
                 actualizarContadoresReservasActivas();
+                setInterval(forzarLimpiezaEstadosVerdes, 1000);
                 
             } else {
                 // Si no está en agendar, pausar polling
                 console.log('⏸️ No en pestaña agendar - Pausando polling');
                 detenerPolling();
             }
+
+            setInterval(() => {
+    // Verificar si hay selecciones huérfanas (botones selected sin reserva activa)
+    const haySeleccionSinReserva = document.querySelectorAll('.hora-btn.selected:not(.mi-reserva-activa)').length > 0;
+    
+    if (haySeleccionSinReserva && !reservaActiva) {
+        console.log('🧹 Limpiando selección huérfana');
+        resetearSeleccionCompleta();
+    }
+}, 2000);
             
         } catch (error) {
             console.error('Error en polling:', error);
@@ -2506,7 +2520,77 @@ function iniciarPollingInteligente() {
     
     console.log('🔄 Polling inteligente iniciado (3 segundos)');
 }
+function resetearSeleccionCompleta() {
+    console.log('🔄 Reset completo de selección');
+    
+    // Limpiar variable global
+    window.botonSeleccionadoActual = null;
+    
+    // Limpiar todos los botones verdes
+    document.querySelectorAll('.hora-btn.selected:not(.mi-reserva-activa)').forEach(boton => {
+        boton.classList.remove('selected', 'click-in-progress');
+        boton.style.cssText = '';
+        
+        // Restaurar estado
+        const estado = determinarEstadoRapido(boton);
+        aplicarEstadoRapido(boton, estado);
+    });
+    
+    // Limpiar input
+    const horaInput = document.getElementById('hora');
+    if (horaInput) horaInput.value = '';
+}
 
+// Llamar esta función cuando se cancele una reserva
+async function cancelarReservaAnterior() {
+    if (reservaActiva) {
+        console.log('🔄 CANCELANDO RESERVA ANTERIOR:', reservaActiva.fecha, reservaActiva.hora);
+        
+        // 1. Cancelar timeout
+        if (reservaActiva.timeoutId) {
+            clearTimeout(reservaActiva.timeoutId);
+        }
+        
+        // 2. Liberar la reserva de la BD
+        await liberarReserva(reservaActiva.fecha, reservaActiva.hora);
+        
+        // 3. Resetear selección visual
+        resetearSeleccionCompleta();
+        
+        // 4. Limpiar completamente la reserva activa
+        reservaActiva = null;
+        timeoutReserva = null;
+        
+        console.log('✅ Reserva anterior cancelada completamente');
+    }
+}
+function forzarLimpiezaEstadosVerdes() {
+    console.log('🧹 Forzando limpieza de estados verdes...');
+    
+    const ahora = Date.now();
+    const botonesVerdes = document.querySelectorAll('.hora-btn.selected:not(.mi-reserva-activa)');
+    
+    botonesVerdes.forEach(boton => {
+        const ultimoClic = parseInt(boton.dataset.ultimoClic || '0');
+        const seleccionTimestamp = parseInt(boton.dataset.seleccionTimestamp || '0');
+        const tiempoDesdeClic = ahora - ultimoClic;
+        const tiempoDesdeSeleccion = ahora - seleccionTimestamp;
+        
+        // Si no hay clic reciente (menos de 2 segundos) o selección antigua
+        if ((tiempoDesdeClic > 2000 && ultimoClic > 0) || tiempoDesdeSeleccion > 5000) {
+            console.log(`🧽 Limpiando botón verde huérfano: ${boton.dataset.hora}`);
+            
+            // Resetear a estado disponible
+            boton.classList.remove('selected', 'click-in-progress');
+            boton.style.cssText = '';
+            
+            // Restaurar contenido
+            const horaStr = boton.dataset.hora;
+            const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
+            boton.innerHTML = `${horaFormateada}<br><small style="font-size: 8px; color: #ccc;">${periodo}</small>`;
+        }
+    });
+}
 function actualizarContadoresReservasActivas() {
     if (!selectedDate) return;
     
@@ -4017,34 +4101,6 @@ async function registrarSolicitudTemporal(fecha, hora, btn) {
     }
 }
 
-       async function cancelarReservaAnterior() {
-    if (reservaActiva) {
-        console.log('🔄 CANCELANDO RESERVA ANTERIOR:', reservaActiva.fecha, reservaActiva.hora);
-        
-        // 1. Cancelar timeout
-        if (reservaActiva.timeoutId) {
-            clearTimeout(reservaActiva.timeoutId);
-        }
-        
-        // 2. Liberar la reserva de la BD
-        await liberarReserva(reservaActiva.fecha, reservaActiva.hora);
-        
-        // 3. Resetear UI de TODOS los botones INMEDIATAMENTE
-        const todosBotones = document.querySelectorAll('.hora-btn');
-        todosBotones.forEach(boton => {
-            // Solo resetear botones que son MI reserva activa
-            if (boton.classList.contains('mi-reserva-activa')) {
-                resetearUIReserva(boton, boton.dataset.hora);
-            }
-        });
-        
-        // 4. Limpiar completamente la reserva activa
-        reservaActiva = null;
-        timeoutReserva = null;
-        
-        console.log('✅ Reserva anterior cancelada completamente');
-    }
-}
 
 async function forzarDisponibilidadHora(fecha, hora) {
     try {
@@ -5493,7 +5549,7 @@ function limpiarEstadosSeguros() {
     });
 }
 
-  function configurarBotonDisponible(btn, horaStr, fecha, duracionServicio) {
+ function configurarBotonDisponible(btn, horaStr, fecha, duracionServicio) {
     const clave = `${fecha}_${horaStr}`;
     
     // Obtener duración si no está especificada
@@ -5502,212 +5558,26 @@ function limpiarEstadosSeguros() {
         duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
     }
 
-    // 1. Verificar si es parte de un bloque que YA está siendo reservado
-    const horaIndex = parseInt(btn.dataset.index);
-    
-    if (reservaActiva && reservaActiva.fecha === fecha) {
-        const slotsNecesariosReserva = Math.ceil(reservaActiva.duracion / 40);
-        const reservaHoraIndex = parseInt(document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${reservaActiva.hora}"]`)?.dataset.index);
-        
-        // Verificar si esta hora está dentro del rango del bloque activo
-        if (!isNaN(reservaHoraIndex) && !isNaN(horaIndex)) {
-            const esParteDeBloqueActivo = horaIndex >= reservaHoraIndex && 
-                                         horaIndex < reservaHoraIndex + slotsNecesariosReserva;
-            
-            if (esParteDeBloqueActivo && horaIndex > reservaHoraIndex) {
-                console.log(`🛡️ Hora ${horaStr} es parte del bloque activo - NO configurar como disponible`);
-                return;
-            }
-        }
-    }
-    
-    // 2. Verificar si ya está en estados especiales
-    if (btn.classList.contains('reservando') && btn.innerHTML.includes('Reservando por otro usuario')) {
-        console.log(`🛡️ Botón ${horaStr} ya está como "Reservando por otro usuario" - NO cambiar`);
-        return;
-    }
-    
-    if (btn.classList.contains('mi-reserva-activa')) {
-        console.log(`🛡️ Botón ${horaStr} ya es mi reserva activa - NO cambiar`);
-        return;
-    }
-    
-    if (btn.classList.contains('ocupada')) {
-        console.log(`🛡️ Botón ${horaStr} ya está ocupada - NO cambiar`);
-        return;
-    }
-    
-    // 3. Deshabilitar clic si es parte de un bloque ya reservado
-    if (btn.classList.contains('parte-bloque') && btn.classList.contains('mi-reserva-activa')) {
-        console.log(`🛡️ Botón ${horaStr} ya es parte de bloque reservado - deshabilitando clic`);
-        btn.onclick = null;
-        return;
-    }
-    
-    // 4. Si el botón fue clickeado recientemente (en los últimos 2 segundos), no cambiar
-    const lastClickTime = parseInt(btn.dataset.lastClickTime || '0');
-    if (Date.now() - lastClickTime < 2000) {
-        console.log(`🛡️ Botón ${horaStr} clickeado recientemente - mantener estado actual`);
-        return;
-    }
-    
-    // 5. Configurar eventos de hover
-    btn.onmouseenter = function() {
-        if (!btn.disabled && !btn.classList.contains('selected') && !btn.classList.contains('click-in-progress')) {
-            btn.style.transform = 'scale(1.05)';
-            btn.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
-        }
-    };
-    
-    btn.onmouseleave = function() {
-        if (!btn.classList.contains('selected') && !btn.classList.contains('click-in-progress')) {
-            btn.style.transform = '';
-            btn.style.boxShadow = '';
-        }
-    };
-    
-    // 6. **NUEVA LÓGICA DE CLIC SIMPLIFICADA CON CONTROL DE DUPLICADOS**
-    let clicEnProgreso = false;
-    
-    btn.onclick = async function(event) {
-        // Prevenir comportamiento por defecto y propagación
-        if (event) {
-            event.stopPropagation();
-            event.preventDefault();
-        }
-        
-        // Control de clics duplicados
-        if (clicEnProgreso) {
-            console.log(`⏭️ Ignorando clic duplicado en ${horaStr} (clicEnProgreso=true)`);
-            return;
-        }
-        
-        clicEnProgreso = true;
-        
-        try {
-            console.log(`🎯 INICIANDO CLIC MANUAL en ${horaStr}`);
-            console.log(`   - Elemento:`, btn);
-            console.log(`   - Evento disparado por:`, event?.target);
-            
-            // Marcar que está siendo procesado
-            btn.classList.add('click-in-progress');
-            
-            // Verificar si ya es parte del bloque activo (segunda verificación por seguridad)
-            if (reservaActiva && reservaActiva.fecha === fecha) {
-                const slotsNecesariosReserva = Math.ceil(reservaActiva.duracion / 40);
-                const reservaHoraIndex = parseInt(document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${reservaActiva.hora}"]`)?.dataset.index);
-                const currentHoraIndex = parseInt(btn.dataset.index);
-                
-                if (!isNaN(reservaHoraIndex) && !isNaN(currentHoraIndex)) {
-                    const esParteDeBloqueActivo = currentHoraIndex >= reservaHoraIndex && 
-                                                 currentHoraIndex < reservaHoraIndex + slotsNecesariosReserva;
-                    
-                    if (esParteDeBloqueActivo) {
-                        console.log(`⏭️ Hora ${horaStr} ya es parte del bloque activo - Ignorando clic`);
-                        return;
-                    }
-                }
-            }
-            
-            // 1. Limpiar TODAS las horas INMEDIATAMENTE
-            limpiarEstadosSeguros();
-            
-            // 2. Feedback visual INMEDIATO
-            manejarClicHoraInmediato(btn, horaStr, fecha);
-            
-            // 3. Verificar si hay una reserva activa y cancelarla ANTES de seleccionar nueva
-            if (reservaActiva) {
-                console.log(`🔄 Cancelando reserva anterior en ${reservaActiva.hora}`);
-                await cancelarReservaAnterior();
-            }
-            
-            // 4. Para servicios largos, reservar múltiples horas
-            const slotsNecesarios = Math.ceil(duracionServicio / 40);
-            
-            if (slotsNecesarios > 1) {
-                // Obtener índice de esta hora
-                const index = parseInt(btn.dataset.index);
-                
-                // Verificar disponibilidad del bloque completo
-                for (let i = 0; i < slotsNecesarios; i++) {
-                    const siguienteHora = document.querySelector(`.hora-btn[data-index="${index + i}"]`);
-                    if (siguienteHora) {
-                        const siguienteHoraStr = siguienteHora.dataset.hora;
-                        const claveHora = `${fecha}_${siguienteHoraStr}`;
-                        const reservaInfo = solicitudesPendientes.get(claveHora);
-                        
-                        if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
-                            // Revertir selección visual
-                            btn.classList.remove('selected', 'click-in-progress');
-                            btn.style.cssText = '';
-                            
-                            showAlert('❌ Una de las horas necesarias ya está siendo reservada', 'error');
-                            return;
-                        }
-                    }
-                }
-                
-                // Reservar bloque completo - SOLO LA HORA PRINCIPAL
-                console.log(`📦 Reservando bloque de ${slotsNecesarios} horas a partir de ${horaStr}`);
-                await reservarHoraTemporalmente(horaStr, fecha, btn);
-                
-                // Marcar las horas adicionales del bloque visualmente PERO NO reservarlas
-                for (let i = 1; i < slotsNecesarios; i++) {
-                    const siguienteHora = document.querySelector(`.hora-btn[data-index="${index + i}"]`);
-                    if (siguienteHora) {
-                        siguienteHora.disabled = true;
-                        siguienteHora.classList.add('mi-reserva-activa', 'parte-bloque');
-                        siguienteHora.innerHTML = `
-                            ${siguienteHora.dataset.hora}
-                            <br>
-                            <small style="font-size: 9px; color: #90EE90;">
-                                ⭐ Bloque
-                            </small>
-                        `;
-                    }
-                }
-                
-            } else {
-                // Para servicios de 40 minutos
-                await reservarHoraTemporalmente(horaStr, fecha, btn);
-            }
-            
-        } catch (error) {
-            console.error('❌ Error en clic:', error);
-            showAlert('Error al procesar la selección', 'error');
-        } finally {
-            // Quitar la marca de procesamiento
-            setTimeout(() => {
-                btn.classList.remove('click-in-progress');
-                clicEnProgreso = false;
-            }, 500);
-        }
-    };
-    
-    // 7. Configuración visual del botón
-    btn.disabled = false;
-    btn.classList.remove('selected', 'ocupada', 'reservando', 'mi-reserva-activa', 'no-disponible', 'click-in-progress', 'parte-bloque');
-    
-    const [horaNum, minutoNum] = horaStr.split(':').map(Number);
-    const periodo = horaNum < 12 ? 'AM' : 'PM';
-    const hora12 = horaNum % 12 || 12; // Convertir a formato 12 horas
-    const horaFormateada = `${hora12}:${String(minutoNum).padStart(2, '0')}`;
-    
-    btn.title = `Hora disponible ${horaFormateada} ${periodo} para servicio de ${duracionServicio} minutos`;    
-    // Restaurar estilo por defecto
+    // 1. Resetear completamente el botón
+    btn.className = 'hora-btn';
     btn.style.cssText = '';
+    btn.onclick = null;
+    btn.onmouseenter = null;
+    btn.onmouseleave = null;
     
-    // Mostrar indicador para servicios largos
+    // 2. Configurar visualización básica
+    const { horaFormateada, periodo } = formatearHoraAMPM(horaStr);
+    
     if (duracionServicio > 40) {
         const slotsNecesarios = Math.ceil(duracionServicio / 40);
         btn.innerHTML = `
             ${horaFormateada}
             <br>
-            <small style="font-size: 8px; color: #4CAF50; margin-top: 2px;">
+            <small style="font-size: 8px; color: #4CAF50;">
                 ${periodo}
             </small>
             <br>
-            <small style="font-size: 9px; color: #4CAF50; background: rgba(76, 175, 80, 0.1); padding: 2px 5px; border-radius: 3px; margin-top: 2px; display: inline-block;">
+            <small style="font-size: 9px; color: #4CAF50;">
                 ${slotsNecesarios} slot${slotsNecesarios > 1 ? 's' : ''}
             </small>
         `;
@@ -5715,13 +5585,214 @@ function limpiarEstadosSeguros() {
         btn.innerHTML = `
             ${horaFormateada}
             <br>
-            <small style="font-size: 8px; color: #ccc; margin-top: 2px;">
+            <small style="font-size: 8px; color: #ccc;">
                 ${periodo}
             </small>
         `;
     }
+    
+    // 3. Configurar clic optimizado
+    let procesandoClic = false;
+    
+    btn.onclick = async function(event) {
+        // Prevenir clics múltiples
+        if (procesandoClic) {
+            console.log(`⏭️ Ignorando clic duplicado en ${horaStr}`);
+            return;
+        }
+        
+        procesandoClic = true;
+        
+        try {
+
+            resetearSeleccionCompleta();
+            // Feedback visual inmediato
+            manejarClicHoraRapido(btn, horaStr, fecha);
+            
+            // Si hay reserva anterior, cancelarla
+            if (reservaActiva) {
+                console.log(`🔄 Cancelando reserva anterior en ${reservaActiva.hora}`);
+                await cancelarReservaAnterior();
+            }
+            
+            // Procesar reserva
+            await reservarHoraTemporalmente(horaStr, fecha, btn);
+            
+        } catch (error) {
+            console.error('❌ Error en clic:', error);
+            // Revertir selección visual en caso de error
+            btn.classList.remove('selected', 'click-in-progress');
+            btn.style.cssText = '';
+        } finally {
+            // Liberar después de un breve delay
+            setTimeout(() => {
+                procesandoClic = false;
+            }, 300);
+        }
+    };
+    
+    // 4. Efectos hover ligeros
+    btn.onmouseenter = function() {
+        if (!btn.disabled && !btn.classList.contains('selected')) {
+            btn.style.transform = 'scale(1.03)';
+            btn.style.boxShadow = '0 0 8px rgba(76, 175, 80, 0.3)';
+        }
+    };
+    
+    btn.onmouseleave = function() {
+        if (!btn.classList.contains('selected')) {
+            btn.style.transform = '';
+            btn.style.boxShadow = '';
+        }
+    };
+    
+    btn.disabled = false;
+    btn.title = `Hora disponible ${horaStr} para ${duracionServicio} minutos`;
 }
 
+function manejarClicHoraRapido(btn, horaStr, fecha) {
+    console.log(`⚡ CLIC ULTRA-RÁPIDO en ${horaStr}`);
+    
+    // 1. Crear marca temporal única para este clic
+    const timestampClic = Date.now();
+    btn.dataset.ultimoClic = timestampClic;
+    
+    // 2. Deseleccionar TODAS las horas INMEDIATAMENTE
+    limpiarSeleccionesRapido(timestampClic);
+    
+    // 3. Aplicar selección visual INMEDIATA
+    aplicarSeleccionVisualRapida(btn, horaStr, timestampClic);
+    
+    // 4. Guardar referencia de botón seleccionado
+    window.botonSeleccionadoActual = {
+        btn: btn,
+        hora: horaStr,
+        fecha: fecha,
+        timestamp: timestampClic
+    };
+    
+    // 5. Actualizar input de hora
+    const horaInput = document.getElementById('hora');
+    if (horaInput) horaInput.value = horaStr;
+    
+    return true;
+}
+
+// Función ultra-rápida para limpiar selecciones
+function limpiarSeleccionesRapido(timestampActual) {
+    const todosBotones = document.querySelectorAll('.hora-btn');
+    
+    todosBotones.forEach(boton => {
+        // Verificar si el botón tiene un clic más reciente
+        const ultimoClicBoton = parseInt(boton.dataset.ultimoClic || '0');
+        
+        // Solo deseleccionar si no es el botón del clic actual
+        if (ultimoClicBoton !== timestampActual && boton.classList.contains('selected')) {
+            // Limpiar rápidamente
+            boton.classList.remove('selected', 'mi-reserva-activa', 'click-in-progress');
+            boton.style.cssText = '';
+            
+            // Restaurar estado según su tipo
+            const estado = determinarEstadoRapido(boton);
+            aplicarEstadoRapido(boton, estado);
+        }
+    });
+}
+
+// Determinar estado rápidamente sin consultas pesadas
+function determinarEstadoRapido(boton) {
+    if (boton.classList.contains('ocupada')) return 'ocupada';
+    if (boton.classList.contains('reservando') && boton.innerHTML.includes('Reservando')) return 'reservando';
+    if (boton.classList.contains('mi-reserva-activa')) return 'mi-reserva-activa';
+    if (boton.classList.contains('no-disponible')) return 'no-disponible';
+    return 'disponible';
+}
+
+// Aplicar estado rápidamente
+function aplicarEstadoRapido(boton, estado) {
+    const horaStr = boton.dataset.hora;
+    const fecha = boton.dataset.fecha;
+    
+    switch(estado) {
+        case 'ocupada':
+            boton.innerHTML = `${horaStr}<br><small style="font-size: 10px; color: #ff6b6b;">🔒 Ocupada</small>`;
+            break;
+        case 'reservando':
+            boton.innerHTML = `${horaStr}<br><small style="font-size: 10px; color: #ffa500;">⏳ Reservando</small>`;
+            break;
+        case 'mi-reserva-activa':
+            // Mantener como está
+            break;
+        case 'no-disponible':
+            boton.innerHTML = `${horaStr}<br><small style="font-size: 10px; color: #999;">❌ No disp.</small>`;
+            break;
+        default:
+            boton.innerHTML = horaStr;
+    }
+}
+
+// Aplicar selección visual ultra-rápida
+function aplicarSeleccionVisualRapida(btn, horaStr, timestampClic) {
+    // Aplicar clases directamente
+    btn.className = 'hora-btn selected click-in-progress';
+    
+    // Estilo directo e inmediato (sin transiciones)
+    btn.style.cssText = `
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%) !important;
+        border-color: #2e7d32 !important;
+        color: white !important;
+        box-shadow: 0 0 15px rgba(76, 175, 80, 0.7) !important;
+        font-weight: bold !important;
+        transform: scale(1.05) !important;
+        transition: none !important;
+        pointer-events: none !important;
+    `;
+    
+    // Contenido simple
+    btn.innerHTML = `${horaStr}<br><small style="font-size: 10px; color: white;">✓ Seleccionada</small>`;
+    
+    // Marcar timestamp
+    btn.dataset.seleccionTimestamp = timestampClic;
+}
+
+// Verificador periódico para limpiar selecciones huérfanas
+function iniciarVerificadorSelecciones() {
+    setInterval(() => {
+        const ahora = Date.now();
+        const botonActual = window.botonSeleccionadoActual;
+        
+        // Verificar si hay un botón seleccionado activo
+        if (botonActual && botonActual.btn && botonActual.btn.isConnected) {
+            const tiempoSeleccion = ahora - botonActual.timestamp;
+            
+            // Si la selección tiene más de 30 segundos y no es una reserva activa
+            if (tiempoSeleccion > 30000 && !botonActual.btn.classList.contains('mi-reserva-activa')) {
+                console.log('🕒 Limpiando selección antigua');
+                limpiarSeleccionPorTimeout(botonActual.btn);
+            }
+        }
+        
+        // Limpiar selecciones huérfanas (botones selected sin ser la selección actual)
+        document.querySelectorAll('.hora-btn.selected').forEach(boton => {
+            if (botonActual && boton !== botonActual.btn) {
+                limpiarSeleccionPorTimeout(boton);
+            }
+        });
+        
+    }, 1000); // Verificar cada segundo
+}
+
+function limpiarSeleccionPorTimeout(boton) {
+    // Solo limpiar si no es mi reserva activa
+    if (!boton.classList.contains('mi-reserva-activa')) {
+        boton.classList.remove('selected', 'click-in-progress');
+        boton.style.cssText = '';
+        
+        // Restaurar estado rápido
+        const estado = determinarEstadoRapido(boton);
+        aplicarEstadoRapido(boton, estado);
+    }
+}
 function formatearHoraAMPM(horaStr) {
     if (!horaStr || !horaStr.includes(':')) return { horaFormateada: horaStr, periodo: '', full: horaStr };
     
@@ -9814,6 +9885,9 @@ async function eliminarCita(citaId) {
             iniciarLimpiezaPeriodica();
             iniciarVerificadorPeriodicoReservas();
             iniciarLimpiezaAutomaticaBotones();
+            // Después de iniciar otros sistemas
+iniciarVerificadorSelecciones();
+
 
             setInterval(() => {
     if (selectedDate) {
