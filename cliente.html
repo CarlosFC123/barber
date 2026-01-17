@@ -1779,6 +1779,40 @@ h2 {
                 </div>
             </div>
         </div>
+
+                <!-- Carrusel de Imágenes -->
+<div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
+    
+    <div class="carrusel-simple">
+        <button class="carrusel-btn prev" id="prevBtn">❮</button>
+        <button class="carrusel-btn next" id="nextBtn">❯</button>
+        
+        <div class="carrusel-imagenes-wrapper">
+            <div class="carrusel-track">
+                <div class="carrusel-img active">
+                    <img src="img/1.jpg" alt="Imagen 1">
+                </div>
+                <div class="carrusel-img">
+                    <img src="img/3.jpg" alt="Imagen 3">
+                </div>
+                <div class="carrusel-img">
+                    <img src="img/4.jpg" alt="Imagen 4">
+                </div>
+                <div class="carrusel-img">
+                    <img src="img/5.jpg" alt="Imagen 5">
+                </div>
+            </div>
+        </div>
+        
+        <div class="carrusel-indicadores" id="indicadoresContainer">
+            <span class="indicador active" data-index="0"></span>
+            <span class="indicador" data-index="1"></span>
+            <span class="indicador" data-index="2"></span>
+            <span class="indicador" data-index="3"></span>
+            <span class="indicador" data-index="4"></span>
+        </div>
+    </div>
+</div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -1842,6 +1876,8 @@ h2 {
             let timeoutReserva = null;
             let bloqueoLlamadaEnProgreso = false;
             let pollingActivo = false;
+            let slideIndexSimple = 0;
+            let intervaloSimple;
 
             // Control de clics múltiples
             let reservasEnProgreso = new Map(); // {fecha_hora: true} para evitar dobles clics
@@ -1959,6 +1995,21 @@ h2 {
                 console.log(`🔄 Usando cuenta: ${mejorCuenta.nombre} (uso: ${emailjsUsageCount[mejorCuenta.serviceId] || 0}/${EMAILJS_LIMIT})`);
                 return mejorCuenta;
             }
+
+            // Debug del carrusel
+console.log('🔍 Elementos del carrusel encontrados:');
+console.log('- Botón anterior:', document.getElementById('prevBtn'));
+console.log('- Botón siguiente:', document.getElementById('nextBtn'));
+console.log('- Imágenes:', document.querySelectorAll('.carrusel-img').length);
+console.log('- Indicadores:', document.querySelectorAll('.indicador').length);
+
+// Forzar inicialización si hay elementos
+if (document.querySelector('.carrusel-simple')) {
+    console.log('🎯 Inicializando carrusel forzadamente...');
+    setTimeout(() => {
+        inicializarCarruselSimple();
+    }, 1000);
+}
 
             // ============ SISTEMA DE CACHÉ INTELIGENTE ============
 
@@ -2121,6 +2172,127 @@ function verificarUsuarioActivo() {
                     }
                 }
             }
+
+            function inicializarCarruselSimple() {
+    console.log('🖼️ Inicializando carrusel simple...');
+    mostrarSlideSimple(slideIndexSimple);
+    
+    // Configurar botones
+    document.getElementById('prevBtn').addEventListener('click', () => {
+        moverCarruselSimple(-1);
+    });
+    
+    document.getElementById('nextBtn').addEventListener('click', () => {
+        moverCarruselSimple(1);
+    });
+    
+    // Configurar indicadores
+    document.querySelectorAll('.indicador').forEach((indicador, index) => {
+        indicador.addEventListener('click', () => {
+            irASlideSimple(index);
+        });
+    });
+    
+    // Iniciar movimiento automático
+    iniciarCarruselAutomaticoSimple();
+    
+    // Pausar al pasar el mouse
+    const carrusel = document.querySelector('.carrusel-simple');
+    if (carrusel) {
+        carrusel.addEventListener('mouseenter', () => {
+            clearInterval(intervaloSimple);
+        });
+        
+        carrusel.addEventListener('mouseleave', () => {
+            iniciarCarruselAutomaticoSimple();
+        });
+
+        carrusel.addEventListener('touchstart', () => {
+            clearInterval(intervaloSimple);
+        });
+
+        carrusel.addEventListener('touchend', () => {
+            setTimeout(() => iniciarCarruselAutomaticoSimple(), 3000);
+        });
+    }
+}
+
+            function mostrarSlideSimple(n) {
+                const slides = document.querySelectorAll('.carrusel-img');
+                const indicadores = document.querySelectorAll('.carrusel-indicadores .indicador');
+                
+                if (slides.length === 0) 
+                {
+                    console.error('No se encontraron slides en el carrusel');
+                    return;
+
+                }
+
+                if (n >= slides.length) {
+                    slideIndexSimple = 0;
+                } else if (n < 0) {
+                    slideIndexSimple = slides.length - 1;
+                }else {
+                    slideIndexSimple = n;
+                }
+
+                slides.forEach(slide => {
+                    slide.classList.remove('active');
+                    slide.style.display = 'none';
+                });
+
+                slides[slideIndexSimple].classList.add('active');
+                slides[slideIndexSimple].style.display = 'block';
+
+                
+                indicadores.forEach((ind, index) => {
+                    ind.classList.remove('active');
+                    if (index === slideIndexSimple) {
+                        ind.classList.add('active');
+                    }
+                });
+
+                console.log(`🖼️ Mostrando slide ${slideIndexSimple + 1} de ${slides.length}`);
+            }
+
+            
+
+            function moverCarruselSimple(n) {
+                console.log(`➡️ Moviendo carrusel simple en ${n > 0 ? 'adelante' : 'atrás'}`);
+                slideIndexSimple += n;
+                mostrarSlideSimple(slideIndexSimple);
+                reiniciarCarruselAutomaticoSimple();
+            }
+
+            function irASlideSimple(n) {
+                console.log(`➡️ Navegando al slide ${n}`);
+                slideIndexSimple = n;
+                mostrarSlideSimple(slideIndexSimple);
+                reiniciarCarruselAutomaticoSimple();
+            }
+
+            function iniciarCarruselAutomaticoSimple() {
+                clearInterval(intervaloSimple);
+                intervaloSimple = setInterval(() => {
+                    moverCarruselSimple(1);
+                }, 5000); // Cambiar cada 5 segundos
+                console.log('⏱️ Carrusel automático iniciado (5s)');
+            }
+
+            function reiniciarCarruselAutomaticoSimple() {
+                console.log('🔄 Reiniciando carrusel automático');
+                clearInterval(intervaloSimple);
+                iniciarCarruselAutomaticoSimple();
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('📦 DOM cargado - Inicializando carrusel simple');
+                inicializarCarruselSimple();
+            });
+            
+window.inicializarCarruselSimple = inicializarCarruselSimple;
+window.moverCarruselSimple = moverCarruselSimple;
+window.irASlideSimple = irASlideSimple;
 
             // ============ SISTEMA DE POLLING INTELIGENTE ============
 
@@ -9621,6 +9793,9 @@ if (logoutBtn) {
             // ============ API PÚBLICA ============
 
             window.app = {
+                inicializarCarruselSimple,
+                moverCarruselSimple,
+                irASlideSimple,
                 cancelarCita,
                 eliminarCita,
                 cambiarPestana,
