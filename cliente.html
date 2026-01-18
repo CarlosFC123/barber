@@ -4702,6 +4702,34 @@ function mostrarHorasDisponibles80Minutos() {
     
     console.log(`Total horas que pueden iniciar bloque de 80 minutos: ${totalDisponibles}`);
 }
+
+function debugHoras80Minutos() {
+    console.log('=== DEBUG HORAS 80 MINUTOS ===');
+    
+    if (!selectedDate) {
+        console.log('❌ No hay fecha seleccionada');
+        return;
+    }
+    
+    const fecha = formatDate(selectedDate);
+    const horas = generarHorasDisponibles(80);
+    
+    console.log(`📅 Fecha: ${fecha}`);
+    console.log(`📊 Total horas generadas: ${horas.length}`);
+    
+    horas.forEach((horaData, index) => {
+        const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
+        console.log(`${index}. ${horaStr} - Turno: ${horaData.esManana ? 'Mañana' : 'Tarde'} - Índice: ${horaData.index}`);
+    });
+    
+    // Verificar qué botones hay en el DOM
+    const botones = document.querySelectorAll('.hora-btn');
+    console.log(`🎯 Botones en DOM: ${botones.length}`);
+    
+    botones.forEach((btn, i) => {
+        console.log(`${i}. ${btn.dataset.hora} - Clases: ${btn.className}`);
+    });
+}
 function verificarBloqueDisponible(indexInicio, fecha, duracionServicio) {
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
     const horas = generarHorasDisponibles(duracionServicio);
