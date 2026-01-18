@@ -5787,6 +5787,12 @@ function limpiarEstadosSeguros() {
             
             // Feedback visual inmediato
             manejarClicHoraRapido(btn, horaStr, fecha);
+
+            setTimeout(() => {
+        const horasGrid = document.getElementById('horasGrid');
+        const horasDisponibles = horasGrid ? horasGrid.querySelectorAll('.hora-btn:not(.ocupada):not(.reservando):not(.no-disponible)').length : 0;
+        actualizarEstadoAgendamiento(horasDisponibles);
+    }, 500);
             
             // Verificar si hay reserva anterior - USAR VERIFICACIÓN SEGURA
             if (reservaActiva && reservaActiva.fecha && reservaActiva.hora) {
@@ -6277,23 +6283,62 @@ function configurarBotonNoDisponible(btn, horaStr, duracionServicio) {
 
 
             function actualizarEstadoAgendamiento(horasDisponibles) {
-                const btnAgendar = document.getElementById('btnAgendarCita');
-                if (!btnAgendar) return;
-                
-                if (horasDisponibles === 0) {
-                    btnAgendar.disabled = true;
-                    btnAgendar.style.opacity = '0.6';
-                    btnAgendar.style.cursor = 'not-allowed';
-                    btnAgendar.title = 'No hay horas disponibles para esta fecha';
-                    btnAgendar.innerHTML = '📅 Sin horas disponibles';
-                } else {
-                    btnAgendar.disabled = false;
-                    btnAgendar.style.opacity = '1';
-                    btnAgendar.style.cursor = 'pointer';
-                    btnAgendar.title = 'Agendar cita';
-                    btnAgendar.innerHTML = 'Agendar Cita';
-                }
-            }
+    const btnAgendar = document.getElementById('btnAgendarCita');
+    if (!btnAgendar) return;
+    
+    // Verificar todos los pasos
+    const estado = verificarPasosCompletosParaAgendar();
+    
+    if (!estado.todosCompletos) {
+        btnAgendar.disabled = true;
+        btnAgendar.style.opacity = '0.6';
+        btnAgendar.style.cursor = 'not-allowed';
+        btnAgendar.title = `Faltan: ${estado.pasosIncompletos.join(', ')}`;
+        btnAgendar.innerHTML = '📋 Completar pasos';
+    } else if (horasDisponibles === 0) {
+        btnAgendar.disabled = true;
+        btnAgendar.style.opacity = '0.6';
+        btnAgendar.style.cursor = 'not-allowed';
+        btnAgendar.title = 'No hay horas disponibles para esta fecha';
+        btnAgendar.innerHTML = '📅 Sin horas disponibles';
+    } else {
+        btnAgendar.disabled = false;
+        btnAgendar.style.opacity = '1';
+        btnAgendar.style.cursor = 'pointer';
+        btnAgendar.title = 'Agendar cita (todos los pasos completados)';
+        btnAgendar.innerHTML = '✅ Agendar Cita';
+    }
+}
+            function verificarPasosCompletosParaAgendar() {
+    const pasos = {
+        servicio: {
+            completado: !!document.getElementById('servicio')?.value,
+            mensaje: 'Seleccionar un servicio'
+        },
+        fecha: {
+            completado: selectedDate !== null,
+            mensaje: 'Seleccionar una fecha'
+        },
+        hora: {
+            completado: !!document.getElementById('hora')?.value,
+            mensaje: 'Seleccionar una hora'
+        },
+        reservaActiva: {
+            completado: !!reservaActiva,
+            mensaje: 'Tener una reserva temporal activa'
+        }
+    };
+    
+    const pasosIncompletos = Object.entries(pasos)
+        .filter(([_, paso]) => !paso.completado)
+        .map(([_, paso]) => paso.mensaje);
+    
+    return {
+        todosCompletos: pasosIncompletos.length === 0,
+        pasosIncompletos,
+        detalles: pasos
+    };
+}
 
             // ============ SISTEMA DE NOTIFICACIONES ============
 
@@ -6710,6 +6755,11 @@ function limpiarGridHorasCompletamente() {
     setTimeout(() => {
         generateHoras(date);
     }, 300);
+
+    setTimeout(() => {
+    generateHoras(date);
+    actualizarEstadoAgendamiento(14); // o el número real de horas disponibles
+}, 300);
     
     // 8. Regenerar calendario para mostrar la fecha seleccionada
     generateCalendar(currentMonth);
@@ -6996,7 +7046,7 @@ function forzarActualizacionUIReservas(fecha) {
                 }
             }
 
-       async function cargarServicios() {
+      async function cargarServicios() {
     try {
         const { data: servicios, error } = await supabase
             .from('servicios')
@@ -7022,17 +7072,15 @@ function forzarActualizacionUIReservas(fecha) {
                      data-servicio-duracion="${servicio.duracion || 40}">
                     <h3>${servicio.nombre}</h3>
                     <div class="precio">$${servicio.precio}</div>
-                    <div class="duracion">⏱️ ${servicio.duracion || 40}</div>
+                    <div class="duracion">⏱️ ${servicio.duracion || 40} min</div>
                     <p>${servicio.descripcion || 'Servicio profesional de barbería'}</p>
                 </div>
             `).join('');
 
-            // Variable para controlar si ya hay una selección en proceso
             let procesandoSeleccion = false;
             
             document.querySelectorAll('.servicio-option').forEach(option => {
                 option.addEventListener('click', async function() {
-                    // Prevenir múltiples clics simultáneos
                     if (procesandoSeleccion) {
                         console.log('⏭️ Ya hay una selección en proceso, ignorando clic');
                         return;
@@ -7041,7 +7089,7 @@ function forzarActualizacionUIReservas(fecha) {
                     procesandoSeleccion = true;
                     
                     try {
-                        // 1. Verificar si ya está seleccionado (evitar reprocesamiento)
+                        // 1. Verificar si ya está seleccionado
                         if (this.classList.contains('selected')) {
                             console.log('✅ Ya estaba seleccionado');
                             procesandoSeleccion = false;
@@ -7049,8 +7097,11 @@ function forzarActualizacionUIReservas(fecha) {
                         }
                         
                         console.log('🔄 Procesando selección de servicio...');
+                        
+                        // 2. **LIMPIAR TODAS LAS SELECCIONES ANTERIORES PRIMERO**
                         limpiarSeleccionesCompletasAlCambiarServicio();
-                        // 2. Limpiar selección visual
+                        
+                        // 3. Limpiar selección visual de servicios
                         document.querySelectorAll('.servicio-option').forEach(opt => {
                             opt.classList.remove('selected');
                         });
@@ -7062,53 +7113,25 @@ function forzarActualizacionUIReservas(fecha) {
                         if (servicioInput) servicioInput.value = this.dataset.servicioId;
                         if (servicioDuracionInput) servicioDuracionInput.value = this.dataset.servicioDuracion;
                         
-                        // 3. Obtener duración
+                        // 4. Obtener duración
                         const duracion = parseInt(this.dataset.servicioDuracion);
                         console.log(`✅ Servicio seleccionado: ${duracion} minutos`);
                         
-                        // 4. Cancelar cualquier reserva activa (si existe)
-                        if (reservaActiva) {
-                            await cancelarReservaAnterior();
-                            showAlert('Reserva cancelada al cambiar servicio', 'info');
-                        }
-                        
-                        // 5. Limpiar completamente la UI
-                        resetearEstadoHoras();
-                        
-                        // 6. Ocultar horas
-                        const horasContainer = document.getElementById('horasContainer');
-                        if (horasContainer) {
-                            horasContainer.style.display = 'none';
-                        }
-
-                        if (duracion > 40) {
-                            showAlert(`Servicio de ${duracion} minutos seleccionado. Se necesitarán ${Math.ceil(duracion/40)} horas consecutivas.`, 'info');
-                        }
-                        
-                        // 7. Limpiar fecha seleccionada
-                        selectedDate = null;
-                        const selectedDateDisplay = document.getElementById('selectedDateDisplay');
-                        if (selectedDateDisplay) {
-                            selectedDateDisplay.textContent = 'Selecciona una fecha';
-                        }
-                        
-                        // 8. Limpiar input de hora
-                        const horaInput = document.getElementById('hora');
-                        if (horaInput) horaInput.value = '';
-                        
-                        // 9. Habilitar calendario
+                        // 5. **HABILITAR CALENDARIO NUEVAMENTE**
                         calendarioHabilitado = true;
                         habilitarCalendario();
                         
-                        // 10. Regenerar calendario limpio
-                        currentMonth = new Date();
-                        generateCalendar(currentMonth);
+                        // 6. Mostrar mensaje informativo
+                        if (duracion > 40) {
+                            showAlert(`Servicio de ${duracion} minutos seleccionado. Se necesitarán ${Math.ceil(duracion/40)} horas consecutivas.`, 'info');
+                        } else {
+                            showAlert('✅ Servicio seleccionado. Ahora selecciona una fecha en el calendario.', 'success');
+                        }
                         
-                        // 11. Detener polling mientras cambiamos
+                        // 7. Detener polling mientras cambiamos
                         detenerPolling();
                         
-                        // 12. Mostrar mensaje
-                        showAlert(`✅ Servicio seleccionado (${duracion} minutos). Por favor, selecciona una fecha.`, 'success');
+                        console.log('✅ Cambio de servicio procesado correctamente');
                         
                     } catch (error) {
                         console.error('Error procesando selección de servicio:', error);
@@ -7159,7 +7182,20 @@ function limpiarSeleccionesCompletasAlCambiarServicio() {
         timeoutReserva = null;
     }
     
-    // 4. Limpiar todos los botones de la UI
+    // 4. **LIMPIAR FECHA SELECCIONADA**
+    selectedDate = null;
+    
+    // 5. Limpiar display de fecha
+    const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+    if (selectedDateDisplay) {
+        selectedDateDisplay.textContent = 'Selecciona una fecha';
+    }
+    
+    // 6. Limpiar input de hora
+    const horaInput = document.getElementById('hora');
+    if (horaInput) horaInput.value = '';
+    
+    // 7. Limpiar todos los botones de la UI
     const todosBotones = document.querySelectorAll('.hora-btn');
     todosBotones.forEach(boton => {
         // Eliminar clases de selección
@@ -7173,48 +7209,7 @@ function limpiarSeleccionesCompletasAlCambiarServicio() {
             clearInterval(boton.dataset.intervaloContador);
             delete boton.dataset.intervaloContador;
         }
-        
-        // Limpiar marcas de tiempo
-        delete boton.dataset.ultimoClic;
-        delete boton.dataset.seleccionTimestamp;
-        
-        // Si no está en estado especial (ocupada, reservando), restaurar
-        if (!boton.classList.contains('ocupada') && 
-            !boton.classList.contains('reservando') &&
-            !boton.classList.contains('no-disponible') &&
-            !boton.classList.contains('disabled')) {
-            
-            const horaStr = boton.dataset.hora;
-            const fecha = boton.dataset.fecha;
-            const duracionInput = document.getElementById('servicioDuracion');
-            const duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
-            
-            // Reconectar evento onclick
-            boton.onclick = null;
-            configurarBotonDisponible(boton, horaStr, fecha, duracionServicio);
-        }
     });
-    
-    // 5. Limpiar input de hora
-    const horaInput = document.getElementById('hora');
-    if (horaInput) horaInput.value = '';
-    
-    // 6. Limpiar selección de fecha visualmente en el calendario
-    if (selectedDate) {
-        const fechaFormateada = formatDate(selectedDate);
-        const cells = document.querySelectorAll('.day-cell');
-        cells.forEach(cell => {
-            if (cell.classList.contains('selected')) {
-                cell.classList.remove('selected');
-            }
-        });
-    }
-    
-    // 7. Resetear display de fecha
-    const selectedDateDisplay = document.getElementById('selectedDateDisplay');
-    if (selectedDateDisplay) {
-        selectedDateDisplay.textContent = 'Selecciona una fecha';
-    }
     
     // 8. Ocultar contenedor de horas
     const horasContainer = document.getElementById('horasContainer');
@@ -7222,7 +7217,7 @@ function limpiarSeleccionesCompletasAlCambiarServicio() {
         horasContainer.style.display = 'none';
     }
     
-    // 9. Limpiar visualmente el grid de horas
+    // 9. Limpiar grid de horas
     const horasGrid = document.getElementById('horasGrid');
     if (horasGrid) {
         horasGrid.innerHTML = '';
@@ -7230,13 +7225,26 @@ function limpiarSeleccionesCompletasAlCambiarServicio() {
             <div style="grid-column: 1 / -1; text-align: center; padding: 40px;">
                 <div style="font-size: 48px; margin-bottom: 20px; color: #ccc;">📅</div>
                 <h3 style="color: #ccc; margin-bottom: 10px;">Selecciona una fecha</h3>
-                <p style="color: #999;">Por favor, selecciona una fecha en el calendario para ver las horas disponibles</p>
+                <p style="color: #999;">Por favor, elige una fecha en el calendario para ver las horas disponibles</p>
             </div>
         `;
     }
     
+    // 10. Limpiar selección visual en el calendario
+    const cells = document.querySelectorAll('.day-cell');
+    cells.forEach(cell => {
+        if (cell.classList.contains('selected')) {
+            cell.classList.remove('selected');
+        }
+    });
+    
+    // 11. **DESHABILITAR CALENDARIO TEMPORALMENTE**
+    calendarioHabilitado = false;
+    
     console.log('✅ Todas las selecciones limpiadas al cambiar servicio');
+    actualizarEstadoAgendamiento(0);
 }
+
 
     function getCurrentTimeYucatan() {
     // NO usar hora del dispositivo, usar UTC directamente
@@ -7438,7 +7446,41 @@ async function agendarCita(e) {
     const hora = horaInput.value;
     const notas = notasInput.value;
 
-    if (!servicioId || !selectedDate || !hora) {
+    console.log('🔍 Verificando datos para agendar:', {
+        servicioId,
+        duracionServicio,
+        hora,
+        selectedDate: selectedDate ? formatDate(selectedDate) : 'null',
+        calendarioHabilitado,
+        tieneReservaActiva: !!reservaActiva
+    });
+
+    // **VERIFICACIÓN MÁS COMPLETA DE DATOS**
+    const errores = [];
+    
+    if (!servicioId) {
+        errores.push('Un servicio');
+    }
+    
+    if (!selectedDate) {
+        errores.push('Una fecha');
+    }
+    
+    if (!hora) {
+        errores.push('Una hora');
+    }
+    
+    if (!calendarioHabilitado) {
+        errores.push('Calendario habilitado');
+    }
+    
+    if (!reservaActiva) {
+        errores.push('Reserva activa temporal');
+    }
+
+    if (errores.length > 0) {
+        console.log('❌ Datos incompletos:', errores);
+        
         Swal.fire({
             title: '⚠️ Datos incompletos',
             html: `
@@ -7446,12 +7488,17 @@ async function agendarCita(e) {
                     <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
                         <i class="fas fa-exclamation-circle"></i>
                     </div>
-                    <p style="color: #ffffff; margin-bottom: 15px;">Por favor, selecciona:</p>
+                    <p style="color: #ffffff; margin-bottom: 15px;">Faltan los siguientes datos:</p>
                     <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px; margin: 15px 0;">
-                        <p style="margin: 8px 0; color: #d4af37;"><i class="fas fa-cut"></i> Un servicio</p>
-                        <p style="margin: 8px 0; color: #d4af37;"><i class="fas fa-calendar"></i> Una fecha</p>
-                        <p style="margin: 8px 0; color: #d4af37;"><i class="fas fa-clock"></i> Una hora</p>
+                        ${errores.map(error => `
+                            <p style="margin: 8px 0; color: #d4af37;">
+                                <i class="fas fa-times-circle"></i> ${error}
+                            </p>
+                        `).join('')}
                     </div>
+                    <p style="color: #cccccc; font-size: 0.9em; margin-top: 15px;">
+                        Por favor, completa todos los pasos para agendar tu cita
+                    </p>
                 </div>
             `,
             icon: false,
@@ -7462,6 +7509,21 @@ async function agendarCita(e) {
             customClass: {
                 popup: 'sweet-alert-custom'
             }
+        }).then(() => {
+            // Si falta fecha, enfocar en el calendario
+            if (!selectedDate) {
+                const calendarSection = document.querySelector('.calendar-section');
+                if (calendarSection) {
+                    calendarSection.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+            // Si falta hora, enfocar en horas
+            else if (!hora) {
+                const horasContainer = document.getElementById('horasContainer');
+                if (horasContainer) {
+                    horasContainer.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
         });
         return;
     }
@@ -7470,23 +7532,33 @@ async function agendarCita(e) {
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
     
     try {
-        // Verificar que tenemos una reserva activa para esta hora
-        if (!reservaActiva || reservaActiva.fecha !== fechaFormateada || reservaActiva.hora !== hora) {
+        // **VERIFICACIÓN MEJORADA DE RESERVA ACTIVA**
+        const tieneReservaActivaValida = reservaActiva && 
+                                        reservaActiva.fecha && 
+                                        reservaActiva.hora && 
+                                        reservaActiva.boton &&
+                                        reservaActiva.fecha === fechaFormateada &&
+                                        reservaActiva.hora === hora;
+        
+        if (!tieneReservaActivaValida) {
             Swal.fire({
-                title: '🔍 Hora no seleccionada',
+                title: '🔍 Hora no seleccionada correctamente',
                 html: `
                     <div style="text-align: center;">
                         <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
                             <i class="fas fa-mouse-pointer"></i>
                         </div>
                         <p style="color: #ffffff; margin-bottom: 15px;">
-                            Por favor, selecciona una hora primero
+                            Por favor, selecciona una hora nuevamente
                         </p>
                         <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px; margin: 15px 0;">
                             <p style="color: #d4af37; margin: 0;">
-                                <i class="fas fa-info-circle"></i> Haz clic en una hora disponible del calendario
+                                <i class="fas fa-info-circle"></i> La reserva temporal ha expirado o no es válida
                             </p>
                         </div>
+                        <p style="color: #cccccc; font-size: 0.9em; margin-top: 15px;">
+                            Haz clic en una hora disponible para reservarla nuevamente
+                        </p>
                     </div>
                 `,
                 icon: false,
@@ -7498,7 +7570,7 @@ async function agendarCita(e) {
                     popup: 'sweet-alert-custom'
                 }
             }).then(() => {
-                // Hacer scroll a las horas si es necesario
+                // Hacer scroll a las horas
                 const horasContainer = document.getElementById('horasContainer');
                 if (horasContainer) {
                     horasContainer.scrollIntoView({ behavior: 'smooth' });
