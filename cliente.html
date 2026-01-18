@@ -2526,6 +2526,7 @@ function iniciarPollingInteligente() {
     
     console.log('🔄 Polling inteligente iniciado (3 segundos)');
 }
+
 function resetearSeleccionCompleta() {
     console.log('🔄 Reset completo de selección');
     
@@ -2535,7 +2536,9 @@ function resetearSeleccionCompleta() {
     // 2. Limpiar todos los botones verdes y seleccionados
     document.querySelectorAll('.hora-btn').forEach(boton => {
         // Solo limpiar si es seleccionado (verde) y no es mi reserva activa
-        if (boton.classList.contains('selected') && !boton.classList.contains('mi-reserva-activa')) {
+        const esMiReservaActiva = boton.classList.contains('mi-reserva-activa');
+        
+        if (boton.classList.contains('selected') && !esMiReservaActiva) {
             boton.classList.remove('selected', 'click-in-progress', 'parte-bloque');
             boton.style.cssText = '';
             
@@ -2555,11 +2558,7 @@ function resetearSeleccionCompleta() {
     const horaInput = document.getElementById('hora');
     if (horaInput) horaInput.value = '';
     
-    // 4. Si hay reserva activa, cancelarla
-    if (reservaActiva) {
-        console.log('📞 Cancelando reserva activa al resetear selección');
-        cancelarReservaAnterior();
-    }
+    console.log('✅ Selección completamente reseteada');
 }
 
 function configurarDetectorCambioDuracion() {
@@ -2602,34 +2601,55 @@ function configurarDetectorCambioDuracion() {
 }
 // Llamar esta función cuando se cancele una reserva
 async function cancelarReservaAnterior() {
-    if (reservaActiva) {
+    // Verificar que reservaActiva existe antes de usarla
+    if (!reservaActiva) {
+        console.log('ℹ️ No hay reserva activa para cancelar');
+        return;
+    }
+    
+    try {
         console.log('🔄 CANCELANDO RESERVA ANTERIOR:', reservaActiva.fecha, reservaActiva.hora);
+        
+        // Guardar referencias antes de limpiar
+        const fechaReserva = reservaActiva.fecha;
+        const horaReserva = reservaActiva.hora;
+        const duracionReserva = reservaActiva.duracion || 40;
+        const esBloque = reservaActiva.esBloque || false;
+        const horasDelBloque = reservaActiva.horasDelBloque || [];
         
         // 1. Cancelar timeout
         if (reservaActiva.timeoutId) {
             clearTimeout(reservaActiva.timeoutId);
+            reservaActiva.timeoutId = null;
         }
         
-        // 2. Liberar la reserva de la BD
-        await liberarReserva(reservaActiva.fecha, reservaActiva.hora);
+        // 2. Limpiar variable reservaActiva ANTES de liberar para evitar referencias circulares
+        const reservaTemp = { ...reservaActiva };
+        reservaActiva = null;
         
-        // 3. Si es un bloque, liberar todas las horas
-        if (reservaActiva.esBloque && reservaActiva.horasDelBloque) {
-            for (const hora of reservaActiva.horasDelBloque) {
-                if (hora !== reservaActiva.hora) {
-                    await liberarReserva(reservaActiva.fecha, hora);
+        // 3. Liberar la reserva de la BD
+        await liberarReserva(fechaReserva, horaReserva);
+        
+        // 4. Si es un bloque, liberar todas las horas
+        if (esBloque && horasDelBloque.length > 0) {
+            console.log(`📦 Liberando bloque completo (${horasDelBloque.length} horas)`);
+            for (const hora of horasDelBloque) {
+                if (hora !== horaReserva) {
+                    await liberarReserva(fechaReserva, hora);
                 }
             }
         }
         
-        // 4. Resetear selección visual COMPLETAMENTE
+        // 5. Resetear selección visual COMPLETAMENTE
         resetearSeleccionCompleta();
         
-        // 5. Limpiar completamente la reserva activa
-        reservaActiva = null;
-        timeoutReserva = null;
+        // 6. Limpiar timeout de reserva global
+        if (timeoutReserva) {
+            clearTimeout(timeoutReserva);
+            timeoutReserva = null;
+        }
         
-        // 6. Forzar sincronización
+        // 7. Forzar sincronización
         setTimeout(() => {
             if (selectedDate) {
                 sincronizarEstadosHoras();
@@ -2637,8 +2657,14 @@ async function cancelarReservaAnterior() {
         }, 500);
         
         console.log('✅ Reserva anterior cancelada completamente');
+        
+    } catch (error) {
+        console.error('❌ Error cancelando reserva anterior:', error);
+        // Asegurarse de que reservaActiva esté limpia incluso en caso de error
+        reservaActiva = null;
     }
 }
+
 function forzarLimpiezaEstadosVerdes() {
     console.log('🧹 Forzando limpieza de estados verdes...');
     
@@ -2756,9 +2782,13 @@ function limpiarSeleccionesAlCambiarFecha() {
     console.log('🗓️ Limpiando selecciones por cambio de fecha');
     
     // 1. Cancelar cualquier reserva activa
-    if (reservaActiva) {
+     if (verificarReservaActivaSegura()) {
         console.log(`🗑️ Cancelando reserva activa: ${reservaActiva.fecha} ${reservaActiva.hora}`);
         cancelarReservaAnterior();
+    } else if (reservaActiva) {
+        // Si reservaActiva existe pero no es válida, limpiarla
+        console.log('🧹 Limpiando reservaActiva inválida');
+        reservaActiva = null;
     }
     
     // 2. Limpiar variable global de botón seleccionado
@@ -2790,6 +2820,33 @@ function limpiarSeleccionesAlCambiarFecha() {
     });
     
     console.log('✅ Selecciones limpiadas para nueva fecha');
+}
+
+function verificarReservaActivaSegura() {
+    try {
+        if (!reservaActiva) return false;
+        
+        // Verificar que todos los campos necesarios existen
+        const camposRequeridos = ['fecha', 'hora', 'boton', 'inicio'];
+        for (const campo of camposRequeridos) {
+            if (reservaActiva[campo] === undefined || reservaActiva[campo] === null) {
+                console.warn(`⚠️ reservaActiva tiene campo ${campo} inválido`);
+                return false;
+            }
+        }
+        
+        // Verificar que el botón aún existe en el DOM
+        if (!reservaActiva.boton || !reservaActiva.boton.isConnected) {
+            console.warn('⚠️ Botón de reservaActiva no está en el DOM');
+            return false;
+        }
+        
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Error verificando reserva activa:', error);
+        return false;
+    }
 }
 function limpiarEstadosBloqueVisuales(fecha) {
     console.log(`🧹 Limpiando estados visuales de bloque para: ${fecha}`);
@@ -3536,6 +3593,12 @@ function mostrarEstadoReservandoEnUI(fecha, hora) {
 
             // ============ SISTEMA DE RESERVAS ============
 async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque = false) {
+    // Verificar que btn existe
+    if (!btn) {
+        console.error('❌ Botón no válido');
+        return;
+    }
+    
     if (bloqueoLlamadaEnProgreso && !esParteDeBloque) {
         console.log('⏳ Ya hay una reserva en progreso...');
         return;
@@ -3554,11 +3617,19 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
         duracionServicio = btn.dataset.duracion ? parseInt(btn.dataset.duracion) : 40;
         console.log(`⏱️ Duración del servicio: ${duracionServicio} minutos`);
         
+        // VERIFICACIÓN SEGURA de reservaActiva
+        const tieneReservaActivaValida = reservaActiva && 
+                                        reservaActiva.fecha && 
+                                        reservaActiva.hora && 
+                                        reservaActiva.boton;
+        
         const slotsNecesarios = Math.ceil(duracionServicio / 40);
         const horaIndex = parseInt(btn.dataset.index);
         
         // 1. Si ya hay una reserva activa PARA LA MISMA HORA, no hacer nada
-        if (reservaActiva && reservaActiva.fecha === fechaStr && reservaActiva.hora === horaStr) {
+        if (tieneReservaActivaValida && 
+            reservaActiva.fecha === fechaStr && 
+            reservaActiva.hora === horaStr) {
             console.log('⏭️ Ya tienes esta hora reservada');
             if (!esParteDeBloque) bloqueoLlamadaEnProgreso = false;
             return;
@@ -3640,11 +3711,11 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
                 boton: btn,
                 inicio: Date.now(),
                 timeoutId: null,
-                duracion: duracionServicio,
-                slots: slotsNecesarios,
+                duracion: duracionServicio || 40,
+                slots: slotsNecesarios || 1,
                 indices: Array.from({length: slotsNecesarios}, (_, i) => horaIndex + i),
                 esBloque: slotsNecesarios > 1,
-                horasDelBloque: horasDelBloque // Guardar todas las horas del bloque
+                horasDelBloque: horasDelBloque || [] // Guardar todas las horas del bloque
             };
 
             console.log(`🎯 reservaActiva establecida: ${fechaStr} ${horaStr} (${duracionServicio} minutos, ${slotsNecesarios} slots)`);
@@ -3714,6 +3785,10 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
     } catch (error) {
         console.error('❌ Error reservando hora:', error);
         showAlert('Error al reservar la hora', 'error');
+        // Asegurar limpieza en caso de error
+        if (!esParteDeBloque) {
+            reservaActiva = null;
+        }
     } finally {
         if (!esParteDeBloque) {
             setTimeout(() => {
@@ -5707,16 +5782,20 @@ function limpiarEstadosSeguros() {
         procesandoClic = true;
         
         try {
-
+            // Deseleccionar todo antes de proceder
             resetearSeleccionCompleta();
+            
             // Feedback visual inmediato
             manejarClicHoraRapido(btn, horaStr, fecha);
             
-            // Si hay reserva anterior, cancelarla
-            if (reservaActiva) {
+            // Verificar si hay reserva anterior - USAR VERIFICACIÓN SEGURA
+            if (reservaActiva && reservaActiva.fecha && reservaActiva.hora) {
                 console.log(`🔄 Cancelando reserva anterior en ${reservaActiva.hora}`);
                 await cancelarReservaAnterior();
             }
+            
+            // Esperar un momento para asegurar que la limpieza anterior se complete
+            await new Promise(resolve => setTimeout(resolve, 100));
             
             // Procesar reserva
             await reservarHoraTemporalmente(horaStr, fecha, btn);
@@ -5726,6 +5805,7 @@ function limpiarEstadosSeguros() {
             // Revertir selección visual en caso de error
             btn.classList.remove('selected', 'click-in-progress');
             btn.style.cssText = '';
+            showAlert('Error al procesar la selección', 'error');
         } finally {
             // Liberar después de un breve delay
             setTimeout(() => {
