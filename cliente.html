@@ -2513,8 +2513,9 @@ function iniciarPollingInteligente() {
     // Verificar si hay selecciones huérfanas (botones selected sin reserva activa)
     const haySeleccionSinReserva = document.querySelectorAll('.hora-btn.selected:not(.mi-reserva-activa)').length > 0;
     
-    if (haySeleccionSinReserva && !reservaActiva) {
-        console.log('🧹 Limpiando selección huérfana');
+    // Solo limpiar si hay selección sin reserva Y NO hay reserva activa
+    if (haySeleccionSinReserva && (!reservaActiva || !reservaActiva.fecha || !reservaActiva.hora)) {
+        console.log('🧹 Limpiando selección huérfana (no hay reserva activa)');
         resetearSeleccionCompleta();
     }
 }, 2000);
@@ -2528,6 +2529,11 @@ function iniciarPollingInteligente() {
 }
 
 function resetearSeleccionCompleta() {
+    // Solo resetear si NO hay una reserva activa válida
+    if (reservaActiva && reservaActiva.fecha && reservaActiva.hora) {
+        return; // No resetear si hay reserva activa
+    }
+    
     console.log('🔄 Reset completo de selección');
     
     // 1. Limpiar variable global
@@ -2554,13 +2560,14 @@ function resetearSeleccionCompleta() {
         }
     });
     
-    // 3. Limpiar input
-    const horaInput = document.getElementById('hora');
-    if (horaInput) horaInput.value = '';
+    // 3. Solo limpiar input si NO hay reserva activa
+    if (!reservaActiva) {
+        const horaInput = document.getElementById('hora');
+        if (horaInput) horaInput.value = '';
+    }
     
     console.log('✅ Selección completamente reseteada');
 }
-
 function configurarDetectorCambioDuracion() {
     const duracionInput = document.getElementById('servicioDuracion');
     if (!duracionInput) return;
@@ -3704,6 +3711,12 @@ async function reservarHoraTemporalmente(horaStr, fechaStr, btn, esParteDeBloque
                 esBloque: slotsNecesarios > 1,
                 horasDelBloque: horasDelBloque || [] // Guardar todas las horas del bloque
             };
+
+            const horaInput = document.getElementById('hora');
+if (horaInput) {
+    horaInput.value = horaStr;
+    console.log(`📝 Input de hora establecido en reserva activa: ${horaStr}`);
+}
 
             console.log(`🎯 reservaActiva establecida: ${fechaStr} ${horaStr} (${duracionServicio} minutos, ${slotsNecesarios} slots)`);
             console.log(`   - Horas del bloque: ${horasDelBloque.join(', ')}`);
@@ -5841,9 +5854,12 @@ function manejarClicHoraRapido(btn, horaStr, fecha) {
         timestamp: timestampClic
     };
     
-    // 5. Actualizar input de hora
+    // 5. **IMPORTANTE: Actualizar input de hora SIEMPRE**
     const horaInput = document.getElementById('hora');
-    if (horaInput) horaInput.value = horaStr;
+    if (horaInput) {
+        horaInput.value = horaStr;
+        console.log(`📝 Input de hora actualizado a: ${horaStr}`);
+    }
     
     return true;
 }
@@ -7354,12 +7370,60 @@ function verificarCancelacionPermitida(fechaCitaYucatan) {
 
 async function agendarCita(e) {
     if (e) e.preventDefault();
+     console.log('🎯 === INICIANDO AGENDAMIENTO ===');
+    console.log('📊 Estado actual:');
+    console.log('   - reservaActiva:', reservaActiva);
+    console.log('   - botonSeleccionadoActual:', window.botonSeleccionadoActual);
     
     const servicioInput = document.getElementById('servicio');
     const servicioDuracionInput = document.getElementById('servicioDuracion');
     const horaInput = document.getElementById('hora');
-    const notasInput = document.getElementById('notas');
     
+    if (!horaInput || !horaInput.value || horaInput.value === '') {
+        console.log('🔄 Intentando recuperar hora seleccionada...');
+        const horaRecuperada = recuperarHoraSeleccionada();
+        
+        if (!horaRecuperada) {
+            // Mostrar alerta específica
+            Swal.fire({
+                title: '⚠️ Hora no seleccionada',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="font-size: 4rem; color: #ff6b6b; margin-bottom: 15px;">
+                            <i class="fas fa-mouse-pointer"></i>
+                        </div>
+                        <p style="color: #ffffff; margin-bottom: 15px;">
+                            Por favor, selecciona una hora primero
+                        </p>
+                        <div style="background: rgba(212, 175, 55, 0.1); border: 1px solid #d4af37; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                            <p style="color: #d4af37; margin: 0;">
+                                <i class="fas fa-info-circle"></i> Haz clic en una hora disponible del calendario
+                            </p>
+                        </div>
+                    </div>
+                `,
+                icon: false,
+                background: '#1a1a1a',
+                color: '#ffffff',
+                confirmButtonText: 'Seleccionar hora',
+                confirmButtonColor: '#d4af37',
+                customClass: {
+                    popup: 'sweet-alert-custom'
+                }
+            }).then(() => {
+                const horasContainer = document.getElementById('horasContainer');
+                if (horasContainer) {
+                    horasContainer.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+            return;
+        }
+    }
+    const notasInput = document.getElementById('notas');
+    console.log('📋 Inputs encontrados:');
+    console.log('   - servicio:', servicioInput?.value);
+    console.log('   - hora:', horaInput?.value);
+    console.log('   - selectedDate:', selectedDate ? formatDate(selectedDate) : null);
     if (!servicioInput || !servicioDuracionInput || !horaInput || !notasInput) return;
     
     const servicioId = servicioInput.value;
@@ -7935,6 +7999,56 @@ async function agendarCita(e) {
                 popup: 'sweet-alert-custom'
             }
         });
+    }
+}
+
+function recuperarHoraSeleccionada() {
+    try {
+        // 1. Buscar botón seleccionado en la UI
+        const botonSeleccionado = document.querySelector('.hora-btn.selected');
+        if (botonSeleccionado) {
+            const hora = botonSeleccionado.dataset.hora;
+            const fecha = botonSeleccionado.dataset.fecha;
+            
+            console.log(`🔍 Botón seleccionado encontrado: ${fecha} ${hora}`);
+            
+            // 2. Actualizar input
+            const horaInput = document.getElementById('hora');
+            if (horaInput) {
+                horaInput.value = hora;
+                console.log(`📝 Input de hora recuperado: ${hora}`);
+                return hora;
+            }
+        }
+        
+        // 3. Buscar en variable global
+        if (window.botonSeleccionadoActual && window.botonSeleccionadoActual.hora) {
+            const hora = window.botonSeleccionadoActual.hora;
+            const horaInput = document.getElementById('hora');
+            if (horaInput) {
+                horaInput.value = hora;
+                console.log(`📝 Input de hora recuperado desde global: ${hora}`);
+                return hora;
+            }
+        }
+        
+        // 4. Buscar en reservaActiva
+        if (reservaActiva && reservaActiva.hora) {
+            const hora = reservaActiva.hora;
+            const horaInput = document.getElementById('hora');
+            if (horaInput) {
+                horaInput.value = hora;
+                console.log(`📝 Input de hora recuperado desde reservaActiva: ${hora}`);
+                return hora;
+            }
+        }
+        
+        console.log('⚠️ No se pudo recuperar hora seleccionada');
+        return null;
+        
+    } catch (error) {
+        console.error('❌ Error recuperando hora:', error);
+        return null;
     }
 }
     async function limpiarSolicitudesCorruptas() {
