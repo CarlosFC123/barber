@@ -4593,13 +4593,23 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
             }
             
             // Verificar si puede ser inicio de bloque (para servicios largos)
-            if (duracionServicio > 40) {
-                const puedeSerInicio = verificarPuedeSerInicioBloque(horaData.index, fechaFormateada, duracionServicio);
-                if (!puedeSerInicio) {
-                    configurarBotonNoDisponible(btn, horaStr, duracionServicio);
-                    continue;
-                }
-            }
+if (duracionServicio > 40) {
+    // PRIMERO verificar que no sea 12:20 PM para servicios de 80 minutos
+    if (horaData.hora === 12 && horaData.minutos === 20 && duracionServicio === 80) {
+        console.log(`🚫 12:20 PM NO puede ser inicio para servicio de 80 minutos`);
+        configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+        continue;
+    }
+    
+    // LUEGO verificar disponibilidad del bloque completo
+    const bloqueDisponible = verificarBloqueDisponible(horaData.index, fechaFormateada, duracionServicio);
+    
+    if (!bloqueDisponible) {
+        console.log(`🚫 ${horaStr} no puede iniciar bloque de ${duracionServicio} minutos`);
+        configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+        continue;
+    }
+}
             
             // Hora disponible
             configurarBotonDisponible(btn, horaStr, fechaFormateada, duracionServicio);
@@ -4641,7 +4651,55 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
         `;
     }
 }
-
+function verificarBloqueDisponible(indexInicio, fecha, duracionServicio) {
+    const slotsNecesarios = Math.ceil(duracionServicio / 40);
+    const horas = generarHorasDisponibles(duracionServicio);
+    
+    // Verificar que el índice de inicio esté dentro del rango
+    if (indexInicio + slotsNecesarios > horas.length) {
+        console.log(`🚫 Índice ${indexInicio} fuera de rango para ${slotsNecesarios} slots`);
+        return false;
+    }
+    
+    // Verificar que todos los slots sean del mismo turno
+    const turnoInicial = horas[indexInicio].esManana;
+    for (let i = 0; i < slotsNecesarios; i++) {
+        const horaIndex = indexInicio + i;
+        
+        if (horaIndex >= horas.length) {
+            return false; // No hay suficientes horas
+        }
+        
+        // Verificar que sea el mismo turno
+        if (horas[horaIndex].esManana !== turnoInicial) {
+            console.log(`🚫 Cambio de turno detectado en índice ${horaIndex}`);
+            return false;
+        }
+        
+        // Verificar disponibilidad de la hora
+        const horaData = horas[horaIndex];
+        const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
+        
+        // Buscar el botón para esta hora
+        const horaBtn = document.querySelector(`.hora-btn[data-fecha="${fecha}"][data-hora="${horaStr}"]`);
+        
+        if (horaBtn) {
+            // Verificar estado actual del botón
+            const estaOcupada = horaBtn.classList.contains('ocupada');
+            const estaReservando = horaBtn.classList.contains('reservando') && 
+                                  horaBtn.innerHTML.includes('Reservando por otro usuario');
+            const esMiReserva = horaBtn.classList.contains('mi-reserva-activa');
+            
+            // Si está ocupada por otro usuario o reservando por otro usuario
+            if (estaOcupada || (estaReservando && !esMiReserva)) {
+                console.log(`🚫 Slot ${horaStr} no disponible (${estaOcupada ? 'ocupada' : 'reservando'})`);
+                return false;
+            }
+        }
+    }
+    
+    return true;
+}
 function configurarDetectorCambioFechaCalendario() {
     const calendarGrid = document.getElementById('calendarGrid');
     if (!calendarGrid) return;
@@ -5748,6 +5806,8 @@ function limpiarEstadosSeguros() {
     
     if (duracionServicio > 40) {
         const slotsNecesarios = Math.ceil(duracionServicio / 40);
+        
+        // Agregar indicador visual de bloque
         btn.innerHTML = `
             ${horaFormateada}
             <br>
@@ -5755,10 +5815,13 @@ function limpiarEstadosSeguros() {
                 ${periodo}
             </small>
             <br>
-            <small style="font-size: 9px; color: #4CAF50;">
-                ${slotsNecesarios} slot${slotsNecesarios > 1 ? 's' : ''}
+            <small style="font-size: 10px; color: #2E7D32; font-weight: bold;">
+                📦 Bloque (${slotsNecesarios} slots)
             </small>
         `;
+        
+        // Agregar tooltip más informativo
+        btn.title = `Hora disponible para servicio de ${duracionServicio} minutos\nRequiere ${slotsNecesarios} horas consecutivas: ${horaStr} + ${slotsNecesarios-1} más`;
     } else {
         btn.innerHTML = `
             ${horaFormateada}
