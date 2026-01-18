@@ -4592,22 +4592,36 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
                 continue;
             }
             
-            // Verificar si puede ser inicio de bloque (para servicios largos)
+           // Verificar si puede ser inicio de bloque (para servicios largos)
 if (duracionServicio > 40) {
-    // PRIMERO verificar que no sea 12:20 PM para servicios de 80 minutos
+    const slotsNecesarios = Math.ceil(duracionServicio / 40);
+    
+    // Caso especial: 12:20 PM NO puede iniciar bloque de 80 minutos
     if (horaData.hora === 12 && horaData.minutos === 20 && duracionServicio === 80) {
         console.log(`🚫 12:20 PM NO puede ser inicio para servicio de 80 minutos`);
         configurarBotonNoDisponible(btn, horaStr, duracionServicio);
         continue;
     }
     
-    // LUEGO verificar disponibilidad del bloque completo
+    // Caso especial: última hora de cada turno no puede iniciar bloque
+    const esUltimaHoraDelTurno = (horaData.esManana && horaStr === '12:20') || 
+                                 (!horaData.esManana && horaStr === '19:20');
+    
+    if (esUltimaHoraDelTurno && duracionServicio > 40) {
+        console.log(`🚫 ${horaStr} es última hora del turno - no puede iniciar bloque de ${duracionServicio} minutos`);
+        configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+        continue;
+    }
+    
+    // Verificar disponibilidad del bloque completo
     const bloqueDisponible = verificarBloqueDisponible(horaData.index, fechaFormateada, duracionServicio);
     
     if (!bloqueDisponible) {
         console.log(`🚫 ${horaStr} no puede iniciar bloque de ${duracionServicio} minutos`);
         configurarBotonNoDisponible(btn, horaStr, duracionServicio);
-        continue;
+    } else {
+        console.log(`✅ ${horaStr} PUEDE iniciar bloque de ${duracionServicio} minutos`);
+        // Configurar como disponible normalmente
     }
 }
             
@@ -4651,33 +4665,69 @@ if (duracionServicio > 40) {
         `;
     }
 }
+
+function mostrarHorasDisponibles80Minutos() {
+    if (!selectedDate) {
+        console.log('❌ Selecciona una fecha primero');
+        return;
+    }
+    
+    const fecha = formatDate(selectedDate);
+    const horas = generarHorasDisponibles(80);
+    
+    console.log('=== HORAS DISPONIBLES PARA 80 MINUTOS ===');
+    console.log(`Fecha: ${fecha}`);
+    console.log('Mañana (9:00 - 12:20):');
+    
+    // Horas de la mañana
+    horas.filter(h => h.esManana).forEach((horaData, index) => {
+        const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
+        const puedeIniciar = verificarBloqueDisponible(horaData.index, fecha, 80);
+        console.log(`  ${horaStr}: ${puedeIniciar ? '✅ Disponible' : '❌ No disponible'}`);
+    });
+    
+    console.log('Tarde (14:40 - 19:20):');
+    
+    // Horas de la tarde
+    horas.filter(h => !h.esManana).forEach((horaData, index) => {
+        const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
+        const puedeIniciar = verificarBloqueDisponible(horaData.index, fecha, 80);
+        console.log(`  ${horaStr}: ${puedeIniciar ? '✅ Disponible' : '❌ No disponible'}`);
+    });
+    
+    // Contar horas disponibles
+    const totalDisponibles = horas.filter(horaData => 
+        verificarBloqueDisponible(horaData.index, fecha, 80)
+    ).length;
+    
+    console.log(`Total horas que pueden iniciar bloque de 80 minutos: ${totalDisponibles}`);
+}
 function verificarBloqueDisponible(indexInicio, fecha, duracionServicio) {
     const slotsNecesarios = Math.ceil(duracionServicio / 40);
     const horas = generarHorasDisponibles(duracionServicio);
     
-    // Verificar que el índice de inicio esté dentro del rango
-    if (indexInicio + slotsNecesarios > horas.length) {
+    console.log(`🔍 Verificando bloque: índice ${indexInicio}, slots necesarios: ${slotsNecesarios}, total horas: ${horas.length}`);
+    
+    // CORREGIDO: Verificar que el índice de inicio esté dentro del rango
+    if (indexInicio + slotsNecesarios - 1 >= horas.length) {
         console.log(`🚫 Índice ${indexInicio} fuera de rango para ${slotsNecesarios} slots`);
         return false;
     }
     
     // Verificar que todos los slots sean del mismo turno
     const turnoInicial = horas[indexInicio].esManana;
+    
     for (let i = 0; i < slotsNecesarios; i++) {
         const horaIndex = indexInicio + i;
-        
-        if (horaIndex >= horas.length) {
-            return false; // No hay suficientes horas
-        }
+        const horaData = horas[horaIndex];
         
         // Verificar que sea el mismo turno
-        if (horas[horaIndex].esManana !== turnoInicial) {
+        if (horaData.esManana !== turnoInicial) {
             console.log(`🚫 Cambio de turno detectado en índice ${horaIndex}`);
             return false;
         }
         
         // Verificar disponibilidad de la hora
-        const horaData = horas[horaIndex];
         const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
         
         // Buscar el botón para esta hora
@@ -4695,11 +4745,22 @@ function verificarBloqueDisponible(indexInicio, fecha, duracionServicio) {
                 console.log(`🚫 Slot ${horaStr} no disponible (${estaOcupada ? 'ocupada' : 'reservando'})`);
                 return false;
             }
+        } else {
+            // Si no hay botón, verificar en memoria
+            const clave = `${fecha}_${horaStr}`;
+            const reservaInfo = solicitudesPendientes.get(clave);
+            
+            if (reservaInfo && reservaInfo.usuarioId !== miUsuarioId) {
+                console.log(`🚫 Slot ${horaStr} está siendo reservado por otro usuario`);
+                return false;
+            }
         }
     }
     
+    console.log(`✅ Bloque disponible desde índice ${indexInicio}`);
     return true;
 }
+
 function configurarDetectorCambioFechaCalendario() {
     const calendarGrid = document.getElementById('calendarGrid');
     if (!calendarGrid) return;
