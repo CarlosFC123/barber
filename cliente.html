@@ -2450,7 +2450,13 @@ function iniciarPollingInteligente() {
     // Polling más inteligente y menos agresivo
     let ultimaEjecucion = 0;
     const intervaloBase = 2000; // 2 segundos base
-    
+    setTimeout(() => {
+        if (selectedDate) {
+            const fecha = formatDate(selectedDate);
+            console.log(`🚀 Forzando sincronización inicial para: ${fecha}`);
+            forzarActualizacionEstadosFecha(fecha);
+        }
+    }, 200);
     intervaloPolling = setInterval(async () => {
         try {
             // Verificar si el usuario sigue activo
@@ -2712,7 +2718,7 @@ async function sincronizarEstadosHoras() {
         ultimaSincronizacionHoras = ahora;
         
         console.log(`🔄 Sincronizando estado de horas para: ${fechaFormateada}`);
-        
+         await forzarActualizacionEstadosFecha(fechaFormateada);
         // 1. Obtener citas actualizadas
         await precargarCitasFuturas();
         
@@ -2744,6 +2750,46 @@ async function sincronizarEstadosHoras() {
     } catch (error) {
         console.error('❌ Error sincronizando estados:', error);
     }
+}
+
+function limpiarSeleccionesAlCambiarFecha() {
+    console.log('🗓️ Limpiando selecciones por cambio de fecha');
+    
+    // 1. Cancelar cualquier reserva activa
+    if (reservaActiva) {
+        console.log(`🗑️ Cancelando reserva activa: ${reservaActiva.fecha} ${reservaActiva.hora}`);
+        cancelarReservaAnterior();
+    }
+    
+    // 2. Limpiar variable global de botón seleccionado
+    window.botonSeleccionadoActual = null;
+    
+    // 3. Limpiar input de hora
+    const horaInput = document.getElementById('hora');
+    if (horaInput) horaInput.value = '';
+    
+    // 4. Limpiar todos los botones seleccionados visualmente
+    document.querySelectorAll('.hora-btn.selected').forEach(boton => {
+        // Solo limpiar si no es mi reserva activa
+        if (!boton.classList.contains('mi-reserva-activa')) {
+            boton.classList.remove('selected', 'click-in-progress', 'parte-bloque');
+            boton.style.cssText = '';
+            
+            // Restaurar estado según su tipo
+            const estado = determinarEstadoRapido(boton);
+            aplicarEstadoRapido(boton, estado);
+        }
+    });
+    
+    // 5. Limpiar intervalos de contadores de botones
+    document.querySelectorAll('.hora-btn').forEach(boton => {
+        if (boton.dataset.intervaloContador) {
+            clearInterval(boton.dataset.intervaloContador);
+            delete boton.dataset.intervaloContador;
+        }
+    });
+    
+    console.log('✅ Selecciones limpiadas para nueva fecha');
 }
 function limpiarEstadosBloqueVisuales(fecha) {
     console.log(`🧹 Limpiando estados visuales de bloque para: ${fecha}`);
@@ -4383,7 +4429,7 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
     console.log('selectedDate:', selectedDateObj);
     console.log('calendarioHabilitado:', calendarioHabilitado);
     console.log('barberoFijo:', barberoFijo);
-    
+    limpiarSeleccionesAlCambiarFecha();
     // Obtener duración del servicio seleccionado
     if (!duracionServicio) {
         const duracionInput = document.getElementById('servicioDuracion');
@@ -4554,6 +4600,28 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
         `;
     }
 } 
+
+function configurarDetectorCambioFechaCalendario() {
+    const calendarGrid = document.getElementById('calendarGrid');
+    if (!calendarGrid) return;
+    
+    // Usar event delegation para detectar clics en días del calendario
+    calendarGrid.addEventListener('click', function(e) {
+        const dayCell = e.target.closest('.day-cell.available');
+        if (dayCell && dayCell.classList.contains('available')) {
+            console.log('📅 Clic en día del calendario detectado');
+            
+            // Pequeño delay para asegurar que la fecha ya está cambiando
+            setTimeout(() => {
+                // Verificar si hay selecciones activas que deban limpiarse
+                if (verificarSeleccionesActivas()) {
+                    console.log('🧹 Hay selecciones activas - limpiando...');
+                    limpiarSeleccionesAlCambiarFecha();
+                }
+            }, 50);
+        }
+    });
+}
 
 async function calcularEstadosHoras(fecha, horas, duracionServicio, esHoy, horaActual, minutosActual) {
     const estados = [];
@@ -5877,6 +5945,67 @@ function formatearHoraAMPM(horaStr) {
         minutos24: minutoNum
     };
 }
+
+async function forzarActualizacionEstadosFecha(fecha) {
+    if (!selectedDate) return;
+    
+    const fechaActual = formatDate(selectedDate);
+    if (fecha !== fechaActual) return;
+    
+    console.log(`🔄 Forzando actualización de estados para: ${fecha}`);
+    
+    try {
+        // 1. Obtener datos actualizados
+        await obtenerSolicitudesPendientes(true);
+        
+        // 2. Obtener duración actual
+        const duracionInput = document.getElementById('servicioDuracion');
+        const duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
+        
+        // 3. Recalcular y actualizar todos los botones
+        await actualizarEstadosHorasExistentes(fecha);
+        
+        // 4. Verificar bloques activos específicamente
+        verificarBloquesActivosEnMemoria(fecha);
+        verificarYMostrarBloquesCompletos(fecha);
+        
+        // 5. Forzar actualización de reservas de otros usuarios
+        forzarActualizacionUIReservas(fecha);
+        
+        // 6. Verificar horas no disponibles
+        const botones = document.querySelectorAll('.hora-btn');
+        const ahora = new Date();
+        const esHoy = fecha === formatDate(ahora);
+        const horaActual = ahora.getHours();
+        const minutosActual = ahora.getMinutes();
+        
+        botones.forEach(btn => {
+            const horaStr = btn.dataset.hora;
+            const fechaStr = btn.dataset.fecha;
+            const index = parseInt(btn.dataset.index);
+            
+            if (fechaStr !== fecha) return;
+            
+            const [h, m] = horaStr.split(':').map(Number);
+            const horaPasada = esHoy && (h < horaActual || (h === horaActual && m <= minutosActual));
+            
+            // Si no es hora pasada, no está ocupada, y no puede ser inicio de bloque
+            if (!horaPasada && !btn.classList.contains('ocupada')) {
+                const puedeSerInicio = verificarPuedeSerInicioBloque(index, fecha, duracionServicio);
+                
+                if (!puedeSerInicio && !btn.classList.contains('reservando') && !btn.classList.contains('mi-reserva-activa')) {
+                    console.log(`🔧 Configurando ${horaStr} como no disponible`);
+                    configurarBotonNoDisponible(btn, horaStr, duracionServicio);
+                }
+            }
+        });
+        
+        console.log(`✅ Estados actualizados para ${fecha}`);
+        
+    } catch (error) {
+        console.error('❌ Error forzando actualización de estados:', error);
+    }
+}
 async function forzarActualizacionEstadosDespuesDeLiberar(fecha) {
     if (!selectedDate) return;
     
@@ -6463,7 +6592,7 @@ function limpiarGridHorasCompletamente() {
                 }
             }
 
-            function selectDate(date) {
+           function selectDate(date) {
     if (!calendarioHabilitado) {
         showAlert('Por favor, selecciona un servicio primero', 'warning');
         return;
@@ -6472,10 +6601,38 @@ function limpiarGridHorasCompletamente() {
     ultimaInteraccion = Date.now();
     usuarioActivo = true;
     
-    // Resetear estado anterior
+    // **1. VERIFICAR SI ESTAMOS CAMBIANDO DE FECHA**
+    const fechaAnterior = selectedDate ? formatDate(selectedDate) : null;
+    const fechaNueva = formatDate(date);
+    
+    console.log(`📅 Cambiando de fecha: ${fechaAnterior || 'Ninguna'} -> ${fechaNueva}`);
+    
+    // **2. SI HAY CAMBIO DE FECHA, LIMPIAR SELECCIONES PREVIAS**
+    if (fechaAnterior && fechaAnterior !== fechaNueva) {
+        console.log('🔄 Cambio de fecha detectado - Limpiando selecciones anteriores');
+        
+        // 2.1. Cancelar cualquier reserva activa
+        if (reservaActiva) {
+            console.log(`🗑️ Cancelando reserva activa para fecha anterior: ${reservaActiva.fecha} ${reservaActiva.hora}`);
+            cancelarReservaAnterior();
+        }
+        
+        // 2.2. Resetear variable global de botón seleccionado
+        window.botonSeleccionadoActual = null;
+        
+        // 2.3. Limpiar input de hora
+        const horaInput = document.getElementById('hora');
+        if (horaInput) horaInput.value = '';
+        
+        // 2.4. Detener cualquier polling activo de la fecha anterior
+        detenerPolling();
+    }
+    
+    // **3. RESETEAR ESTADO ANTERIOR COMPLETAMENTE**
     resetearEstadoHoras();
     limpiarEstadosSeguros();
     
+    // **4. ESTABLECER NUEVA FECHA**
     selectedDate = new Date(date);
     selectedDate.setHours(0, 0, 0, 0);
     
@@ -6490,9 +6647,9 @@ function limpiarGridHorasCompletamente() {
         dateDisplay.textContent = `Fecha seleccionada: ${dateText}`;
     }
     
-    console.log(`📅 Fecha seleccionada: ${formatDate(selectedDate)}`);
+    console.log(`📅 Fecha seleccionada: ${fechaNueva} (${dateText})`);
     
-    // Asegurarse de que el grid tenga el estilo correcto
+    // **5. ASEGURARSE DE QUE EL GRID TENGA EL ESTILO CORRECTO**
     const horasGrid = document.getElementById('horasGrid');
     if (horasGrid) {
         horasGrid.style.display = 'grid';
@@ -6500,22 +6657,41 @@ function limpiarGridHorasCompletamente() {
         horasGrid.style.gap = '8px';
     }
     
-    // Mostrar contenedor de horas primero
+    // **6. MOSTRAR CONTENEDOR DE HORAS**
     const horasContainer = document.getElementById('horasContainer');
     if (horasContainer) {
         horasContainer.style.display = 'block';
     }
     
-    // Generar horas
-    setTimeout(() => {
+    // **7. GENERAR HORAS CON SINCROBIRACIÓN INMEDIATA**
+    setTimeout(async () => {
+        // 7.1. Primero, precargar citas para esta fecha específica
+        await precargarCitasParaFechaEspecifica(fechaNueva);
+        
+        // 7.2. Obtener solicitudes pendientes actualizadas
+        await obtenerSolicitudesPendientes(true);
+        
+        // 7.3. Generar las horas
         generateHoras(date);
+        
+        // 7.4. Forzar verificación inmediata de reservas activas
+        setTimeout(() => {
+            verificarYMostrarReservasActivasForzado();
+            verificarYMostrarBloquesCompletos(fechaNueva);
+        }, 300);
     }, 300);
     
-    // Regenerar calendario para mostrar la fecha seleccionada
+    // **8. REGENERAR CALENDARIO**
     generateCalendar(currentMonth);
+    configurarDetectorCambioFechaCalendario();
     
-    // Iniciar polling específico para esta fecha
+    // **9. INICIAR POLLING ESPECÍFICO PARA ESTA FECHA**
     iniciarPollingInteligente();
+    
+    // **10. FORZAR SINCROBIRACIÓN INICIAL DESPUÉS DE UN BREVE DELAY**
+    setTimeout(() => {
+        sincronizarEstadosHoras();
+    }, 500);
 }
 
 function forzarActualizacionUIReservas(fecha) {
@@ -10061,6 +10237,7 @@ async function eliminarCita(citaId) {
             
             currentMonth = new Date();
             generateCalendar(currentMonth);
+            configurarDetectorCambioFechaCalendario();
             habilitarCalendario();
 
             inicializarEmailJS();
