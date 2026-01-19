@@ -2689,13 +2689,14 @@ h2 {
         
         const supabaseClient = window.supabaseClient || supabase;
 
-// Y luego usa supabaseClient
-const { data: imagenesDB, error: dbError } = await supabaseClient
-    .from('carrusel_imagenes')
-    .select('*')
-    .eq('activo', true)
-    .order('orden', { ascending: true })
-    .order('created_at', { ascending: false });
+        // Obtener imágenes de la BD
+        const { data: imagenesDB, error: dbError } = await supabaseClient
+            .from('carrusel_imagenes')
+            .select('*')
+            .eq('activo', true)
+            .order('orden', { ascending: true })
+            .order('created_at', { ascending: false });
+        
         if (dbError) {
             console.error('❌ Error cargando imágenes de la BD:', dbError);
             throw dbError;
@@ -2714,10 +2715,18 @@ const { data: imagenesDB, error: dbError } = await supabaseClient
         
         for (const imagen of imagenesDB) {
             try {
-                // Verificar si la URL de la imagen es válida
-                if (imagen.url_imagen && imagen.url_imagen.startsWith('http')) {
-                    // Intentar cargar la imagen para verificar que existe
-                    await new Promise((resolve, reject) => {
+                // Si la URL ya es una URL completa (https://...)
+                if (imagen.url_imagen && imagen.url_imagen.startsWith('https://')) {
+                    // Verificar que sea una URL de Supabase Storage
+                    if (imagen.url_imagen.includes('supabase.co/storage/v1')) {
+                        imagenesValidas.push({
+                            id: imagen.id,
+                            url: imagen.url_imagen,
+                            descripcion: imagen.descripcion || '',
+                            nombre: imagen.nombre_archivo || 'Imagen'
+                        });
+                    } else {
+                        // Si es otra URL, intentar cargarla
                         const img = new Image();
                         img.onload = () => {
                             imagenesValidas.push({
@@ -2726,17 +2735,17 @@ const { data: imagenesDB, error: dbError } = await supabaseClient
                                 descripcion: imagen.descripcion || '',
                                 nombre: imagen.nombre_archivo || 'Imagen'
                             });
-                            resolve();
                         };
                         img.onerror = () => {
                             console.warn(`⚠️ Imagen no accesible: ${imagen.url_imagen}`);
-                            resolve(); // Continuar aunque falle una imagen
                         };
                         img.src = imagen.url_imagen;
-                    });
-                } else if (imagen.url_imagen && imagen.url_imagen.startsWith('carrusel-imagenes/')) {
-                    // Es una ruta de Supabase Storage
-                    const { data: signedUrl, error: storageError } = await supabase.storage
+                    }
+                } 
+                // Si es solo un nombre de archivo o ruta relativa
+                else if (imagen.url_imagen) {
+                    // Obtener URL firmada de Supabase Storage
+                    const { data: signedUrl, error: storageError } = await supabaseClient.storage
                         .from('carrusel-imagenes')
                         .createSignedUrl(imagen.url_imagen, 3600); // URL válida por 1 hora
                     
@@ -2748,7 +2757,21 @@ const { data: imagenesDB, error: dbError } = await supabaseClient
                             nombre: imagen.nombre_archivo || 'Imagen'
                         });
                     } else {
-                        console.warn(`⚠️ Error obteniendo URL de storage: ${imagen.url_imagen}`);
+                        // Si no se puede obtener URL firmada, intentar con URL pública
+                        const { data: publicUrl } = supabaseClient.storage
+                            .from('carrusel-imagenes')
+                            .getPublicUrl(imagen.url_imagen);
+                        
+                        if (publicUrl) {
+                            imagenesValidas.push({
+                                id: imagen.id,
+                                url: publicUrl.publicUrl,
+                                descripcion: imagen.descripcion || '',
+                                nombre: imagen.nombre_archivo || 'Imagen'
+                            });
+                        } else {
+                            console.warn(`⚠️ No se pudo obtener URL para: ${imagen.url_imagen}`);
+                        }
                     }
                 }
             } catch (error) {
@@ -2756,6 +2779,9 @@ const { data: imagenesDB, error: dbError } = await supabaseClient
                 // Continuar con las siguientes imágenes
             }
         }
+        
+        // Esperar a que todas las imágenes se verifiquen
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         if (imagenesValidas.length === 0) {
             console.log('📭 No se pudieron cargar imágenes válidas');
@@ -3003,7 +3029,7 @@ function configurarEventosCarrusel() {
 
 
 
-            
+            let carruselInicializado = false;
             let pollingCitasActivo = false;
             let intervaloPollingCitas = null;
             let ultimaActualizacionCitas = 0;
@@ -3198,35 +3224,39 @@ async function subirImagenCarrusel(archivo, descripcion = '') {
         // Generar nombre único para el archivo
         const timestamp = Date.now();
         const nombreArchivo = `carrusel_${timestamp}_${archivo.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+        const rutaStorage = nombreArchivo; // Solo el nombre del archivo
         
-        // **CORRECCIÓN: Solo el nombre del archivo, no incluyas la carpeta**
-        const rutaStorage = nombreArchivo;
-        
-        console.log('📤 Subiendo imagen:', {
-            nombreArchivo: nombreArchivo,
-            rutaStorage: rutaStorage,
-            bucket: 'carrusel-imagenes'
+        console.log('📤 Subiendo imagen a Supabase Storage...', {
+            bucket: 'carrusel-imagenes',
+            ruta: rutaStorage,
+            tamaño: archivo.size,
+            tipo: archivo.type
         });
         
-        // Subir al storage de Supabase - ESPECIFICA EL BUCKET EN EL MÉTODO
-        const { error: uploadError } = await supabase.storage
-            .from('carrusel-imagenes') // Bucket aquí
+        // 1. Subir al storage de Supabase
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('carrusel-imagenes')
             .upload(rutaStorage, archivo, {
                 cacheControl: '3600',
-                upsert: false
+                upsert: false,
+                contentType: archivo.type
             });
             
         if (uploadError) {
-            console.error('❌ Error upload:', uploadError);
+            console.error('❌ Error subiendo a storage:', uploadError);
             throw uploadError;
         }
         
-        // Obtener la URL pública
+        console.log('✅ Imagen subida a storage:', uploadData);
+        
+        // 2. Obtener URL pública
         const { data: urlData } = supabase.storage
             .from('carrusel-imagenes')
             .getPublicUrl(rutaStorage);
         
-        // Obtener el último orden
+        console.log('🔗 URL pública obtenida:', urlData);
+        
+        // 3. Obtener el último orden
         const { data: ultimaImagen } = await supabase
             .from('carrusel_imagenes')
             .select('orden')
@@ -3236,11 +3266,12 @@ async function subirImagenCarrusel(archivo, descripcion = '') {
         
         const nuevoOrden = (ultimaImagen?.orden || 0) + 1;
         
-        // Insertar en la tabla carrusel_imagenes
+        // 4. Insertar en la tabla carrusel_imagenes
+        // GUARDAR LA URL COMPLETA, no solo el nombre
         const { data: nuevaImagen, error: insertError } = await supabase
             .from('carrusel_imagenes')
             .insert([{
-                url_imagen: rutaStorage, // Solo el nombre del archivo
+                url_imagen: urlData.publicUrl, // <-- ¡URL COMPLETA!
                 nombre_archivo: archivo.name,
                 descripcion: descripcion,
                 orden: nuevoOrden,
@@ -3249,11 +3280,14 @@ async function subirImagenCarrusel(archivo, descripcion = '') {
             .select()
             .single();
             
-        if (insertError) throw insertError;
+        if (insertError) {
+            console.error('❌ Error insertando en BD:', insertError);
+            throw insertError;
+        }
         
-        console.log('✅ Imagen subida exitosamente:', nuevaImagen);
+        console.log('✅ Imagen registrada en BD:', nuevaImagen);
         
-        // Recargar el carrusel
+        // 5. Recargar el carrusel
         await cargarImagenesCarrusel();
         
         return {
@@ -3271,6 +3305,27 @@ async function subirImagenCarrusel(archivo, descripcion = '') {
     }
 }
 
+async function debugCarruselImagenes() {
+    try {
+        const { data: imagenes, error } = await supabase
+            .from('carrusel_imagenes')
+            .select('*');
+            
+        if (error) throw error;
+        
+        console.log('🔍 Debug imágenes del carrusel:', imagenes);
+        
+        imagenes.forEach((img, index) => {
+            console.log(`${index + 1}. ID: ${img.id}`);
+            console.log(`   URL: ${img.url_imagen}`);
+            console.log(`   Nombre: ${img.nombre_archivo}`);
+            console.log(`   Tipo: ${typeof img.url_imagen}`);
+        });
+        
+    } catch (error) {
+        console.error('Error en debug:', error);
+    }
+}
 // Función para eliminar una imagen del carrusel (solo para admin)
 async function eliminarImagenCarrusel(imagenId) {
     try {
@@ -3524,17 +3579,44 @@ function verificarUsuarioActivo() {
 
 
             function inicializarCarruselSimple() {
+    if (carruselInicializado) {
+        console.log('⏭️ Carrusel ya inicializado, omitiendo...');
+        return;
+    }
+    
     console.log('🖼️ Inicializando carrusel simple...');
+    
+    // Verificar si hay elementos del carrusel
+    const slides = document.querySelectorAll('.carrusel-img');
+    if (!slides || slides.length === 0) {
+        console.log('⏳ Esperando imágenes del carrusel...');
+        // Intentar de nuevo en 1 segundo
+        setTimeout(() => {
+            if (!carruselInicializado) {
+                inicializarCarruselSimple();
+            }
+        }, 1000);
+        return;
+    }
+    
+    carruselInicializado = true;
     mostrarSlideSimple(slideIndexSimple);
     
-    // Configurar botones
-    document.getElementById('prevBtn').addEventListener('click', () => {
-        moverCarruselSimple(-1);
-    });
+    // Configurar botones si existen
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
     
-    document.getElementById('nextBtn').addEventListener('click', () => {
-        moverCarruselSimple(1);
-    });
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+            moverCarruselSimple(-1);
+        });
+    }
+    
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+            moverCarruselSimple(1);
+        });
+    }
     
     // Configurar indicadores
     document.querySelectorAll('.indicador').forEach((indicador, index) => {
@@ -12694,8 +12776,8 @@ async function cargarListaImagenesAdmin() {
                         padding: 10px; margin-bottom: 10px; background: #2a2a2a; border-radius: 8px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <img src="${imagen.url_imagen}" alt="${imagen.descripcion || 'Imagen'}" 
-                         style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;"
-                         onerror="this.src='https://via.placeholder.com/60'">
+     style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;"
+     onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjMmEyYTJhIi8+CjxwYXRoIGQ9Ik0yMCAyMEg0MFY0MEgyMFYyMFoiIGZpbGw9IiM0YTQ5NTAiLz4KPHBhdGggZD0iTTI2IDI2VjM0SDM0VjI2SDI2WiIgZmlsbD0iI2Q0YWYzNyIvPgo8L3N2Zz4K'">
                     <div>
                         <p style="color: white; margin: 0; font-weight: 600;">${imagen.nombre_archivo}</p>
                         <p style="color: #888; margin: 5px 0 0 0; font-size: 12px;">${imagen.descripcion || 'Sin descripción'}</p>
