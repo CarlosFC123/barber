@@ -2828,6 +2828,7 @@ h2 {
         let autoPlayInterval;
 
         let imagenesAdmin = [];
+        let carruselCargado = false;
 
 
 
@@ -2957,34 +2958,52 @@ h2 {
 
 
 async function cargarImagenesCarrusel() {
-            try {
-                console.log('Cargando imágenes desde Supabase...');
-                
-                // Consultar imágenes desde Supabase
-                const { data, error } = await supabase
-                    .from('carrusel_imagenes')
-                    .select('*')
-                    .eq('activo', true)
-                    .order('orden', { ascending: true });
-                
-                if (error) {
-                    throw error;
-                }
-                
-                if (data && data.length > 0) {
-                    imagenes = data;
-                    console.log('Imágenes cargadas:', imagenes);
-                    crearCarrusel();
-                    iniciarAutoPlay();
-                } else {
-                    cargarImagenesPorDefecto();
-                }
-                
-            } catch (error) {
-                console.error('Error al cargar imágenes:', error);
-                cargarImagenesPorDefecto();
+    try {
+        console.log('Cargando imágenes desde Supabase...');
+        
+        const { data, error } = await supabase
+            .from('carrusel_imagenes')
+            .select('*')
+            .eq('activo', true)
+            .order('orden', { ascending: true });
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+            imagenes = data;
+            console.log('Imágenes cargadas:', imagenes);
+            
+            if (!carruselCargado) {
+                crearCarrusel();
+                iniciarAutoPlay();
+                carruselCargado = true;
+            } else {
+                // Si ya estaba cargado, solo actualizar
+                actualizarCarruselEnVivo();
             }
+        } else {
+            cargarImagenesPorDefecto();
         }
+        
+    } catch (error) {
+        console.error('Error al cargar imágenes:', error);
+        if (!carruselCargado) {
+            cargarImagenesPorDefecto();
+        }
+    }
+}
+
+function actualizarCarruselEnVivo() {
+    const track = document.getElementById('carruselTrack');
+    const indicadores = document.getElementById('indicadoresContainer');
+    
+    if (track && indicadores) {
+        // Limpiar y recrear
+        crearCarrusel();
+        // Mantener la slide actual
+        irASlide(currentIndex);
+    }
+}
         
         // Función para crear el carrusel dinámicamente
         function crearCarrusel() {
@@ -3111,28 +3130,7 @@ async function cargarImagenesCarrusel() {
             iniciarAutoPlay();
         }
         
-        // Imágenes por defecto si falla la conexión
-        function cargarImagenesPorDefecto() {
-            console.log('Cargando imágenes por defecto...');
-            
-            const imagenesDefault = [
-                {
-                    url_imagen: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb',
-                    descripcion: 'Paisaje montañoso'
-                },
-                {
-                    url_imagen: 'https://images.unsplash.com/photo-1519681393784-d120267933ba',
-                    descripcion: 'Atardecer en la playa'
-                },
-                {
-                    url_imagen: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e',
-                    descripcion: 'Bosque natural'
-                }
-            ];
-            
-            imagenes = imagenesDefault;
-            crearCarrusel();
-        }
+        
         
         // Cargar imágenes cuando el DOM esté listo
         document.addEventListener('DOMContentLoaded', cargarImagenesCarrusel);
