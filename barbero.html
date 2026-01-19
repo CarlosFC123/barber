@@ -2631,35 +2631,41 @@ h2 {
 
         
         <!-- Carrusel de Imágenes -->
+<!-- Reemplaza la sección del carrusel en tu HTML con esto: -->
 <div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
+    <h2 style="text-align: center; color: #d4af37; margin-bottom: 20px;">
+        <i class="fas fa-images"></i> Galería
+    </h2>
     
     <div class="carrusel-simple">
         <button class="carrusel-btn prev" id="prevBtn">❮</button>
         <button class="carrusel-btn next" id="nextBtn">❯</button>
         
         <div class="carrusel-imagenes-wrapper">
-            <div class="carrusel-track">
-                <div class="carrusel-img active">
-                    <img src="img/1.jpg" alt="Imagen 1">
-                </div>
-                <div class="carrusel-img">
-                    <img src="img/3.jpg" alt="Imagen 3">
-                </div>
-                <div class="carrusel-img">
-                    <img src="img/4.jpg" alt="Imagen 4">
-                </div>
-                <div class="carrusel-img">
-                    <img src="img/5.jpg" alt="Imagen 5">
-                </div>
+            <div class="carrusel-track" id="carruselTrack">
+                <!-- Las imágenes se cargarán dinámicamente aquí -->
             </div>
         </div>
         
         <div class="carrusel-indicadores" id="indicadoresContainer">
-            <span class="indicador active" data-index="0"></span>
-            <span class="indicador" data-index="1"></span>
-            <span class="indicador" data-index="2"></span>
-            <span class="indicador" data-index="3"></span>
-            <span class="indicador" data-index="4"></span>
+            <!-- Los indicadores se generarán dinámicamente aquí -->
+        </div>
+        
+        <!-- Loading state -->
+        <div id="carruselLoading" style="display: none; text-align: center; padding: 40px;">
+            <div class="spinner"></div>
+            <p style="color: #d4af37; margin-top: 15px;">Cargando imágenes...</p>
+        </div>
+        
+        <!-- Empty state -->
+        <div id="carruselEmpty" style="display: none; text-align: center; padding: 40px;">
+            <div style="font-size: 48px; color: #666; margin-bottom: 15px;">
+                🖼️
+            </div>
+            <p style="color: #888;">No hay imágenes en el carrusel</p>
+            <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                Contacta al administrador para agregar imágenes
+            </p>
         </div>
     </div>
 </div>
@@ -2670,6 +2676,462 @@ h2 {
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
         });
+
+
+        async function cargarImagenesCarrusel() {
+    try {
+        console.log('🖼️ Cargando imágenes del carrusel desde la base de datos...');
+        
+        // Mostrar loading
+        document.getElementById('carruselLoading').style.display = 'block';
+        document.getElementById('carruselTrack').style.display = 'none';
+        document.getElementById('indicadoresContainer').style.display = 'none';
+        
+        // 1. Obtener las imágenes de la tabla carrusel_imagenes
+        const { data: imagenesDB, error: dbError } = await supabase
+            .from('carrusel_imagenes')
+            .select('*')
+            .eq('activo', true)
+            .order('orden', { ascending: true })
+            .order('created_at', { ascending: false });
+        
+        if (dbError) {
+            console.error('❌ Error cargando imágenes de la BD:', dbError);
+            throw dbError;
+        }
+        
+        if (!imagenesDB || imagenesDB.length === 0) {
+            console.log('📭 No hay imágenes en la base de datos');
+            mostrarCarruselVacio();
+            return;
+        }
+        
+        console.log(`✅ ${imagenesDB.length} imágenes encontradas en la BD`);
+        
+        // 2. Verificar si las imágenes existen en el storage
+        const imagenesValidas = [];
+        
+        for (const imagen of imagenesDB) {
+            try {
+                // Verificar si la URL de la imagen es válida
+                if (imagen.url_imagen && imagen.url_imagen.startsWith('http')) {
+                    // Intentar cargar la imagen para verificar que existe
+                    await new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            imagenesValidas.push({
+                                id: imagen.id,
+                                url: imagen.url_imagen,
+                                descripcion: imagen.descripcion || '',
+                                nombre: imagen.nombre_archivo || 'Imagen'
+                            });
+                            resolve();
+                        };
+                        img.onerror = () => {
+                            console.warn(`⚠️ Imagen no accesible: ${imagen.url_imagen}`);
+                            resolve(); // Continuar aunque falle una imagen
+                        };
+                        img.src = imagen.url_imagen;
+                    });
+                } else if (imagen.url_imagen && imagen.url_imagen.startsWith('carrusel-imagenes/')) {
+                    // Es una ruta de Supabase Storage
+                    const { data: signedUrl, error: storageError } = await supabase.storage
+                        .from('carrusel-imagenes')
+                        .createSignedUrl(imagen.url_imagen, 3600); // URL válida por 1 hora
+                    
+                    if (!storageError && signedUrl) {
+                        imagenesValidas.push({
+                            id: imagen.id,
+                            url: signedUrl.signedUrl,
+                            descripcion: imagen.descripcion || '',
+                            nombre: imagen.nombre_archivo || 'Imagen'
+                        });
+                    } else {
+                        console.warn(`⚠️ Error obteniendo URL de storage: ${imagen.url_imagen}`);
+                    }
+                }
+            } catch (error) {
+                console.error(`❌ Error procesando imagen ${imagen.id}:`, error);
+                // Continuar con las siguientes imágenes
+            }
+        }
+        
+        if (imagenesValidas.length === 0) {
+            console.log('📭 No se pudieron cargar imágenes válidas');
+            mostrarCarruselVacio();
+            return;
+        }
+        
+        carruselImagenes = imagenesValidas;
+        console.log(`🎯 ${carruselImagenes.length} imágenes cargadas exitosamente`);
+        
+        // 3. Generar el carrusel
+        generarCarruselHTML();
+        
+        // 4. Iniciar el carrusel automático
+        iniciarCarruselAutomatico();
+        
+    } catch (error) {
+        console.error('❌ Error cargando imágenes del carrusel:', error);
+        mostrarCarruselVacio();
+    } finally {
+        // Ocultar loading
+        document.getElementById('carruselLoading').style.display = 'none';
+    }
+}
+
+// Función para mostrar estado vacío
+function mostrarCarruselVacio() {
+    document.getElementById('carruselTrack').style.display = 'none';
+    document.getElementById('indicadoresContainer').style.display = 'none';
+    document.getElementById('carruselEmpty').style.display = 'block';
+    document.getElementById('prevBtn').style.display = 'none';
+    document.getElementById('nextBtn').style.display = 'none';
+}
+
+// Función para generar el HTML del carrusel
+function generarCarruselHTML() {
+    const carruselTrack = document.getElementById('carruselTrack');
+    const indicadoresContainer = document.getElementById('indicadoresContainer');
+    
+    // Limpiar contenido anterior
+    carruselTrack.innerHTML = '';
+    indicadoresContainer.innerHTML = '';
+    
+    // Generar slides
+    carruselImagenes.forEach((imagen, index) => {
+        // Crear slide
+        const slide = document.createElement('div');
+        slide.className = 'carrusel-img';
+        slide.dataset.index = index;
+        
+        if (index === 0) {
+            slide.classList.add('active');
+        }
+        
+        slide.innerHTML = `
+            <img src="${imagen.url}" alt="${imagen.descripcion || imagen.nombre}" 
+                 loading="lazy" style="width: 100%; height: 100%; object-fit: cover;">
+            ${imagen.descripcion ? `
+            <div class="carrusel-caption">
+                <p>${imagen.descripcion}</p>
+            </div>
+            ` : ''}
+        `;
+        
+        carruselTrack.appendChild(slide);
+        
+        // Crear indicador
+        const indicador = document.createElement('span');
+        indicador.className = 'indicador';
+        indicador.dataset.index = index;
+        
+        if (index === 0) {
+            indicador.classList.add('active');
+        }
+        
+        indicador.addEventListener('click', () => {
+            irASlide(index);
+        });
+        
+        indicadoresContainer.appendChild(indicador);
+    });
+    
+    // Mostrar elementos
+    carruselTrack.style.display = 'flex';
+    indicadoresContainer.style.display = 'flex';
+    document.getElementById('carruselEmpty').style.display = 'none';
+    document.getElementById('prevBtn').style.display = 'block';
+    document.getElementById('nextBtn').style.display = 'block';
+}
+
+// Función para mostrar un slide específico
+function mostrarSlide(index) {
+    const slides = document.querySelectorAll('.carrusel-img');
+    const indicadores = document.querySelectorAll('.indicador');
+    
+    if (slides.length === 0) return;
+    
+    // Actualizar índice
+    currentSlideIndex = index;
+    
+    // Actualizar slides
+    slides.forEach(slide => {
+        slide.classList.remove('active');
+        slide.style.display = 'none';
+    });
+    
+    slides[index].classList.add('active');
+    slides[index].style.display = 'block';
+    
+    // Actualizar indicadores
+    indicadores.forEach((ind, i) => {
+        ind.classList.remove('active');
+        if (i === index) {
+            ind.classList.add('active');
+        }
+    });
+    
+    // Reiniciar el intervalo automático
+    reiniciarCarruselAutomatico();
+}
+
+// Función para mover el carrusel
+function moverCarrusel(direccion) {
+    let nuevoIndex = currentSlideIndex + direccion;
+    
+    if (nuevoIndex >= carruselImagenes.length) {
+        nuevoIndex = 0;
+    } else if (nuevoIndex < 0) {
+        nuevoIndex = carruselImagenes.length - 1;
+    }
+    
+    mostrarSlide(nuevoIndex);
+}
+
+// Función para ir a un slide específico
+function irASlide(index) {
+    if (index >= 0 && index < carruselImagenes.length) {
+        mostrarSlide(index);
+    }
+}
+
+// Función para iniciar el carrusel automático
+function iniciarCarruselAutomatico() {
+    if (carruselInterval) {
+        clearInterval(carruselInterval);
+    }
+    
+    if (carruselImagenes.length > 1) {
+        carruselInterval = setInterval(() => {
+            moverCarrusel(1);
+        }, CARRUSEL_INTERVAL_TIME);
+    }
+}
+
+// Función para reiniciar el carrusel automático
+function reiniciarCarruselAutomatico() {
+    if (carruselImagenes.length > 1) {
+        iniciarCarruselAutomatico();
+    }
+}
+
+// Función para configurar eventos del carrusel
+function configurarEventosCarrusel() {
+    // Botones de navegación
+    document.getElementById('prevBtn').addEventListener('click', () => {
+        moverCarrusel(-1);
+    });
+    
+    document.getElementById('nextBtn').addEventListener('click', () => {
+        moverCarrusel(1);
+    });
+    
+    // Pausar al pasar el mouse
+    const carrusel = document.querySelector('.carrusel-simple');
+    if (carrusel) {
+        carrusel.addEventListener('mouseenter', () => {
+            if (carruselInterval) {
+                clearInterval(carruselInterval);
+            }
+        });
+        
+        carrusel.addEventListener('mouseleave', () => {
+            if (carruselImagenes.length > 1) {
+                iniciarCarruselAutomatico();
+            }
+        });
+    }
+}
+
+// Función para subir una nueva imagen al carrusel (solo para admin)
+async function subirImagenCarrusel(archivo, descripcion = '') {
+    try {
+        if (!usuarioActual) {
+            throw new Error('Usuario no autenticado');
+        }
+        
+        // Verificar si el usuario es admin
+        const { data: userData, error: userError } = await supabase
+            .from('clientes')
+            .select('rol')
+            .eq('id', usuarioActual.id)
+            .single();
+            
+        if (userError || userData?.rol !== 'admin') {
+            throw new Error('Solo los administradores pueden subir imágenes');
+        }
+        
+        // Generar nombre único para el archivo
+        const timestamp = Date.now();
+        const nombreArchivo = `carrusel_${timestamp}_${archivo.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+        const rutaStorage = `carrusel-imagenes/${nombreArchivo}`;
+        
+        // Subir al storage de Supabase
+        const { error: uploadError } = await supabase.storage
+            .from('carrusel-imagenes')
+            .upload(rutaStorage, archivo);
+            
+        if (uploadError) throw uploadError;
+        
+        // Obtener la URL pública (o firmada)
+        const { data: urlData } = supabase.storage
+            .from('carrusel-imagenes')
+            .getPublicUrl(rutaStorage);
+        
+        // Obtener el último orden para poner la nueva imagen al final
+        const { data: ultimaImagen } = await supabase
+            .from('carrusel_imagenes')
+            .select('orden')
+            .order('orden', { ascending: false })
+            .limit(1)
+            .single();
+        
+        const nuevoOrden = (ultimaImagen?.orden || 0) + 1;
+        
+        // Insertar en la tabla carrusel_imagenes
+        const { data: nuevaImagen, error: insertError } = await supabase
+            .from('carrusel_imagenes')
+            .insert([{
+                url_imagen: rutaStorage,
+                nombre_archivo: archivo.name,
+                descripcion: descripcion,
+                orden: nuevoOrden,
+                activo: true
+            }])
+            .select()
+            .single();
+            
+        if (insertError) throw insertError;
+        
+        console.log('✅ Imagen subida exitosamente:', nuevaImagen);
+        
+        // Recargar el carrusel
+        await cargarImagenesCarrusel();
+        
+        return {
+            success: true,
+            imagen: nuevaImagen,
+            message: 'Imagen agregada al carrusel exitosamente'
+        };
+        
+    } catch (error) {
+        console.error('❌ Error subiendo imagen:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// Función para eliminar una imagen del carrusel (solo para admin)
+async function eliminarImagenCarrusel(imagenId) {
+    try {
+        if (!usuarioActual) {
+            throw new Error('Usuario no autenticado');
+        }
+        
+        // Verificar si el usuario es admin
+        const { data: userData, error: userError } = await supabase
+            .from('clientes')
+            .select('rol')
+            .eq('id', usuarioActual.id)
+            .single();
+            
+        if (userError || userData?.rol !== 'admin') {
+            throw new Error('Solo los administradores pueden eliminar imágenes');
+        }
+        
+        // Obtener la información de la imagen
+        const { data: imagen, error: fetchError } = await supabase
+            .from('carrusel_imagenes')
+            .select('*')
+            .eq('id', imagenId)
+            .single();
+            
+        if (fetchError) throw fetchError;
+        
+        // Eliminar del storage
+        if (imagen.url_imagen) {
+            const { error: storageError } = await supabase.storage
+                .from('carrusel-imagenes')
+                .remove([imagen.url_imagen]);
+                
+            if (storageError) {
+                console.warn('⚠️ No se pudo eliminar del storage:', storageError);
+                // Continuar aunque falle la eliminación del storage
+            }
+        }
+        
+        // Eliminar de la base de datos
+        const { error: deleteError } = await supabase
+            .from('carrusel_imagenes')
+            .delete()
+            .eq('id', imagenId);
+            
+        if (deleteError) throw deleteError;
+        
+        console.log('✅ Imagen eliminada exitosamente:', imagenId);
+        
+        // Recargar el carrusel
+        await cargarImagenesCarrusel();
+        
+        return {
+            success: true,
+            message: 'Imagen eliminada exitosamente'
+        };
+        
+    } catch (error) {
+        console.error('❌ Error eliminando imagen:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// Agrega estos estilos CSS para el carrusel mejorado
+const carruselStyles = `
+/* Estilos para el caption del carrusel */
+.carrusel-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    color: white;
+    padding: 20px;
+    text-align: center;
+    font-size: 16px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.carrusel-img:hover .carrusel-caption {
+    opacity: 1;
+}
+
+/* Mejoras responsive */
+@media (max-width: 768px) {
+    .carrusel-caption {
+        font-size: 14px;
+        padding: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .carrusel-caption {
+        font-size: 12px;
+        padding: 10px;
+    }
+}
+`;
+
+// Inyectar los estilos
+const styleElement = document.createElement('style');
+styleElement.textContent = carruselStyles;
+document.head.appendChild(styleElement);
+
 
         async function initializeApp() {
     try {
@@ -2727,6 +3189,11 @@ h2 {
             let pollingActivo = false;
             let slideIndexSimple = 0;
             let intervaloSimple;
+
+            let carruselImagenes = [];
+            let currentSlideIndex = 0;
+            let carruselInterval = null;
+            const CARRUSEL_INTERVAL_TIME = 5000;
 
 
 
@@ -3152,6 +3619,8 @@ function verificarUsuarioActivo() {
 window.inicializarCarruselSimple = inicializarCarruselSimple;
 window.moverCarruselSimple = moverCarruselSimple;
 window.irASlideSimple = irASlideSimple;
+
+
 
 
             // ============ SISTEMA DE POLLING INTELIGENTE ============
@@ -11993,6 +12462,9 @@ async function verificarAutenticacion() {
         iniciarVerificadorPeriodicoReservas();
         iniciarLimpiezaAutomaticaBotones();
 
+        await cargarImagenesCarrusel();
+        configurarEventosCarrusel();
+
         // Inicializar estado de citas para verificación de cambios
         window.ultimoEstadoCitas = {
             conteo: 0,
@@ -12124,6 +12596,132 @@ async function verificarAutenticacion() {
         window.location.href = 'index.html';
     }
 }
+
+
+function mostrarPanelAdminCarrusel() {
+    // Esta función solo se llama si el usuario es admin
+    const adminPanel = document.createElement('div');
+    adminPanel.id = 'adminCarruselPanel';
+    adminPanel.innerHTML = `
+        <div style="margin-top: 30px; padding: 20px; background: #1a1a1a; border-radius: 12px; border: 2px solid #d4af37;">
+            <h3 style="color: #d4af37; margin-bottom: 20px;">
+                <i class="fas fa-cog"></i> Administrar Carrusel
+            </h3>
+            
+            <div style="margin-bottom: 20px;">
+                <h4 style="color: #ffffff; margin-bottom: 10px;">Subir Nueva Imagen</h4>
+                <input type="file" id="inputImagenCarrusel" accept="image/*" style="display: none;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn btn-secondary" onclick="document.getElementById('inputImagenCarrusel').click()">
+                        <i class="fas fa-upload"></i> Seleccionar Imagen
+                    </button>
+                    <input type="text" id="descripcionImagen" placeholder="Descripción (opcional)" 
+                           style="flex: 1; padding: 10px; border-radius: 6px; background: #2a2a2a; border: 1px solid #333; color: white;">
+                    <button class="btn btn-primary" onclick="subirImagenSeleccionada()">
+                        <i class="fas fa-check"></i> Subir
+                    </button>
+                </div>
+            </div>
+            
+            <div>
+                <h4 style="color: #ffffff; margin-bottom: 10px;">Imágenes Actuales</h4>
+                <div id="listaImagenesCarrusel" style="max-height: 300px; overflow-y: auto;">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Cargando imágenes...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('perfil').appendChild(adminPanel);
+    cargarListaImagenesAdmin();
+}
+
+async function cargarListaImagenesAdmin() {
+    try {
+        const { data: imagenes, error } = await supabase
+            .from('carrusel_imagenes')
+            .select('*')
+            .order('orden', { ascending: true });
+            
+        if (error) throw error;
+        
+        const listaContainer = document.getElementById('listaImagenesCarrusel');
+        
+        if (!imagenes || imagenes.length === 0) {
+            listaContainer.innerHTML = '<p style="color: #888; text-align: center;">No hay imágenes</p>';
+            return;
+        }
+        
+        listaContainer.innerHTML = imagenes.map(imagen => `
+            <div style="display: flex; align-items: center; justify-content: space-between; 
+                        padding: 10px; margin-bottom: 10px; background: #2a2a2a; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <img src="${imagen.url_imagen}" alt="${imagen.descripcion || 'Imagen'}" 
+                         style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;">
+                    <div>
+                        <p style="color: white; margin: 0; font-weight: 600;">${imagen.nombre_archivo}</p>
+                        <p style="color: #888; margin: 5px 0 0 0; font-size: 12px;">${imagen.descripcion || 'Sin descripción'}</p>
+                    </div>
+                </div>
+                <div>
+                    <button class="btn btn-danger" onclick="eliminarImagenAdmin('${imagen.id}')" 
+                            style="padding: 5px 10px; font-size: 12px;">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
+                </div>
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Error cargando lista de imágenes:', error);
+        document.getElementById('listaImagenesCarrusel').innerHTML = 
+            '<p style="color: #ff6b6b; text-align: center;">Error cargando imágenes</p>';
+    }
+}
+
+async function subirImagenSeleccionada() {
+    const input = document.getElementById('inputImagenCarrusel');
+    const descripcion = document.getElementById('descripcionImagen').value;
+    
+    if (!input.files || input.files.length === 0) {
+        showAlert('Por favor selecciona una imagen', 'warning');
+        return;
+    }
+    
+    const resultado = await subirImagenCarrusel(input.files[0], descripcion);
+    
+    if (resultado.success) {
+        showAlert('Imagen subida exitosamente', 'success');
+        input.value = ''; // Limpiar input
+        document.getElementById('descripcionImagen').value = '';
+        await cargarListaImagenesAdmin();
+    } else {
+        showAlert(`Error: ${resultado.error}`, 'error');
+    }
+}
+
+async function eliminarImagenAdmin(imagenId) {
+    if (confirm('¿Estás seguro de que quieres eliminar esta imagen?')) {
+        const resultado = await eliminarImagenCarrusel(imagenId);
+        
+        if (resultado.success) {
+            showAlert('Imagen eliminada exitosamente', 'success');
+            await cargarListaImagenesAdmin();
+        } else {
+            showAlert(`Error: ${resultado.error}`, 'error');
+        }
+    }
+}
+
+window.administrarCarrusel = {
+    cargarImagenesCarrusel,
+    subirImagenCarrusel,
+    eliminarImagenCarrusel,
+    mostrarPanelAdminCarrusel
+};
 
 // Función para agregar botón de actualización global
 function agregarBotonActualizarCitas() {
