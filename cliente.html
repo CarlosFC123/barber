@@ -2302,7 +2302,7 @@ console.log('- Indicadores:', document.querySelectorAll('.indicador').length);
 if (document.querySelector('.carrusel-simple')) {
     console.log('🎯 Inicializando carrusel forzadamente...');
     setTimeout(() => {
-        inicializarCarruselSimple();
+        inicializarCarrusel3D();
     }, 1000);
 }
 
@@ -11017,9 +11017,9 @@ if (logoutBtn) {
             // ============ API PÚBLICA ============
 
             window.app = {
-                inicializarCarruselSimple,
-                moverCarruselSimple,
-                irASlideSimple,
+                inicializarCarrusel3D,
+                moverCarrusel3D,
+                irASlide3D,
                 cancelarCita,
                 eliminarCita,
                 cambiarPestana,
