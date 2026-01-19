@@ -3491,9 +3491,7 @@ async function cargarDatosUsuarioDropdown() {
         if (welcomeMessage) {
             welcomeMessage.textContent = `¡Bienvenido, ${clienteData.nombre}!`;
 
-            if (clienteData.rol === 'admin') {
-                welcomeMessage.innerHTML += ' <span class="admin-badge" style="background: #d4af37; color: #000; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px;">👑 Admin</span>';
-            }
+            
         }
         
         // Actualizar dropdown
