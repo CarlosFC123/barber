@@ -2688,7 +2688,14 @@ h2 {
         document.getElementById('indicadoresContainer').style.display = 'none';
         
         // 1. Obtener las imágenes de la tabla carrusel_imagenes
-        const { data: imagenesDB, error: dbError } = await supabase
+         if (!window.supabaseClient) {
+            console.error('❌ Cliente Supabase no disponible');
+            mostrarCarruselVacio();
+            return;
+        }
+        
+        // Usar window.supabaseClient en lugar de supabase
+        const { data: imagenesDB, error: dbError } = await window.supabaseClient
             .from('carrusel_imagenes')
             .select('*')
             .eq('activo', true)
@@ -3133,35 +3140,29 @@ styleElement.textContent = carruselStyles;
 document.head.appendChild(styleElement);
 
 
-        async function initializeApp() {
+       async function initializeApp() {
     try {
-        // Carga la configuración desde config.json
         const response = await fetch('./config.json');
         const config = await response.json();
         
-        const supabaseUrl = config.supabaseUrl;
-        const supabaseKey = config.supabaseKey;
-        
-        if (!supabaseUrl || !supabaseKey) {
-            console.error('Configuración de Supabase no encontrada');
-            showAlert('Error de configuración', 'error');
-            return;
+        // Verificar si ya existe supabase globalmente
+        if (typeof window.supabaseClient === 'undefined') {
+            // Crear cliente y asignarlo globalmente
+            window.supabaseClient = supabase.createClient(config.supabaseUrl, config.supabaseKey);
         }
         
-        if (typeof supabase === 'undefined') {
-            console.error('Supabase no está cargado');
-            showAlert('Error: No se pudo cargar la configuración', 'error');
-            return;
-        }
-        
-        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-        startApplication(supabaseClient);
+        // Usar el cliente global
+        startApplication(window.supabaseClient);
         
     } catch (error) {
         console.error('Error cargando configuración:', error);
         showAlert('Error al cargar la configuración', 'error');
     }
 }
+ let carruselImagenes = [];
+            let currentSlideIndex = 0;
+            let carruselInterval = null;
+            const CARRUSEL_INTERVAL_TIME = 5000;
 
         function startApplication(supabase) {
             // ============ VARIABLES GLOBALES ============
@@ -3190,10 +3191,7 @@ document.head.appendChild(styleElement);
             let slideIndexSimple = 0;
             let intervaloSimple;
 
-            let carruselImagenes = [];
-            let currentSlideIndex = 0;
-            let carruselInterval = null;
-            const CARRUSEL_INTERVAL_TIME = 5000;
+           
 
 
 
@@ -3336,6 +3334,14 @@ if (document.querySelector('.carrusel-simple')) {
         inicializarCarruselSimple();
     }, 1000);
 }
+
+setTimeout(() => {
+        console.log('🔍 Verificando carrusel después de carga...');
+        if (document.querySelector('.carrusel-simple')) {
+            console.log('🎯 Inicializando carrusel...');
+            inicializarCarruselSimple();
+        }
+    }, 2000);
             // ============ SISTEMA DE CACHÉ INTELIGENTE ============
 
             function actualizarCacheLocal(fecha, hora, estado, usuarioId = null) {
@@ -3546,13 +3552,13 @@ function verificarUsuarioActivo() {
             function mostrarSlideSimple(n) {
                 const slides = document.querySelectorAll('.carrusel-img');
                 const indicadores = document.querySelectorAll('.carrusel-indicadores .indicador');
+                 if (!slides || slides.length === 0) {
+        console.log('⏳ Esperando imágenes del carrusel...');
+        // Intentar de nuevo en 1 segundo
+        setTimeout(() => inicializarCarruselSimple(), 1000);
+        return;
+    }
                 
-                if (slides.length === 0) 
-                {
-                    console.error('No se encontraron slides en el carrusel');
-                    return;
-
-                }
 
                 if (n >= slides.length) {
                     slideIndexSimple = 0;
