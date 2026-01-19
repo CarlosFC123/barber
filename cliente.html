@@ -2081,11 +2081,12 @@ h2 {
                 <!-- Carrusel de Imágenes -->
 <div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
     
+    <!-- EL ID DEBE SER 'carrusel3D' (igual que en JavaScript) -->
     <div class="carrusel-3d" id="carrusel3D">
         <!-- Contenedor 3D donde se insertarán las imágenes -->
         <div class="carrusel-3d-wrapper" id="carrusel3DWrapper">
             <div class="carrusel-3d-track" id="carrusel3DTrack">
-                <!-- Las imágenes se generarán aquí -->
+                <!-- Las imágenes se generarán aquí dinámicamente -->
             </div>
         </div>
         
@@ -2094,7 +2095,7 @@ h2 {
             <!-- Se generarán dinámicamente -->
         </div>
         
-        <!-- Flechas de navegación (opcionales) -->
+        <!-- Flechas de navegación -->
         <button class="carrusel-3d-nav prev" id="prevBtn3D">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M15 18l-6-6 6-6"/>
@@ -2576,6 +2577,7 @@ function generarHTMLCarrusel(imagenes) {
 }
 
 // Función para generar el HTML del carrusel 3D
+// Función para generar el HTML del carrusel 3D
 function generarHTMLCarrusel3D(imagenes) {
     const imagenesActivas = imagenes.filter(img => img.activo === true || img.activo === 'true');
     
@@ -2585,7 +2587,12 @@ function generarHTMLCarrusel3D(imagenes) {
     }
     
     // Generar slides 3D
-    const carruselTrack = document.getElementById('carrusel3DTrack');
+    const carruselTrack = document.getElementById('carrusel3DTrack'); // ID CORREGIDO
+    if (!carruselTrack) {
+        console.error('❌ No se encontró carrusel3DTrack');
+        return;
+    }
+    
     carruselTrack.innerHTML = '';
     
     imagenesActivas.forEach((imagen, index) => {
@@ -2604,7 +2611,12 @@ function generarHTMLCarrusel3D(imagenes) {
     });
     
     // Generar indicadores
-    const indicadoresContainer = document.getElementById('indicadores3DContainer');
+    const indicadoresContainer = document.getElementById('indicadores3DContainer'); // ID CORREGIDO
+    if (!indicadoresContainer) {
+        console.error('❌ No se encontró indicadores3DContainer');
+        return;
+    }
+    
     indicadoresContainer.innerHTML = '';
     
     imagenesActivas.forEach((_, index) => {
@@ -2842,10 +2854,20 @@ function reiniciarCarruselAutomatico3D() {
     iniciarCarruselAutomatico3D();
 }
 
-// Inicializar el carrusel 3D cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('📦 DOM cargado - Inicializando carrusel 3D');
-    inicializarCarrusel3D();
+    console.log('📦 DOM cargado completamente');
+    
+    // Verifica que exista el contenedor del carrusel 3D
+    const carruselContainer = document.getElementById('carrusel3D');
+    if (carruselContainer) {
+        console.log('✅ Contenedor carrusel3D encontrado, inicializando...');
+        inicializarCarrusel3D();
+    } else {
+        console.error('❌ No se encontró el contenedor carrusel3D');
+        console.log('Elementos encontrados en DOM:');
+        console.log('- carrusel3D:', document.getElementById('carrusel3D'));
+        console.log('- carrusel-imagenes:', document.getElementById('carrusel-imagenes'));
+    }
 });
 
 // Función para recargar el carrusel 3D
