@@ -2631,38 +2631,27 @@ h2 {
 
         
         <!-- Carrusel de Imágenes -->
-<div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
-    
-    <div class="carrusel-simple">
-        <button class="carrusel-btn prev" id="prevBtn">❮</button>
-        <button class="carrusel-btn next" id="nextBtn">❯</button>
+ <div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
         
-        <div class="carrusel-imagenes-wrapper">
-            <div class="carrusel-track">
-                <div class="carrusel-img active">
-                    <img src="img/1.jpg" alt="Imagen 1">
-                </div>
-                <div class="carrusel-img">
-                    <img src="img/3.jpg" alt="Imagen 3">
-                </div>
-                <div class="carrusel-img">
-                    <img src="img/4.jpg" alt="Imagen 4">
-                </div>
-                <div class="carrusel-img">
-                    <img src="img/5.jpg" alt="Imagen 5">
+        <div class="carrusel-simple">
+            <button class="carrusel-btn prev" id="prevBtn">❮</button>
+            <button class="carrusel-btn next" id="nextBtn">❯</button>
+            
+            <div id="cargando">
+                Cargando imágenes...
+            </div>
+            
+            <div class="carrusel-imagenes-wrapper" style="display: none;">
+                <div class="carrusel-track" id="carruselTrack">
+                    <!-- Las imágenes se cargarán aquí -->
                 </div>
             </div>
-        </div>
-        
-        <div class="carrusel-indicadores" id="indicadoresContainer">
-            <span class="indicador active" data-index="0"></span>
-            <span class="indicador" data-index="1"></span>
-            <span class="indicador" data-index="2"></span>
-            <span class="indicador" data-index="3"></span>
-            <span class="indicador" data-index="4"></span>
+            
+            <div class="carrusel-indicadores" id="indicadoresContainer">
+                <!-- Los indicadores se crearán aquí -->
+            </div>
         </div>
     </div>
-</div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -2725,8 +2714,14 @@ h2 {
             let timeoutReserva = null;
             let bloqueoLlamadaEnProgreso = false;
             let pollingActivo = false;
+
+
             let slideIndexSimple = 0;
             let intervaloSimple;
+
+            let currentIndex = 0;
+        let imagenes = [];
+        let autoPlayInterval;
 
 
 
@@ -2853,6 +2848,197 @@ h2 {
                 console.log(`🔄 Usando cuenta: ${mejorCuenta.nombre} (uso: ${emailjsUsageCount[mejorCuenta.serviceId] || 0}/${EMAILJS_LIMIT})`);
                 return mejorCuenta;
             }
+
+
+async function cargarImagenesCarrusel() {
+            try {
+                console.log('Cargando imágenes desde Supabase...');
+                
+                // Consultar imágenes desde Supabase
+                const { data, error } = await supabase
+                    .from('carrusel_imagenes')
+                    .select('*')
+                    .eq('activo', true)
+                    .order('orden', { ascending: true });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                if (data && data.length > 0) {
+                    imagenes = data;
+                    console.log('Imágenes cargadas:', imagenes);
+                    crearCarrusel();
+                    iniciarAutoPlay();
+                } else {
+                    cargarImagenesPorDefecto();
+                }
+                
+            } catch (error) {
+                console.error('Error al cargar imágenes:', error);
+                cargarImagenesPorDefecto();
+            }
+        }
+        
+        // Función para crear el carrusel dinámicamente
+        function crearCarrusel() {
+            const carruselTrack = document.getElementById('carruselTrack');
+            const indicadoresContainer = document.getElementById('indicadoresContainer');
+            const cargandoDiv = document.getElementById('cargando');
+            const wrapper = document.querySelector('.carrusel-imagenes-wrapper');
+            
+            // Limpiar contenido
+            carruselTrack.innerHTML = '';
+            indicadoresContainer.innerHTML = '';
+            
+            // Crear slides
+            imagenes.forEach((imagen, index) => {
+                // Crear elemento de imagen
+                const slide = document.createElement('div');
+                slide.className = `carrusel-img ${index === 0 ? 'active' : ''}`;
+                
+                // Crear imagen con URL completa
+                const imgElement = document.createElement('img');
+                imgElement.src = imagen.url_imagen;
+                imgElement.alt = imagen.descripcion || `Imagen ${index + 1}`;
+                imgElement.loading = 'lazy';
+                
+                slide.appendChild(imgElement);
+                carruselTrack.appendChild(slide);
+                
+                // Crear indicador
+                const indicador = document.createElement('span');
+                indicador.className = `indicador ${index === 0 ? 'active' : ''}`;
+                indicador.dataset.index = index;
+                indicador.addEventListener('click', () => irASlide(index));
+                indicadoresContainer.appendChild(indicador);
+            });
+            
+            // Ocultar cargando y mostrar carrusel
+            cargandoDiv.style.display = 'none';
+            wrapper.style.display = 'block';
+            
+            // Configurar botones de navegación
+            configurarNavegacion();
+        }
+        
+        // Configurar navegación del carrusel
+        function configurarNavegacion() {
+            const slides = document.querySelectorAll('.carrusel-img');
+            const indicadores = document.querySelectorAll('.indicador');
+            
+            // Función para actualizar el carrusel
+            function actualizarCarrusel() {
+                slides.forEach((slide, index) => {
+                    slide.classList.toggle('active', index === currentIndex);
+                });
+                
+                indicadores.forEach((indicador, index) => {
+                    indicador.classList.toggle('active', index === currentIndex);
+                });
+                
+                // Mover el track
+                const track = document.querySelector('.carrusel-track');
+                track.style.transform = `translateX(-${currentIndex * 100}%)`;
+            }
+            
+            // Botón siguiente
+            document.getElementById('nextBtn').addEventListener('click', () => {
+                currentIndex = (currentIndex + 1) % imagenes.length;
+                actualizarCarrusel();
+                reiniciarAutoPlay();
+            });
+            
+            // Botón anterior
+            document.getElementById('prevBtn').addEventListener('click', () => {
+                currentIndex = (currentIndex - 1 + imagenes.length) % imagenes.length;
+                actualizarCarrusel();
+                reiniciarAutoPlay();
+            });
+            
+            // Inicializar
+            actualizarCarrusel();
+        }
+        
+        // Ir a slide específico
+        function irASlide(index) {
+            currentIndex = index;
+            const slides = document.querySelectorAll('.carrusel-img');
+            const indicadores = document.querySelectorAll('.indicador');
+            
+            slides.forEach((slide, i) => {
+                slide.classList.toggle('active', i === index);
+            });
+            
+            indicadores.forEach((indicador, i) => {
+                indicador.classList.toggle('active', i === index);
+            });
+            
+            const track = document.querySelector('.carrusel-track');
+            track.style.transform = `translateX(-${index * 100}%)`;
+            
+            reiniciarAutoPlay();
+        }
+        
+        // Auto-play del carrusel
+        function iniciarAutoPlay() {
+            autoPlayInterval = setInterval(() => {
+                currentIndex = (currentIndex + 1) % imagenes.length;
+                const slides = document.querySelectorAll('.carrusel-img');
+                const indicadores = document.querySelectorAll('.indicador');
+                
+                slides.forEach((slide, i) => {
+                    slide.classList.toggle('active', i === currentIndex);
+                });
+                
+                indicadores.forEach((indicador, i) => {
+                    indicador.classList.toggle('active', i === currentIndex);
+                });
+                
+                const track = document.querySelector('.carrusel-track');
+                track.style.transform = `translateX(-${currentIndex * 100}%)`;
+            }, 5000); // Cambia cada 5 segundos
+        }
+        
+        function reiniciarAutoPlay() {
+            clearInterval(autoPlayInterval);
+            iniciarAutoPlay();
+        }
+        
+        // Imágenes por defecto si falla la conexión
+        function cargarImagenesPorDefecto() {
+            console.log('Cargando imágenes por defecto...');
+            
+            const imagenesDefault = [
+                {
+                    url_imagen: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb',
+                    descripcion: 'Paisaje montañoso'
+                },
+                {
+                    url_imagen: 'https://images.unsplash.com/photo-1519681393784-d120267933ba',
+                    descripcion: 'Atardecer en la playa'
+                },
+                {
+                    url_imagen: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e',
+                    descripcion: 'Bosque natural'
+                }
+            ];
+            
+            imagenes = imagenesDefault;
+            crearCarrusel();
+        }
+        
+        // Cargar imágenes cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', cargarImagenesCarrusel);
+        
+        // Pausar auto-play cuando el usuario interactúe
+        document.querySelector('.carrusel-simple').addEventListener('mouseenter', () => {
+            clearInterval(autoPlayInterval);
+        });
+        
+        document.querySelector('.carrusel-simple').addEventListener('mouseleave', () => {
+            iniciarAutoPlay();
+        });
 
 
 // Debug del carrusel
