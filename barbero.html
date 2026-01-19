@@ -3198,21 +3198,35 @@ async function subirImagenCarrusel(archivo, descripcion = '') {
         // Generar nombre único para el archivo
         const timestamp = Date.now();
         const nombreArchivo = `carrusel_${timestamp}_${archivo.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-        const rutaStorage = `carrusel-imagenes/${nombreArchivo}`;
         
-        // Subir al storage de Supabase
+        // **CORRECCIÓN: Solo el nombre del archivo, no incluyas la carpeta**
+        const rutaStorage = nombreArchivo;
+        
+        console.log('📤 Subiendo imagen:', {
+            nombreArchivo: nombreArchivo,
+            rutaStorage: rutaStorage,
+            bucket: 'carrusel-imagenes'
+        });
+        
+        // Subir al storage de Supabase - ESPECIFICA EL BUCKET EN EL MÉTODO
         const { error: uploadError } = await supabase.storage
-            .from('carrusel-imagenes')
-            .upload(rutaStorage, archivo);
+            .from('carrusel-imagenes') // Bucket aquí
+            .upload(rutaStorage, archivo, {
+                cacheControl: '3600',
+                upsert: false
+            });
             
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+            console.error('❌ Error upload:', uploadError);
+            throw uploadError;
+        }
         
-        // Obtener la URL pública (o firmada)
+        // Obtener la URL pública
         const { data: urlData } = supabase.storage
             .from('carrusel-imagenes')
             .getPublicUrl(rutaStorage);
         
-        // Obtener el último orden para poner la nueva imagen al final
+        // Obtener el último orden
         const { data: ultimaImagen } = await supabase
             .from('carrusel_imagenes')
             .select('orden')
@@ -3226,7 +3240,7 @@ async function subirImagenCarrusel(archivo, descripcion = '') {
         const { data: nuevaImagen, error: insertError } = await supabase
             .from('carrusel_imagenes')
             .insert([{
-                url_imagen: rutaStorage,
+                url_imagen: rutaStorage, // Solo el nombre del archivo
                 nombre_archivo: archivo.name,
                 descripcion: descripcion,
                 orden: nuevoOrden,
