@@ -2687,21 +2687,15 @@ h2 {
         document.getElementById('carruselTrack').style.display = 'none';
         document.getElementById('indicadoresContainer').style.display = 'none';
         
-        // 1. Obtener las imágenes de la tabla carrusel_imagenes
-         if (!window.supabaseClient) {
-            console.error('❌ Cliente Supabase no disponible');
-            mostrarCarruselVacio();
-            return;
-        }
-        
-        // Usar window.supabaseClient en lugar de supabase
-        const { data: imagenesDB, error: dbError } = await window.supabaseClient
-            .from('carrusel_imagenes')
-            .select('*')
-            .eq('activo', true)
-            .order('orden', { ascending: true })
-            .order('created_at', { ascending: false });
-        
+        const supabaseClient = window.supabaseClient || supabase;
+
+// Y luego usa supabaseClient
+const { data: imagenesDB, error: dbError } = await supabaseClient
+    .from('carrusel_imagenes')
+    .select('*')
+    .eq('activo', true)
+    .order('orden', { ascending: true })
+    .order('created_at', { ascending: false });
         if (dbError) {
             console.error('❌ Error cargando imágenes de la BD:', dbError);
             throw dbError;
@@ -3410,7 +3404,7 @@ async function cargarDatosUsuarioDropdown() {
         // Obtener datos adicionales del usuario desde la tabla clientes
         const { data: clienteData, error } = await supabase
             .from('clientes')
-            .select('nombre, apellido, email, avatar_url')
+            .select('nombre, apellido, email, avatar_url, rol')
             .eq('id', usuarioActual.id)
             .single();
             
@@ -3428,11 +3422,19 @@ async function cargarDatosUsuarioDropdown() {
         const welcomeMessage = document.getElementById('welcomeMessage');
         if (welcomeMessage) {
             welcomeMessage.textContent = `¡Bienvenido, ${clienteData.nombre}!`;
+
+            if (clienteData.rol === 'admin') {
+                welcomeMessage.innerHTML += ' <span class="admin-badge" style="background: #d4af37; color: #000; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px;">👑 Admin</span>';
+            }
         }
         
         // Actualizar dropdown
         document.getElementById('dropdownName').textContent = nombreCompleto;
         document.getElementById('dropdownEmail').textContent = email;
+
+        if (clienteData.rol === 'admin') {
+            mostrarPanelAdminCarrusel();
+        }
         
     } catch (error) {
         console.error('Error cargando datos del usuario:', error);
@@ -12605,6 +12607,11 @@ async function verificarAutenticacion() {
 
 
 function mostrarPanelAdminCarrusel() {
+    // Verificar si el panel ya existe
+    if (document.getElementById('adminCarruselPanel')) {
+        return;
+    }
+    
     // Esta función solo se llama si el usuario es admin
     const adminPanel = document.createElement('div');
     adminPanel.id = 'adminCarruselPanel';
@@ -12623,7 +12630,7 @@ function mostrarPanelAdminCarrusel() {
                     </button>
                     <input type="text" id="descripcionImagen" placeholder="Descripción (opcional)" 
                            style="flex: 1; padding: 10px; border-radius: 6px; background: #2a2a2a; border: 1px solid #333; color: white;">
-                    <button class="btn btn-primary" onclick="subirImagenSeleccionada()">
+                    <button class="btn btn-primary" onclick="window.app.subirImagenSeleccionada()">
                         <i class="fas fa-check"></i> Subir
                     </button>
                 </div>
@@ -12641,9 +12648,14 @@ function mostrarPanelAdminCarrusel() {
         </div>
     `;
     
-    document.getElementById('perfil').appendChild(adminPanel);
-    cargarListaImagenesAdmin();
+    // Buscar dónde insertar el panel (después del carrusel)
+    const carruselContainer = document.getElementById('carrusel-imagenes');
+    if (carruselContainer) {
+        carruselContainer.appendChild(adminPanel);
+        cargarListaImagenesAdmin();
+    }
 }
+
 
 async function cargarListaImagenesAdmin() {
     try {
@@ -12657,7 +12669,7 @@ async function cargarListaImagenesAdmin() {
         const listaContainer = document.getElementById('listaImagenesCarrusel');
         
         if (!imagenes || imagenes.length === 0) {
-            listaContainer.innerHTML = '<p style="color: #888; text-align: center;">No hay imágenes</p>';
+            listaContainer.innerHTML = '<p style="color: #888; text-align: center;">No hay imágenes en el carrusel</p>';
             return;
         }
         
@@ -12666,14 +12678,16 @@ async function cargarListaImagenesAdmin() {
                         padding: 10px; margin-bottom: 10px; background: #2a2a2a; border-radius: 8px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <img src="${imagen.url_imagen}" alt="${imagen.descripcion || 'Imagen'}" 
-                         style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;">
+                         style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;"
+                         onerror="this.src='https://via.placeholder.com/60'">
                     <div>
                         <p style="color: white; margin: 0; font-weight: 600;">${imagen.nombre_archivo}</p>
                         <p style="color: #888; margin: 5px 0 0 0; font-size: 12px;">${imagen.descripcion || 'Sin descripción'}</p>
+                        <p style="color: #666; margin: 2px 0 0 0; font-size: 11px;">Orden: ${imagen.orden}</p>
                     </div>
                 </div>
                 <div>
-                    <button class="btn btn-danger" onclick="eliminarImagenAdmin('${imagen.id}')" 
+                    <button class="btn btn-danger" onclick="window.app.eliminarImagenAdmin('${imagen.id}')" 
                             style="padding: 5px 10px; font-size: 12px;">
                         <i class="fas fa-trash"></i> Eliminar
                     </button>
@@ -12697,31 +12711,54 @@ async function subirImagenSeleccionada() {
         return;
     }
     
-    const resultado = await subirImagenCarrusel(input.files[0], descripcion);
-    
-    if (resultado.success) {
-        showAlert('Imagen subida exitosamente', 'success');
-        input.value = ''; // Limpiar input
-        document.getElementById('descripcionImagen').value = '';
-        await cargarListaImagenesAdmin();
-    } else {
-        showAlert(`Error: ${resultado.error}`, 'error');
+    // Limitar tamaño de archivo (ejemplo: 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (input.files[0].size > maxSize) {
+        showAlert('La imagen es demasiado grande. Máximo 5MB.', 'error');
+        return;
     }
-}
-
-async function eliminarImagenAdmin(imagenId) {
-    if (confirm('¿Estás seguro de que quieres eliminar esta imagen?')) {
-        const resultado = await eliminarImagenCarrusel(imagenId);
+    
+    // Mostrar indicador de carga
+    const submitBtn = document.querySelector('#adminCarruselPanel .btn-primary');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
+    submitBtn.disabled = true;
+    
+    try {
+        const resultado = await window.app.subirImagenCarrusel(input.files[0], descripcion);
         
         if (resultado.success) {
-            showAlert('Imagen eliminada exitosamente', 'success');
+            showAlert('Imagen subida exitosamente', 'success');
+            input.value = ''; // Limpiar input
+            document.getElementById('descripcionImagen').value = '';
             await cargarListaImagenesAdmin();
         } else {
             showAlert(`Error: ${resultado.error}`, 'error');
         }
+    } catch (error) {
+        showAlert(`Error al subir la imagen: ${error.message}`, 'error');
+    } finally {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
     }
 }
 
+async function eliminarImagenAdmin(imagenId) {
+    if (confirm('¿Estás seguro de que quieres eliminar esta imagen del carrusel?')) {
+        try {
+            const resultado = await window.app.eliminarImagenCarrusel(imagenId);
+            
+            if (resultado.success) {
+                showAlert('Imagen eliminada exitosamente', 'success');
+                await cargarListaImagenesAdmin();
+            } else {
+                showAlert(`Error: ${resultado.error}`, 'error');
+            }
+        } catch (error) {
+            showAlert(`Error al eliminar la imagen: ${error.message}`, 'error');
+        }
+    }
+}
 window.administrarCarrusel = {
     cargarImagenesCarrusel,
     subirImagenCarrusel,
@@ -12952,10 +12989,15 @@ window.app = {
     forzarVerificacionCitas,
     iniciarPollingCitas,
     detenerPollingCitas,
-    agregarBotonActualizarCitas
-
-
-
+    agregarBotonActualizarCitas,
+    subirImagenSeleccionada,
+    eliminarImagenAdmin,
+    subirImagenCarrusel: async function(archivo, descripcion) {
+        return await subirImagenCarrusel(archivo, descripcion);
+    },
+    eliminarImagenCarrusel: async function(imagenId) {
+        return await eliminarImagenCarrusel(imagenId);
+    }
 };
             // ============ EJECUCIÓN ============
 
