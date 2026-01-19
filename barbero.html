@@ -3136,14 +3136,7 @@ function actualizarCarruselEnVivo() {
         // Cargar imágenes cuando el DOM esté listo
         
         
-        // Pausar auto-play cuando el usuario interactúe
-        document.querySelector('.carrusel-simple').addEventListener('mouseenter', () => {
-            clearInterval(autoPlayInterval);
-        });
-        
-        document.querySelector('.carrusel-simple').addEventListener('mouseleave', () => {
-            iniciarAutoPlay();
-        });
+       
 async function cargarListaImagenes() {
     try {
         const { data, error } = await supabase
