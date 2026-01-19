@@ -1506,132 +1506,294 @@ h2 {
 /* =========================================== */
 /* CARRUSEL SIMPLE DE IMÁGENES */
 /* =========================================== */
-
-.carrusel-simple {
-    position: relative;
-    max-width: 800px;
-    margin: 0 auto;
-    overflow: hidden;
-    border-radius: 12px;
-    background: #000;
-}
-
-.carrusel-imagenes-wrapper {
-    overflow: hidden;
-    border-radius: 12px;
-    height: 400px;
-}
-
-.carrusel-track {
-    display: flex;
-    transition: transform 0.5s ease-in-out;
-    height: 100%;
-}
-
-.carrusel-img {
-    min-width: 100%;
-    height: 100%;
-    opacity: 0;
-    transition: opacity 0.5s ease;
-    display: none;
-}
-
-.carrusel-img.active {
-    opacity: 1;
-    display: block;
-}
-
-.carrusel-img img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 12px;
-}
-
-.carrusel-btn {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(212, 175, 55, 0.8);
-    color: #000;
-    border: none;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    font-size: 18px;
-    cursor: pointer;
-    z-index: 10;
-    transition: all 0.3s ease;
-}
-
-.carrusel-btn:hover {
-    background: #d4af37;
-    transform: translateY(-50%) scale(1.1);
-}
-
-.carrusel-btn.prev {
-    left: 15px;
-}
-
-.carrusel-btn.next {
-    right: 15px;
-}
-
-.carrusel-indicadores {
-    position: absolute;
-    bottom: 15px;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    z-index: 10;
-}
-
-.indicador {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.3);
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.indicador.active {
-    background: #d4af37;
-    transform: scale(1.2);
-}
-
-.indicador:hover {
-    background: rgba(212, 175, 55, 0.7);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .carrusel-imagenes-wrapper {
-        height: 300px;
+.carrusel-3d {
+        position: relative;
+        max-width: 800px;
+        height: 400px;
+        margin: 0 auto;
+        perspective: 1500px;
+        overflow: hidden;
+        border-radius: 16px;
+        background: #000;
+        touch-action: pan-y;
+        user-select: none;
+        -webkit-user-select: none;
     }
-    
-    .carrusel-simple {
-        max-width: 95%;
-    }
-    
-    .carrusel-btn {
-        width: 35px;
-        height: 35px;
-        font-size: 16px;
-    }
-}
 
-@media (max-width: 480px) {
-    .carrusel-imagenes-wrapper {
-        height: 250px;
+    .carrusel-3d-wrapper {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        transform-style: preserve-3d;
+        border-radius: 16px;
     }
-    
-    #carrusel-imagenes h2 {
-        font-size: 18px;
+
+    .carrusel-3d-track {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        transform-style: preserve-3d;
+        transition: transform 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55);
     }
-}
+
+    .carrusel-3d-slide {
+        position: absolute;
+        width: 80%;
+        height: 80%;
+        top: 10%;
+        left: 10%;
+        border-radius: 16px;
+        overflow: hidden;
+        opacity: 0;
+        transform: translateZ(-400px) scale(0.7);
+        transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        pointer-events: none;
+    }
+
+    .carrusel-3d-slide.active {
+        opacity: 1;
+        transform: translateZ(0) scale(1);
+        pointer-events: auto;
+        z-index: 3;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
+    }
+
+    .carrusel-3d-slide.prev {
+        opacity: 0.7;
+        transform: translateX(-60%) translateZ(-200px) scale(0.85);
+        z-index: 2;
+        filter: brightness(0.7);
+    }
+
+    .carrusel-3d-slide.next {
+        opacity: 0.7;
+        transform: translateX(60%) translateZ(-200px) scale(0.85);
+        z-index: 2;
+        filter: brightness(0.7);
+    }
+
+    .carrusel-3d-slide img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 16px;
+        transition: transform 0.3s ease;
+    }
+
+    .carrusel-3d-slide.active img {
+        transform: scale(1.02);
+    }
+
+    /* Indicadores circulares */
+    .carrusel-3d-indicadores {
+        position: absolute;
+        bottom: 20px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        z-index: 10;
+        padding: 10px;
+    }
+
+    .indicador-3d {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        cursor: pointer;
+        transition: all 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        border: 2px solid transparent;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .indicador-3d::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: #d4af37;
+        transition: transform 5s linear;
+        border-radius: 50%;
+    }
+
+    .indicador-3d.active {
+        background: #d4af37;
+        transform: scale(1.3);
+        border-color: rgba(255, 255, 255, 0.5);
+        box-shadow: 0 0 15px rgba(212, 175, 55, 0.7);
+    }
+
+    .indicador-3d.active::after {
+        transform: translateX(100%);
+    }
+
+    .indicador-3d:hover {
+        background: rgba(212, 175, 55, 0.7);
+        transform: scale(1.2);
+    }
+
+    /* Botones de navegación */
+    .carrusel-3d-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(212, 175, 55, 0.8);
+        color: #000;
+        border: none;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        font-size: 20px;
+        cursor: pointer;
+        z-index: 10;
+        transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+    }
+
+    .carrusel-3d:hover .carrusel-3d-nav {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .carrusel-3d-nav.prev {
+        left: 20px;
+        transform: translateY(-50%) translateX(-20px);
+    }
+
+    .carrusel-3d-nav.next {
+        right: 20px;
+        transform: translateY(-50%) translateX(20px);
+    }
+
+    .carrusel-3d:hover .carrusel-3d-nav.prev {
+        transform: translateY(-50%) translateX(0);
+    }
+
+    .carrusel-3d:hover .carrusel-3d-nav.next {
+        transform: translateY(-50%) translateX(0);
+    }
+
+    .carrusel-3d-nav:hover {
+        background: #d4af37;
+        transform: translateY(-50%) scale(1.1);
+        box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
+    }
+
+    .carrusel-3d-nav svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    /* Efectos de toque para móviles */
+    .carrusel-3d-slide:active {
+        transform: translateZ(0) scale(0.98) !important;
+    }
+
+    /* Animación de cambio automático */
+    @keyframes slideTransition {
+        0% { transform: translateZ(0) scale(1); }
+        20% { transform: translateZ(50px) scale(1.05); }
+        100% { transform: translateZ(0) scale(1); }
+    }
+
+    .carrusel-3d-slide.active.transitioning {
+        animation: slideTransition 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .carrusel-3d {
+            height: 300px;
+            max-width: 95%;
+        }
+        
+        .carrusel-3d-nav {
+            opacity: 0.7 !important;
+            visibility: visible !important;
+            width: 40px;
+            height: 40px;
+        }
+        
+        .carrusel-3d-nav.prev {
+            left: 10px;
+            transform: translateY(-50%) translateX(0) !important;
+        }
+        
+        .carrusel-3d-nav.next {
+            right: 10px;
+            transform: translateY(-50%) translateX(0) !important;
+        }
+        
+        .carrusel-3d-slide {
+            width: 85%;
+            height: 85%;
+            top: 7.5%;
+            left: 7.5%;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .carrusel-3d {
+            height: 250px;
+        }
+        
+        .carrusel-3d-indicadores {
+            bottom: 15px;
+        }
+        
+        .indicador-3d {
+            width: 10px;
+            height: 10px;
+        }
+        
+        .carrusel-3d-nav {
+            width: 35px;
+            height: 35px;
+        }
+        
+        #carrusel-imagenes {
+            padding: 15px;
+        }
+    }
+
+    /* Indicador de arrastre */
+    .drag-indicator {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        z-index: 11;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .carrusel-3d.dragging .drag-indicator {
+        opacity: 1;
+    }
+
+    .drag-indicator svg {
+        width: 16px;
+        height: 16px;
+        animation: pulse 2s infinite;
+    }
+
 
 
 
@@ -1919,21 +2081,30 @@ h2 {
                 <!-- Carrusel de Imágenes -->
 <div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
     
-    <div class="carrusel-simple">
-        <button class="carrusel-btn prev" id="prevBtn">❮</button>
-        <button class="carrusel-btn next" id="nextBtn">❯</button>
-        
-        <!-- Contenedor donde se insertarán las imágenes dinámicamente -->
-        <div class="carrusel-imagenes-wrapper" id="carruselContainer">
-            <div class="carrusel-track" id="carruselTrack">
+    <div class="carrusel-3d" id="carrusel3D">
+        <!-- Contenedor 3D donde se insertarán las imágenes -->
+        <div class="carrusel-3d-wrapper" id="carrusel3DWrapper">
+            <div class="carrusel-3d-track" id="carrusel3DTrack">
                 <!-- Las imágenes se generarán aquí -->
             </div>
         </div>
         
-        <!-- Los indicadores también se generarán dinámicamente -->
-        <div class="carrusel-indicadores" id="indicadoresContainer">
+        <!-- Indicadores circulares -->
+        <div class="carrusel-3d-indicadores" id="indicadores3DContainer">
             <!-- Se generarán dinámicamente -->
         </div>
+        
+        <!-- Flechas de navegación (opcionales) -->
+        <button class="carrusel-3d-nav prev" id="prevBtn3D">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6"/>
+            </svg>
+        </button>
+        <button class="carrusel-3d-nav next" id="nextBtn3D">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </button>
     </div>
 </div>
     </div>
@@ -2371,145 +2542,326 @@ function generarHTMLCarrusel(imagenes) {
     console.log(`🖼️ Carrusel generado con ${imagenesActivas.length} imágenes`);
 }
 
-            async function inicializarCarruselSimple() {
-    console.log('🖼️ Inicializando carrusel simple...');
+            async function inicializarCarrusel3D() {
+    console.log('🖼️ Inicializando carrusel 3D con gestos táctiles...');
     
     // 1. Obtener imágenes de la base de datos
     const imagenes = await obtenerImagenesCarrusel();
     
     // 2. Generar el HTML dinámicamente
-    generarHTMLCarrusel(imagenes);
+    generarHTMLCarrusel3D(imagenes);
     
-    // 3. Configurar controles
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
+    // 3. Configurar navegación
+    configurarNavegacionCarrusel3D();
+    
+    // 4. Configurar gestos táctiles
+    configurarGestosTactilesCarrusel3D();
+    
+    // 5. Iniciar movimiento automático
+    iniciarCarruselAutomatico3D();
+    
+    // 6. Configurar eventos de pausa
+    const carrusel = document.querySelector('.carrusel-3d');
+    if (carrusel) {
+        carrusel.addEventListener('mouseenter', () => {
+            clearInterval(intervalo3D);
+        });
+        
+        carrusel.addEventListener('mouseleave', () => {
+            iniciarCarruselAutomatico3D();
+        });
+    }
+    
+    console.log('✅ Carrusel 3D inicializado');
+}
+
+// Función para generar el HTML del carrusel 3D
+function generarHTMLCarrusel3D(imagenes) {
+    const imagenesActivas = imagenes.filter(img => img.activo === true || img.activo === 'true');
+    
+    if (imagenesActivas.length === 0) {
+        console.warn('⚠️ No hay imágenes activas en el carrusel');
+        return;
+    }
+    
+    // Generar slides 3D
+    const carruselTrack = document.getElementById('carrusel3DTrack');
+    carruselTrack.innerHTML = '';
+    
+    imagenesActivas.forEach((imagen, index) => {
+        const slideHTML = `
+            <div class="carrusel-3d-slide ${index === 0 ? 'active' : index === imagenesActivas.length - 1 ? 'prev' : 'next'}" 
+                 data-index="${index}"
+                 data-id="${imagen.id}">
+                <img src="${imagen.url_imagen}" 
+                     alt="${imagen.descripcion || 'Imagen del carrusel'}"
+                     title="${imagen.nombre_archivo}"
+                     loading="lazy"
+                     onerror="this.src='img/default-image.jpg'">
+            </div>
+        `;
+        carruselTrack.innerHTML += slideHTML;
+    });
+    
+    // Generar indicadores
+    const indicadoresContainer = document.getElementById('indicadores3DContainer');
+    indicadoresContainer.innerHTML = '';
+    
+    imagenesActivas.forEach((_, index) => {
+        const indicadorHTML = `
+            <span class="indicador-3d ${index === 0 ? 'active' : ''}" 
+                  data-index="${index}"
+                  title="Ir a imagen ${index + 1}"></span>
+        `;
+        indicadoresContainer.innerHTML += indicadorHTML;
+    });
+    
+    console.log(`🎨 Carrusel 3D generado con ${imagenesActivas.length} imágenes`);
+}
+
+// Configurar navegación del carrusel 3D
+function configurarNavegacionCarrusel3D() {
+    const prevBtn = document.getElementById('prevBtn3D');
+    const nextBtn = document.getElementById('nextBtn3D');
+    const indicadores = document.querySelectorAll('.indicador-3d');
     
     if (prevBtn) {
-        prevBtn.addEventListener('click', () => {
-            moverCarruselSimple(-1);
+        prevBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            moverCarrusel3D(-1);
         });
     }
     
     if (nextBtn) {
-        nextBtn.addEventListener('click', () => {
-            moverCarruselSimple(1);
+        nextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            moverCarrusel3D(1);
         });
     }
     
-    // 4. Configurar indicadores (se deben volver a configurar después de generar el HTML)
-    setTimeout(() => {
-        document.querySelectorAll('.indicador').forEach((indicador, index) => {
-            indicador.addEventListener('click', () => {
-                irASlideSimple(index);
-            });
+    // Configurar indicadores
+    indicadores.forEach((indicador, index) => {
+        indicador.addEventListener('click', (e) => {
+            e.stopPropagation();
+            irASlide3D(index);
         });
-    }, 100);
+    });
+}
+
+// Variables para el carrusel 3D
+let currentSlide3D = 0;
+let intervalo3D;
+let isDragging3D = false;
+let startX3D = 0;
+let currentX3D = 0;
+let dragThreshold3D = 50;
+
+// Configurar gestos táctiles
+function configurarGestosTactilesCarrusel3D() {
+    const carrusel = document.querySelector('.carrusel-3d');
+    const track = document.getElementById('carrusel3DTrack');
     
-    // 5. Iniciar movimiento automático
-    iniciarCarruselAutomaticoSimple();
+    if (!carrusel || !track) return;
     
-    // 6. Configurar eventos de pausa
-    const carrusel = document.querySelector('.carrusel-simple');
-    if (carrusel) {
-        carrusel.addEventListener('mouseenter', () => {
-            clearInterval(intervaloSimple);
-        });
+    // Eventos de ratón para desktop
+    carrusel.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', endDrag);
+    
+    // Eventos táctiles para móviles
+    carrusel.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        startDrag(e.touches[0]);
+    }, { passive: false });
+    
+    carrusel.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        drag(e.touches[0]);
+    }, { passive: false });
+    
+    carrusel.addEventListener('touchend', endDrag);
+    carrusel.addEventListener('touchcancel', endDrag);
+    
+    // Prevenir comportamiento por defecto de arrastre de imágenes
+    carrusel.addEventListener('dragstart', (e) => e.preventDefault());
+    
+    function startDrag(e) {
+        isDragging3D = true;
+        startX3D = e.clientX || e.pageX;
+        currentX3D = startX3D;
+        carrusel.classList.add('dragging');
+        clearInterval(intervalo3D);
+    }
+    
+    function drag(e) {
+        if (!isDragging3D) return;
+        currentX3D = e.clientX || e.pageX;
+        const diff = currentX3D - startX3D;
         
-        carrusel.addEventListener('mouseleave', () => {
-            iniciarCarruselAutomaticoSimple();
-        });
-
-        carrusel.addEventListener('touchstart', () => {
-            clearInterval(intervaloSimple);
-        });
-
-        carrusel.addEventListener('touchend', () => {
-            setTimeout(() => iniciarCarruselAutomaticoSimple(), 3000);
-        });
+        // Aplicar transformación temporal durante el arrastre
+        track.style.transition = 'none';
+        track.style.transform = `translateX(${diff * 0.5}px)`;
+    }
+    
+    function endDrag() {
+        if (!isDragging3D) return;
+        
+        isDragging3D = false;
+        carrusel.classList.remove('dragging');
+        
+        const diff = currentX3D - startX3D;
+        track.style.transition = '';
+        track.style.transform = '';
+        
+        // Determinar dirección del deslizamiento
+        if (Math.abs(diff) > dragThreshold3D) {
+            if (diff > 0) {
+                // Deslizamiento a la derecha = slide anterior
+                moverCarrusel3D(-1);
+            } else {
+                // Deslizamiento a la izquierda = slide siguiente
+                moverCarrusel3D(1);
+            }
+        }
+        
+        // Reanudar autoplay después de un tiempo
+        setTimeout(() => {
+            iniciarCarruselAutomatico3D();
+        }, 3000);
     }
 }
 
-           function mostrarSlideSimple(n) {
-    const slides = document.querySelectorAll('.carrusel-img');
-    const indicadores = document.querySelectorAll('.carrusel-indicadores .indicador');
+// Función para mover el carrusel 3D
+function moverCarrusel3D(direction) {
+    const slides = document.querySelectorAll('.carrusel-3d-slide');
+    const totalSlides = slides.length;
     
-    if (slides.length === 0) {
-        console.error('No se encontraron slides en el carrusel');
-        return;
+    if (totalSlides === 0) return;
+    
+    // Calcular nuevo índice
+    let newIndex = currentSlide3D + direction;
+    
+    // Manejar bucle circular
+    if (newIndex < 0) {
+        newIndex = totalSlides - 1;
+    } else if (newIndex >= totalSlides) {
+        newIndex = 0;
     }
+    
+    // Actualizar slides
+    actualizarSlides3D(currentSlide3D, newIndex);
+    currentSlide3D = newIndex;
+    
+    // Reiniciar autoplay
+    reiniciarCarruselAutomatico3D();
+}
 
-    if (n >= slides.length) {
-        slideIndexSimple = 0;
-    } else if (n < 0) {
-        slideIndexSimple = slides.length - 1;
-    } else {
-        slideIndexSimple = n;
-    }
+// Función para ir a un slide específico
+function irASlide3D(index) {
+    const slides = document.querySelectorAll('.carrusel-3d-slide');
+    const totalSlides = slides.length;
+    
+    if (index < 0 || index >= totalSlides) return;
+    
+    // Calcular dirección
+    const direction = index > currentSlide3D ? 1 : -1;
+    
+    // Actualizar slides
+    actualizarSlides3D(currentSlide3D, index);
+    currentSlide3D = index;
+    
+    // Reiniciar autoplay
+    reiniciarCarruselAutomatico3D();
+}
 
+// Función para actualizar la visualización de los slides 3D
+function actualizarSlides3D(oldIndex, newIndex) {
+    const slides = document.querySelectorAll('.carrusel-3d-slide');
+    const indicadores = document.querySelectorAll('.indicador-3d');
+    const totalSlides = slides.length;
+    
+    if (totalSlides === 0) return;
+    
+    // Remover clases anteriores
     slides.forEach(slide => {
-        slide.classList.remove('active');
-        slide.style.display = 'none';
+        slide.classList.remove('active', 'prev', 'next', 'transitioning');
     });
-
-    slides[slideIndexSimple].classList.add('active');
-    slides[slideIndexSimple].style.display = 'block';
-
+    
+    // Agregar clase de transición al slide activo
+    const activeSlide = slides[newIndex];
+    if (activeSlide) {
+        activeSlide.classList.add('active', 'transitioning');
+    }
+    
+    // Calcular índices prev y next
+    let prevIndex = newIndex - 1;
+    let nextIndex = newIndex + 1;
+    
+    // Manejar bucle circular
+    if (prevIndex < 0) prevIndex = totalSlides - 1;
+    if (nextIndex >= totalSlides) nextIndex = 0;
+    
+    // Aplicar clases a slides prev y next
+    const prevSlide = slides[prevIndex];
+    const nextSlide = slides[nextIndex];
+    
+    if (prevSlide) prevSlide.classList.add('prev');
+    if (nextSlide) nextSlide.classList.add('next');
+    
+    // Actualizar indicadores
     indicadores.forEach((ind, index) => {
         ind.classList.remove('active');
-        if (index === slideIndexSimple) {
+        if (index === newIndex) {
             ind.classList.add('active');
         }
     });
+    
+    // Remover clase de transición después de la animación
+    setTimeout(() => {
+        if (activeSlide) {
+            activeSlide.classList.remove('transitioning');
+        }
+    }, 800);
+    
+    console.log(`🎯 Carrusel 3D: Slide ${oldIndex + 1} → ${newIndex + 1} (Total: ${totalSlides})`);
+}
 
-    console.log(`🖼️ Mostrando slide ${slideIndexSimple + 1} de ${slides.length}`);
-}           
-
-            function moverCarruselSimple(n) {
-                console.log(`➡️ Moviendo carrusel simple en ${n > 0 ? 'adelante' : 'atrás'}`);
-                slideIndexSimple += n;
-                mostrarSlideSimple(slideIndexSimple);
-                reiniciarCarruselAutomaticoSimple();
-            }
-
-           function irASlideSimple(n) {
-                console.log(`➡️ Navegando al slide ${n}`);
-                slideIndexSimple = n;
-                mostrarSlideSimple(slideIndexSimple);
-                reiniciarCarruselAutomaticoSimple();
-            }
-
-            function iniciarCarruselAutomaticoSimple() {
-    clearInterval(intervaloSimple);
-    intervaloSimple = setInterval(() => {
-        moverCarruselSimple(1);
+// Función para iniciar el movimiento automático del carrusel 3D
+function iniciarCarruselAutomatico3D() {
+    clearInterval(intervalo3D);
+    intervalo3D = setInterval(() => {
+        moverCarrusel3D(1);
     }, 5000);
-    console.log('⏱️ Carrusel automático iniciado (5s)');
+    console.log('⏱️ Carrusel 3D automático iniciado (5s)');
 }
 
-            function reiniciarCarruselAutomaticoSimple() {
-    console.log('🔄 Reiniciando carrusel automático');
-    clearInterval(intervaloSimple);
-    iniciarCarruselAutomaticoSimple();
+// Función para reiniciar el movimiento automático
+function reiniciarCarruselAutomatico3D() {
+    console.log('🔄 Reiniciando carrusel 3D automático');
+    clearInterval(intervalo3D);
+    iniciarCarruselAutomatico3D();
 }
 
-            document.addEventListener('DOMContentLoaded', () => {
-                console.log('📦 DOM cargado - Inicializando carrusel simple');
-                inicializarCarruselSimple();
-            });
+// Inicializar el carrusel 3D cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('📦 DOM cargado - Inicializando carrusel 3D');
+    inicializarCarrusel3D();
+});
 
-            function recargarCarrusel() {
-    console.log('🔄 Recargando carrusel...');
-    clearInterval(intervaloSimple);
-    slideIndexSimple = 0;
-    inicializarCarruselSimple();
+// Función para recargar el carrusel 3D
+function recargarCarrusel3D() {
+    console.log('🔄 Recargando carrusel 3D...');
+    clearInterval(intervalo3D);
+    currentSlide3D = 0;
+    inicializarCarrusel3D();
 }
-            
-window.inicializarCarruselSimple = inicializarCarruselSimple;
-window.moverCarruselSimple = moverCarruselSimple;
-window.irASlideSimple = irASlideSimple;
-window.recargarCarrusel = recargarCarrusel;
-// Inicializar variable global
-window.botonSeleccionadoActual = null;
+
+// Exportar funciones al scope global
+window.inicializarCarrusel3D = inicializarCarrusel3D;
+window.moverCarrusel3D = moverCarrusel3D;
+window.irASlide3D = irASlide3D;
+window.recargarCarrusel3D = recargarCarrusel3D;
+
 
 
             // ============ SISTEMA DE POLLING INTELIGENTE ============
