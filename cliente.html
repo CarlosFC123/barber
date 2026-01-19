@@ -1511,21 +1511,18 @@ h2 {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 20px; /* Espacio entre botones e imágenes */
     position: relative;
     width: 100%;
-    max-width: 1200px; /* Ajusta según necesites */
-    margin: 0 auto;
 }
+
 .carrusel-3d {
-    flex: 1; /* Ocupa el espacio disponible */
+    flex: 1;
     position: relative;
     width: 100%;
-    max-width: 900px; /* Ajusta según necesites */
-    height: 400px; /* Ajusta la altura según necesites */
+    height: 400px;
     overflow: hidden;
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    margin: 0 15px; /* Espacio para los botones */
 }
 
     .carrusel-3d-wrapper {
@@ -1647,7 +1644,8 @@ h2 {
     }
 
     /* Botones de navegación */
-    .carrusel-3d-nav {
+   .carrusel-3d-nav {
+    position: relative; /* No más absolute */
     background: rgba(212, 175, 55, 0.9);
     border: none;
     width: 50px;
@@ -1660,7 +1658,6 @@ h2 {
     transition: all 0.3s ease;
     z-index: 10;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-    flex-shrink: 0; /* Evita que se reduzcan */
 }
 
     .carrusel-3d:hover .carrusel-3d-nav {
@@ -1687,16 +1684,15 @@ h2 {
     }
 
     .carrusel-3d-nav:hover {
-    background: rgba(212, 175, 55, 1);
-    transform: scale(1.1);
-    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
-}
+        background: #d4af37;
+        transform: translateY(-50%) scale(1.1);
+        box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
+    }
 
     .carrusel-3d-nav svg {
-    width: 24px;
-    height: 24px;
-    stroke: #000;
-}
+        width: 24px;
+        height: 24px;
+    }
 
     /* Efectos de toque para móviles */
     .carrusel-3d-slide:active {
@@ -1716,24 +1712,17 @@ h2 {
 
     /* Responsive */
     @media (max-width: 768px) {
-        .carrusel-3d-container {
-        gap: 10px;
-    }
-
-       .carrusel-3d-nav svg {
-        width: 20px;
-        height: 20px;
-    }
-    
-    .carrusel-3d {
-        height: 300px;
-        max-width: 97%;
-    }
+        .carrusel-3d {
+            height: 300px;
+            max-width: 95%;
+        }
         
         .carrusel-3d-nav {
-        width: 40px;
-        height: 40px;
-    }
+            opacity: 0.7 !important;
+            visibility: visible !important;
+            width: 40px;
+            height: 40px;
+        }
         
         .carrusel-3d-nav.prev {
             left: 10px;
@@ -1754,9 +1743,6 @@ h2 {
     }
 
     @media (max-width: 480px) {
-        .carrusel-3d-container {
-        gap: 5px;
-    }
         .carrusel-3d {
             height: 250px;
         }
@@ -1774,10 +1760,6 @@ h2 {
             width: 35px;
             height: 35px;
         }
-        .carrusel-3d-nav svg {
-        width: 16px;
-        height: 16px;
-    }
         
         #carrusel-imagenes {
             padding: 15px;
