@@ -2762,6 +2762,7 @@ h2 {
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
+            cargarImagenesCarrusel();
         });
 
         async function initializeApp() {
@@ -3133,7 +3134,7 @@ function actualizarCarruselEnVivo() {
         
         
         // Cargar imágenes cuando el DOM esté listo
-        document.addEventListener('DOMContentLoaded', cargarImagenesCarrusel);
+        
         
         // Pausar auto-play cuando el usuario interactúe
         document.querySelector('.carrusel-simple').addEventListener('mouseenter', () => {
