@@ -2113,8 +2113,18 @@ h2 {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
-        });
+    initializeApp();
+    
+    // Inicializar carrusel después de que la app esté lista
+    setTimeout(() => {
+        if (typeof inicializarCarrusel3D === 'function') {
+            console.log('🎯 Inicializando carrusel 3D...');
+            inicializarCarrusel3D();
+        } else {
+            console.warn('⚠️ Función inicializarCarrusel3D no disponible aún');
+        }
+    }, 1000);
+});
 
         async function initializeApp() {
             try {
@@ -2576,7 +2586,7 @@ function generarHTMLCarrusel(imagenes) {
 }
 
            
-// Función para generar el HTML del carrusel 3D
+
 // Función para generar el HTML del carrusel 3D
 function generarHTMLCarrusel3D(imagenes) {
     const imagenesActivas = imagenes.filter(img => img.activo === true || img.activo === 'true');
@@ -2855,33 +2865,33 @@ function reiniciarCarruselAutomatico3D() {
 }
 
 // CORRIGE ESTA PARTE en la función verificarAutenticacion():
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('📦 DOM cargado completamente');
+// document.addEventListener('DOMContentLoaded', () => {
+//     console.log('📦 DOM cargado completamente');
     
-    // Verifica que exista el contenedor del carrusel 3D
-    const carruselContainer = document.getElementById('carrusel3D');
-    if (carruselContainer) {
-        console.log('✅ Contenedor carrusel3D encontrado');
+//     // Verifica que exista el contenedor del carrusel 3D
+//     const carruselContainer = document.getElementById('carrusel3D');
+//     if (carruselContainer) {
+//         console.log('✅ Contenedor carrusel3D encontrado');
         
-        // Espera a que la función esté disponible
-        if (typeof inicializarCarrusel3D === 'function') {
-            console.log('✅ Función inicializarCarrusel3D disponible, inicializando...');
-            inicializarCarrusel3D();
-        } else {
-            console.log('⚠️ Función no disponible aún, intentando en 1 segundo...');
-            setTimeout(() => {
-                if (typeof inicializarCarrusel3D === 'function') {
-                    inicializarCarrusel3D();
-                } else {
-                    console.error('❌ Función inicializarCarrusel3D nunca se definió');
-                    crearCarrusel3DDeEmergencia();
-                }
-            }, 1000);
-        }
-    } else {
-        console.error('❌ No se encontró el contenedor carrusel3D');
-    }
-});
+//         // Espera a que la función esté disponible
+//         if (typeof inicializarCarrusel3D === 'function') {
+//             console.log('✅ Función inicializarCarrusel3D disponible, inicializando...');
+//             inicializarCarrusel3D();
+//         } else {
+//             console.log('⚠️ Función no disponible aún, intentando en 1 segundo...');
+//             setTimeout(() => {
+//                 if (typeof inicializarCarrusel3D === 'function') {
+//                     inicializarCarrusel3D();
+//                 } else {
+//                     console.error('❌ Función inicializarCarrusel3D nunca se definió');
+//                     crearCarrusel3DDeEmergencia();
+//                 }
+//             }, 1000);
+//         }
+//     } else {
+//         console.error('❌ No se encontró el contenedor carrusel3D');
+//     }
+// });
 
 // Función para recargar el carrusel 3D
 function recargarCarrusel3D() {
