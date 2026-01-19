@@ -1923,29 +1923,16 @@ h2 {
         <button class="carrusel-btn prev" id="prevBtn">❮</button>
         <button class="carrusel-btn next" id="nextBtn">❯</button>
         
-        <div class="carrusel-imagenes-wrapper">
-            <div class="carrusel-track">
-                <div class="carrusel-img active">
-                    <img src="img/1.jpg" alt="Imagen 1">
-                </div>
-                <div class="carrusel-img">
-                    <img src="img/3.jpg" alt="Imagen 3">
-                </div>
-                <div class="carrusel-img">
-                    <img src="img/4.jpg" alt="Imagen 4">
-                </div>
-                <div class="carrusel-img">
-                    <img src="img/5.jpg" alt="Imagen 5">
-                </div>
+        <!-- Contenedor donde se insertarán las imágenes dinámicamente -->
+        <div class="carrusel-imagenes-wrapper" id="carruselContainer">
+            <div class="carrusel-track" id="carruselTrack">
+                <!-- Las imágenes se generarán aquí -->
             </div>
         </div>
         
+        <!-- Los indicadores también se generarán dinámicamente -->
         <div class="carrusel-indicadores" id="indicadoresContainer">
-            <span class="indicador active" data-index="0"></span>
-            <span class="indicador" data-index="1"></span>
-            <span class="indicador" data-index="2"></span>
-            <span class="indicador" data-index="3"></span>
-            <span class="indicador" data-index="4"></span>
+            <!-- Se generarán dinámicamente -->
         </div>
     </div>
 </div>
@@ -2014,6 +2001,7 @@ h2 {
             let pollingActivo = false;
             let slideIndexSimple = 0;
             let intervaloSimple;
+            let imagenesCarrusel = [];
 
             // Control de clics múltiples
             let reservasEnProgreso = new Map(); // {fecha_hora: true} para evitar dobles clics
@@ -2309,30 +2297,118 @@ function verificarUsuarioActivo() {
                 }
             }
 
-            function inicializarCarruselSimple() {
+            async function obtenerImagenesCarrusel() {
+    try {
+        // Aquí debes hacer la llamada a tu API que obtiene los datos de carrusel_imagenes
+        // Ejemplo con fetch:
+        const response = await fetch('/api/carrusel-imagenes'); // Cambia esta URL por tu endpoint real
+        if (!response.ok) {
+            throw new Error('Error al obtener imágenes del carrusel');
+        }
+        
+        const data = await response.json();
+        console.log('📷 Imágenes obtenidas:', data);
+        
+        // Ordenar por el campo 'orden'
+        imagenesCarrusel = data.sort((a, b) => a.orden - b.orden);
+        
+        return imagenesCarrusel;
+        
+    } catch (error) {
+        console.error('❌ Error obteniendo imágenes:', error);
+        // Puedes usar imágenes por defecto si falla
+        return obtenerImagenesPorDefecto();
+    }
+}
+
+// Función de respaldo con imágenes por defecto
+function obtenerImagenesPorDefecto() {
+    return [
+        { id: 'default-1', url_imagen: 'img/1.jpg', nombre_archivo: '1.jpg', descripcion: '', orden: 1, activo: true },
+        { id: 'default-2', url_imagen: 'img/3.jpg', nombre_archivo: '3.jpg', descripcion: '', orden: 2, activo: true },
+        { id: 'default-3', url_imagen: 'img/4.jpg', nombre_archivo: '4.jpg', descripcion: '', orden: 3, activo: true },
+        { id: 'default-4', url_imagen: 'img/5.jpg', nombre_archivo: '5.jpg', descripcion: '', orden: 4, activo: true }
+    ];
+}
+
+// Función para generar el HTML del carrusel
+function generarHTMLCarrusel(imagenes) {
+    // Filtrar solo las imágenes activas
+    const imagenesActivas = imagenes.filter(img => img.activo === true || img.activo === 'true');
+    
+    if (imagenesActivas.length === 0) {
+        console.warn('⚠️ No hay imágenes activas en el carrusel');
+        return;
+    }
+    
+    // Generar slides
+    const carruselTrack = document.getElementById('carruselTrack');
+    carruselTrack.innerHTML = '';
+    
+    imagenesActivas.forEach((imagen, index) => {
+        const slideHTML = `
+            <div class="carrusel-img ${index === 0 ? 'active' : ''}" data-id="${imagen.id}">
+                <img src="${imagen.url_imagen}" 
+                     alt="${imagen.descripcion || 'Imagen del carrusel'}"
+                     title="${imagen.nombre_archivo}"
+                     onerror="this.src='img/default-image.jpg'">
+            </div>
+        `;
+        carruselTrack.innerHTML += slideHTML;
+    });
+    
+    // Generar indicadores
+    const indicadoresContainer = document.getElementById('indicadoresContainer');
+    indicadoresContainer.innerHTML = '';
+    
+    imagenesActivas.forEach((_, index) => {
+        const indicadorHTML = `
+            <span class="indicador ${index === 0 ? 'active' : ''}" data-index="${index}"></span>
+        `;
+        indicadoresContainer.innerHTML += indicadorHTML;
+    });
+    
+    console.log(`🖼️ Carrusel generado con ${imagenesActivas.length} imágenes`);
+}
+
+            async function inicializarCarruselSimple() {
     console.log('🖼️ Inicializando carrusel simple...');
-    mostrarSlideSimple(slideIndexSimple);
     
-    // Configurar botones
-    document.getElementById('prevBtn').addEventListener('click', () => {
-        moverCarruselSimple(-1);
-    });
+    // 1. Obtener imágenes de la base de datos
+    const imagenes = await obtenerImagenesCarrusel();
     
-    document.getElementById('nextBtn').addEventListener('click', () => {
-        moverCarruselSimple(1);
-    });
+    // 2. Generar el HTML dinámicamente
+    generarHTMLCarrusel(imagenes);
     
-    // Configurar indicadores
-    document.querySelectorAll('.indicador').forEach((indicador, index) => {
-        indicador.addEventListener('click', () => {
-            irASlideSimple(index);
+    // 3. Configurar controles
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+            moverCarruselSimple(-1);
         });
-    });
+    }
     
-    // Iniciar movimiento automático
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+            moverCarruselSimple(1);
+        });
+    }
+    
+    // 4. Configurar indicadores (se deben volver a configurar después de generar el HTML)
+    setTimeout(() => {
+        document.querySelectorAll('.indicador').forEach((indicador, index) => {
+            indicador.addEventListener('click', () => {
+                irASlideSimple(index);
+            });
+        });
+    }, 100);
+    
+    // 5. Iniciar movimiento automático
     iniciarCarruselAutomaticoSimple();
     
-    // Pausar al pasar el mouse
+    // 6. Configurar eventos de pausa
     const carrusel = document.querySelector('.carrusel-simple');
     if (carrusel) {
         carrusel.addEventListener('mouseenter', () => {
@@ -2353,45 +2429,40 @@ function verificarUsuarioActivo() {
     }
 }
 
-            function mostrarSlideSimple(n) {
-                const slides = document.querySelectorAll('.carrusel-img');
-                const indicadores = document.querySelectorAll('.carrusel-indicadores .indicador');
-                
-                if (slides.length === 0) 
-                {
-                    console.error('No se encontraron slides en el carrusel');
-                    return;
+           function mostrarSlideSimple(n) {
+    const slides = document.querySelectorAll('.carrusel-img');
+    const indicadores = document.querySelectorAll('.carrusel-indicadores .indicador');
+    
+    if (slides.length === 0) {
+        console.error('No se encontraron slides en el carrusel');
+        return;
+    }
 
-                }
+    if (n >= slides.length) {
+        slideIndexSimple = 0;
+    } else if (n < 0) {
+        slideIndexSimple = slides.length - 1;
+    } else {
+        slideIndexSimple = n;
+    }
 
-                if (n >= slides.length) {
-                    slideIndexSimple = 0;
-                } else if (n < 0) {
-                    slideIndexSimple = slides.length - 1;
-                }else {
-                    slideIndexSimple = n;
-                }
+    slides.forEach(slide => {
+        slide.classList.remove('active');
+        slide.style.display = 'none';
+    });
 
-                slides.forEach(slide => {
-                    slide.classList.remove('active');
-                    slide.style.display = 'none';
-                });
+    slides[slideIndexSimple].classList.add('active');
+    slides[slideIndexSimple].style.display = 'block';
 
-                slides[slideIndexSimple].classList.add('active');
-                slides[slideIndexSimple].style.display = 'block';
+    indicadores.forEach((ind, index) => {
+        ind.classList.remove('active');
+        if (index === slideIndexSimple) {
+            ind.classList.add('active');
+        }
+    });
 
-                
-                indicadores.forEach((ind, index) => {
-                    ind.classList.remove('active');
-                    if (index === slideIndexSimple) {
-                        ind.classList.add('active');
-                    }
-                });
-
-                console.log(`🖼️ Mostrando slide ${slideIndexSimple + 1} de ${slides.length}`);
-            }
-
-            
+    console.log(`🖼️ Mostrando slide ${slideIndexSimple + 1} de ${slides.length}`);
+}           
 
             function moverCarruselSimple(n) {
                 console.log(`➡️ Moviendo carrusel simple en ${n > 0 ? 'adelante' : 'atrás'}`);
@@ -2400,7 +2471,7 @@ function verificarUsuarioActivo() {
                 reiniciarCarruselAutomaticoSimple();
             }
 
-            function irASlideSimple(n) {
+           function irASlideSimple(n) {
                 console.log(`➡️ Navegando al slide ${n}`);
                 slideIndexSimple = n;
                 mostrarSlideSimple(slideIndexSimple);
@@ -2408,27 +2479,35 @@ function verificarUsuarioActivo() {
             }
 
             function iniciarCarruselAutomaticoSimple() {
-                clearInterval(intervaloSimple);
-                intervaloSimple = setInterval(() => {
-                    moverCarruselSimple(1);
-                }, 5000); // Cambiar cada 5 segundos
-                console.log('⏱️ Carrusel automático iniciado (5s)');
-            }
+    clearInterval(intervaloSimple);
+    intervaloSimple = setInterval(() => {
+        moverCarruselSimple(1);
+    }, 5000);
+    console.log('⏱️ Carrusel automático iniciado (5s)');
+}
 
             function reiniciarCarruselAutomaticoSimple() {
-                console.log('🔄 Reiniciando carrusel automático');
-                clearInterval(intervaloSimple);
-                iniciarCarruselAutomaticoSimple();
-            }
+    console.log('🔄 Reiniciando carrusel automático');
+    clearInterval(intervaloSimple);
+    iniciarCarruselAutomaticoSimple();
+}
 
             document.addEventListener('DOMContentLoaded', () => {
                 console.log('📦 DOM cargado - Inicializando carrusel simple');
                 inicializarCarruselSimple();
             });
+
+            function recargarCarrusel() {
+    console.log('🔄 Recargando carrusel...');
+    clearInterval(intervaloSimple);
+    slideIndexSimple = 0;
+    inicializarCarruselSimple();
+}
             
 window.inicializarCarruselSimple = inicializarCarruselSimple;
 window.moverCarruselSimple = moverCarruselSimple;
 window.irASlideSimple = irASlideSimple;
+window.recargarCarrusel = recargarCarrusel;
 // Inicializar variable global
 window.botonSeleccionadoActual = null;
 
