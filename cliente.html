@@ -1506,19 +1506,27 @@ h2 {
 /* =========================================== */
 /* CARRUSEL SIMPLE DE IMÁGENES */
 /* =========================================== */
+
+.carrusel-3d-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px; /* Espacio entre botones e imágenes */
+    position: relative;
+    width: 100%;
+    max-width: 1200px; /* Ajusta según necesites */
+    margin: 0 auto;
+}
 .carrusel-3d {
-        position: relative;
-        max-width: 800px;
-        height: 400px;
-        margin: 0 auto;
-        perspective: 1500px;
-        overflow: hidden;
-        border-radius: 16px;
-        background: #000;
-        touch-action: pan-y;
-        user-select: none;
-        -webkit-user-select: none;
-    }
+    flex: 1; /* Ocupa el espacio disponible */
+    position: relative;
+    width: 100%;
+    max-width: 900px; /* Ajusta según necesites */
+    height: 400px; /* Ajusta la altura según necesites */
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
 
     .carrusel-3d-wrapper {
         width: 100%;
@@ -1640,25 +1648,20 @@ h2 {
 
     /* Botones de navegación */
     .carrusel-3d-nav {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        background: rgba(212, 175, 55, 0.8);
-        color: #000;
-        border: none;
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        font-size: 20px;
-        cursor: pointer;
-        z-index: 10;
-        transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        visibility: hidden;
-    }
+    background: rgba(212, 175, 55, 0.9);
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 10;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    flex-shrink: 0; /* Evita que se reduzcan */
+}
 
     .carrusel-3d:hover .carrusel-3d-nav {
         opacity: 1;
@@ -1684,15 +1687,16 @@ h2 {
     }
 
     .carrusel-3d-nav:hover {
-        background: #d4af37;
-        transform: translateY(-50%) scale(1.1);
-        box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
-    }
+    background: rgba(212, 175, 55, 1);
+    transform: scale(1.1);
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+}
 
     .carrusel-3d-nav svg {
-        width: 24px;
-        height: 24px;
-    }
+    width: 24px;
+    height: 24px;
+    stroke: #000;
+}
 
     /* Efectos de toque para móviles */
     .carrusel-3d-slide:active {
@@ -1712,17 +1716,24 @@ h2 {
 
     /* Responsive */
     @media (max-width: 768px) {
-        .carrusel-3d {
-            height: 300px;
-            max-width: 95%;
-        }
+        .carrusel-3d-container {
+        gap: 10px;
+    }
+
+       .carrusel-3d-nav svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .carrusel-3d {
+        height: 300px;
+        max-width: 97%;
+    }
         
         .carrusel-3d-nav {
-            opacity: 0.7 !important;
-            visibility: visible !important;
-            width: 40px;
-            height: 40px;
-        }
+        width: 40px;
+        height: 40px;
+    }
         
         .carrusel-3d-nav.prev {
             left: 10px;
@@ -1743,6 +1754,9 @@ h2 {
     }
 
     @media (max-width: 480px) {
+        .carrusel-3d-container {
+        gap: 5px;
+    }
         .carrusel-3d {
             height: 250px;
         }
@@ -1760,6 +1774,10 @@ h2 {
             width: 35px;
             height: 35px;
         }
+        .carrusel-3d-nav svg {
+        width: 16px;
+        height: 16px;
+    }
         
         #carrusel-imagenes {
             padding: 15px;
@@ -2081,26 +2099,31 @@ h2 {
                 <!-- Carrusel de Imágenes -->
 <div id="carrusel-imagenes" style="margin-top: 40px; padding: 20px; background: rgba(26, 26, 26, 0.8); border-radius: 12px; border: 1px solid #333;">
     
-    <!-- EL ID DEBE SER 'carrusel3D' (igual que en JavaScript) -->
-    <div class="carrusel-3d" id="carrusel3D">
-        <!-- Contenedor 3D donde se insertarán las imágenes -->
-        <div class="carrusel-3d-wrapper" id="carrusel3DWrapper">
-            <div class="carrusel-3d-track" id="carrusel3DTrack">
-                <!-- Las imágenes se generarán aquí dinámicamente -->
-            </div>
-        </div>
+    <!-- Contenedor principal que incluye botones e imágenes -->
+    <div class="carrusel-3d-container" id="carrusel3DContainer">
         
-        <!-- Indicadores circulares -->
-        <div class="carrusel-3d-indicadores" id="indicadores3DContainer">
-            <!-- Se generarán dinámicamente -->
-        </div>
-        
-        <!-- Flechas de navegación -->
+        <!-- Botón izquierdo FUERA del contenedor de imágenes -->
         <button class="carrusel-3d-nav prev" id="prevBtn3D">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M15 18l-6-6 6-6"/>
             </svg>
         </button>
+        
+        <!-- Contenedor de imágenes -->
+        <div class="carrusel-3d" id="carrusel3D">
+            <div class="carrusel-3d-wrapper" id="carrusel3DWrapper">
+                <div class="carrusel-3d-track" id="carrusel3DTrack">
+                    <!-- Las imágenes se generarán aquí dinámicamente -->
+                </div>
+            </div>
+            
+            <!-- Indicadores circulares -->
+            <div class="carrusel-3d-indicadores" id="indicadores3DContainer">
+                <!-- Se generarán dinámicamente -->
+            </div>
+        </div>
+        
+        <!-- Botón derecho FUERA del contenedor de imágenes -->
         <button class="carrusel-3d-nav next" id="nextBtn3D">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 18l6-6-6-6"/>
@@ -2864,34 +2887,7 @@ function reiniciarCarruselAutomatico3D() {
     iniciarCarruselAutomatico3D();
 }
 
-// CORRIGE ESTA PARTE en la función verificarAutenticacion():
-// document.addEventListener('DOMContentLoaded', () => {
-//     console.log('📦 DOM cargado completamente');
-    
-//     // Verifica que exista el contenedor del carrusel 3D
-//     const carruselContainer = document.getElementById('carrusel3D');
-//     if (carruselContainer) {
-//         console.log('✅ Contenedor carrusel3D encontrado');
-        
-//         // Espera a que la función esté disponible
-//         if (typeof inicializarCarrusel3D === 'function') {
-//             console.log('✅ Función inicializarCarrusel3D disponible, inicializando...');
-//             inicializarCarrusel3D();
-//         } else {
-//             console.log('⚠️ Función no disponible aún, intentando en 1 segundo...');
-//             setTimeout(() => {
-//                 if (typeof inicializarCarrusel3D === 'function') {
-//                     inicializarCarrusel3D();
-//                 } else {
-//                     console.error('❌ Función inicializarCarrusel3D nunca se definió');
-//                     crearCarrusel3DDeEmergencia();
-//                 }
-//             }, 1000);
-//         }
-//     } else {
-//         console.error('❌ No se encontró el contenedor carrusel3D');
-//     }
-// });
+
 
 // Función para recargar el carrusel 3D
 function recargarCarrusel3D() {
