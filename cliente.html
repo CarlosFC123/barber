@@ -2299,24 +2299,24 @@ function verificarUsuarioActivo() {
 
             async function obtenerImagenesCarrusel() {
     try {
-        // Aquí debes hacer la llamada a tu API que obtiene los datos de carrusel_imagenes
-        // Ejemplo con fetch:
-        const response = await fetch('/api/carrusel-imagenes'); // Cambia esta URL por tu endpoint real
-        if (!response.ok) {
-            throw new Error('Error al obtener imágenes del carrusel');
+        console.log('📷 Obteniendo imágenes desde Supabase...');
+        
+        const { data: imagenes, error } = await supabase
+            .from('carrusel_imagenes')  // Nombre de tu tabla en Supabase
+            .select('*')
+            .eq('activo', true)
+            .order('orden', { ascending: true });
+            
+        if (error) {
+            console.error('❌ Error obteniendo imágenes desde Supabase:', error);
+            return obtenerImagenesPorDefecto();
         }
         
-        const data = await response.json();
-        console.log('📷 Imágenes obtenidas:', data);
-        
-        // Ordenar por el campo 'orden'
-        imagenesCarrusel = data.sort((a, b) => a.orden - b.orden);
-        
-        return imagenesCarrusel;
+        console.log('✅ Imágenes obtenidas desde Supabase:', imagenes);
+        return imagenes || obtenerImagenesPorDefecto();
         
     } catch (error) {
         console.error('❌ Error obteniendo imágenes:', error);
-        // Puedes usar imágenes por defecto si falla
         return obtenerImagenesPorDefecto();
     }
 }
