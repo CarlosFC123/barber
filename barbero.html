@@ -2793,7 +2793,16 @@ h2 {
         showAlert('Error al cargar la configuración', 'error');
     }
 }
-
+function showAlert(message, type = 'error') {
+                const alertDiv = document.getElementById('alert');
+                alertDiv.textContent = message;
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.style.display = 'block';
+                
+                setTimeout(() => {
+                    alertDiv.style.display = 'none';
+                }, 5000);
+            }
         function startApplication(supabase) {
             // ============ VARIABLES GLOBALES ============
             let usuarioActual = null;
@@ -2910,16 +2919,7 @@ h2 {
 
             // ============ FUNCIONES DE UTILIDAD ============
 
-            function showAlert(message, type = 'error') {
-                const alertDiv = document.getElementById('alert');
-                alertDiv.textContent = message;
-                alertDiv.className = `alert alert-${type}`;
-                alertDiv.style.display = 'block';
-                
-                setTimeout(() => {
-                    alertDiv.style.display = 'none';
-                }, 5000);
-            }
+            
 
             function formatDate(date) {
                 const año = date.getFullYear();
