@@ -2945,193 +2945,7 @@ function configurarEventosCarrusel() {
     }
 }
 
-// Función para subir una nueva imagen al carrusel (solo para admin)
-async function subirImagenCarrusel(archivo, descripcion = '') {
-    try {
-        if (!usuarioActual) {
-            throw new Error('Usuario no autenticado');
-        }
-        
-        // Verificar si el usuario es admin
-        const { data: userData, error: userError } = await supabase
-            .from('clientes')
-            .select('rol')
-            .eq('id', usuarioActual.id)
-            .single();
-            
-        if (userError || userData?.rol !== 'admin') {
-            throw new Error('Solo los administradores pueden subir imágenes');
-        }
-        
-        // Generar nombre único para el archivo
-        const timestamp = Date.now();
-        const nombreArchivo = `carrusel_${timestamp}_${archivo.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-        const rutaStorage = `carrusel-imagenes/${nombreArchivo}`;
-        
-        // Subir al storage de Supabase
-        const { error: uploadError } = await supabase.storage
-            .from('carrusel-imagenes')
-            .upload(rutaStorage, archivo);
-            
-        if (uploadError) throw uploadError;
-        
-        // Obtener la URL pública (o firmada)
-        const { data: urlData } = supabase.storage
-            .from('carrusel-imagenes')
-            .getPublicUrl(rutaStorage);
-        
-        // Obtener el último orden para poner la nueva imagen al final
-        const { data: ultimaImagen } = await supabase
-            .from('carrusel_imagenes')
-            .select('orden')
-            .order('orden', { ascending: false })
-            .limit(1)
-            .single();
-        
-        const nuevoOrden = (ultimaImagen?.orden || 0) + 1;
-        
-        // Insertar en la tabla carrusel_imagenes
-        const { data: nuevaImagen, error: insertError } = await supabase
-            .from('carrusel_imagenes')
-            .insert([{
-                url_imagen: rutaStorage,
-                nombre_archivo: archivo.name,
-                descripcion: descripcion,
-                orden: nuevoOrden,
-                activo: true
-            }])
-            .select()
-            .single();
-            
-        if (insertError) throw insertError;
-        
-        console.log('✅ Imagen subida exitosamente:', nuevaImagen);
-        
-        // Recargar el carrusel
-        await cargarImagenesCarrusel();
-        
-        return {
-            success: true,
-            imagen: nuevaImagen,
-            message: 'Imagen agregada al carrusel exitosamente'
-        };
-        
-    } catch (error) {
-        console.error('❌ Error subiendo imagen:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-}
 
-// Función para eliminar una imagen del carrusel (solo para admin)
-async function eliminarImagenCarrusel(imagenId) {
-    try {
-        if (!usuarioActual) {
-            throw new Error('Usuario no autenticado');
-        }
-        
-        // Verificar si el usuario es admin
-        const { data: userData, error: userError } = await supabase
-            .from('clientes')
-            .select('rol')
-            .eq('id', usuarioActual.id)
-            .single();
-            
-        if (userError || userData?.rol !== 'admin') {
-            throw new Error('Solo los administradores pueden eliminar imágenes');
-        }
-        
-        // Obtener la información de la imagen
-        const { data: imagen, error: fetchError } = await supabase
-            .from('carrusel_imagenes')
-            .select('*')
-            .eq('id', imagenId)
-            .single();
-            
-        if (fetchError) throw fetchError;
-        
-        // Eliminar del storage
-        if (imagen.url_imagen) {
-            const { error: storageError } = await supabase.storage
-                .from('carrusel-imagenes')
-                .remove([imagen.url_imagen]);
-                
-            if (storageError) {
-                console.warn('⚠️ No se pudo eliminar del storage:', storageError);
-                // Continuar aunque falle la eliminación del storage
-            }
-        }
-        
-        // Eliminar de la base de datos
-        const { error: deleteError } = await supabase
-            .from('carrusel_imagenes')
-            .delete()
-            .eq('id', imagenId);
-            
-        if (deleteError) throw deleteError;
-        
-        console.log('✅ Imagen eliminada exitosamente:', imagenId);
-        
-        // Recargar el carrusel
-        await cargarImagenesCarrusel();
-        
-        return {
-            success: true,
-            message: 'Imagen eliminada exitosamente'
-        };
-        
-    } catch (error) {
-        console.error('❌ Error eliminando imagen:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-}
-
-// Agrega estos estilos CSS para el carrusel mejorado
-const carruselStyles = `
-/* Estilos para el caption del carrusel */
-.carrusel-caption {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-    color: white;
-    padding: 20px;
-    text-align: center;
-    font-size: 16px;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.carrusel-img:hover .carrusel-caption {
-    opacity: 1;
-}
-
-/* Mejoras responsive */
-@media (max-width: 768px) {
-    .carrusel-caption {
-        font-size: 14px;
-        padding: 15px;
-    }
-}
-
-@media (max-width: 480px) {
-    .carrusel-caption {
-        font-size: 12px;
-        padding: 10px;
-    }
-}
-`;
-
-// Inyectar los estilos
-const styleElement = document.createElement('style');
-styleElement.textContent = carruselStyles;
-document.head.appendChild(styleElement);
 
 
        async function initializeApp() {
@@ -3362,6 +3176,194 @@ setTimeout(() => {
                 return cache;
             }
 
+
+            // Función para subir una nueva imagen al carrusel (solo para admin)
+async function subirImagenCarrusel(archivo, descripcion = '') {
+    try {
+        if (!usuarioActual) {
+            throw new Error('Usuario no autenticado');
+        }
+        
+        // Verificar si el usuario es admin
+        const { data: userData, error: userError } = await supabase
+            .from('clientes')
+            .select('rol')
+            .eq('id', usuarioActual.id)
+            .single();
+            
+        if (userError || userData?.rol !== 'admin') {
+            throw new Error('Solo los administradores pueden subir imágenes');
+        }
+        
+        // Generar nombre único para el archivo
+        const timestamp = Date.now();
+        const nombreArchivo = `carrusel_${timestamp}_${archivo.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+        const rutaStorage = `carrusel-imagenes/${nombreArchivo}`;
+        
+        // Subir al storage de Supabase
+        const { error: uploadError } = await supabase.storage
+            .from('carrusel-imagenes')
+            .upload(rutaStorage, archivo);
+            
+        if (uploadError) throw uploadError;
+        
+        // Obtener la URL pública (o firmada)
+        const { data: urlData } = supabase.storage
+            .from('carrusel-imagenes')
+            .getPublicUrl(rutaStorage);
+        
+        // Obtener el último orden para poner la nueva imagen al final
+        const { data: ultimaImagen } = await supabase
+            .from('carrusel_imagenes')
+            .select('orden')
+            .order('orden', { ascending: false })
+            .limit(1)
+            .single();
+        
+        const nuevoOrden = (ultimaImagen?.orden || 0) + 1;
+        
+        // Insertar en la tabla carrusel_imagenes
+        const { data: nuevaImagen, error: insertError } = await supabase
+            .from('carrusel_imagenes')
+            .insert([{
+                url_imagen: rutaStorage,
+                nombre_archivo: archivo.name,
+                descripcion: descripcion,
+                orden: nuevoOrden,
+                activo: true
+            }])
+            .select()
+            .single();
+            
+        if (insertError) throw insertError;
+        
+        console.log('✅ Imagen subida exitosamente:', nuevaImagen);
+        
+        // Recargar el carrusel
+        await cargarImagenesCarrusel();
+        
+        return {
+            success: true,
+            imagen: nuevaImagen,
+            message: 'Imagen agregada al carrusel exitosamente'
+        };
+        
+    } catch (error) {
+        console.error('❌ Error subiendo imagen:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// Función para eliminar una imagen del carrusel (solo para admin)
+async function eliminarImagenCarrusel(imagenId) {
+    try {
+        if (!usuarioActual) {
+            throw new Error('Usuario no autenticado');
+        }
+        
+        // Verificar si el usuario es admin
+        const { data: userData, error: userError } = await supabase
+            .from('clientes')
+            .select('rol')
+            .eq('id', usuarioActual.id)
+            .single();
+            
+        if (userError || userData?.rol !== 'admin') {
+            throw new Error('Solo los administradores pueden eliminar imágenes');
+        }
+        
+        // Obtener la información de la imagen
+        const { data: imagen, error: fetchError } = await supabase
+            .from('carrusel_imagenes')
+            .select('*')
+            .eq('id', imagenId)
+            .single();
+            
+        if (fetchError) throw fetchError;
+        
+        // Eliminar del storage
+        if (imagen.url_imagen) {
+            const { error: storageError } = await supabase.storage
+                .from('carrusel-imagenes')
+                .remove([imagen.url_imagen]);
+                
+            if (storageError) {
+                console.warn('⚠️ No se pudo eliminar del storage:', storageError);
+                // Continuar aunque falle la eliminación del storage
+            }
+        }
+        
+        // Eliminar de la base de datos
+        const { error: deleteError } = await supabase
+            .from('carrusel_imagenes')
+            .delete()
+            .eq('id', imagenId);
+            
+        if (deleteError) throw deleteError;
+        
+        console.log('✅ Imagen eliminada exitosamente:', imagenId);
+        
+        // Recargar el carrusel
+        await cargarImagenesCarrusel();
+        
+        return {
+            success: true,
+            message: 'Imagen eliminada exitosamente'
+        };
+        
+    } catch (error) {
+        console.error('❌ Error eliminando imagen:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// Agrega estos estilos CSS para el carrusel mejorado
+const carruselStyles = `
+/* Estilos para el caption del carrusel */
+.carrusel-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    color: white;
+    padding: 20px;
+    text-align: center;
+    font-size: 16px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.carrusel-img:hover .carrusel-caption {
+    opacity: 1;
+}
+
+/* Mejoras responsive */
+@media (max-width: 768px) {
+    .carrusel-caption {
+        font-size: 14px;
+        padding: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .carrusel-caption {
+        font-size: 12px;
+        padding: 10px;
+    }
+}
+`;
+
+// Inyectar los estilos
+const styleElement = document.createElement('style');
+styleElement.textContent = carruselStyles;
+document.head.appendChild(styleElement);
 
             // Configurar el dropdown del perfil
 function configurarDropdownPerfil() {
