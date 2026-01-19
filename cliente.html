@@ -2502,6 +2502,38 @@ function obtenerImagenesPorDefecto() {
         { id: 'default-4', url_imagen: 'img/5.jpg', nombre_archivo: '5.jpg', descripcion: '', orden: 4, activo: true }
     ];
 }
+ async function inicializarCarrusel3D() {
+    console.log('🖼️ Inicializando carrusel 3D con gestos táctiles...');
+    
+    // 1. Obtener imágenes de la base de datos
+    const imagenes = await obtenerImagenesCarrusel();
+    
+    // 2. Generar el HTML dinámicamente
+    generarHTMLCarrusel3D(imagenes);
+    
+    // 3. Configurar navegación
+    configurarNavegacionCarrusel3D();
+    
+    // 4. Configurar gestos táctiles
+    configurarGestosTactilesCarrusel3D();
+    
+    // 5. Iniciar movimiento automático
+    iniciarCarruselAutomatico3D();
+    
+    // 6. Configurar eventos de pausa
+    const carrusel = document.querySelector('.carrusel-3d');
+    if (carrusel) {
+        carrusel.addEventListener('mouseenter', () => {
+            clearInterval(intervalo3D);
+        });
+        
+        carrusel.addEventListener('mouseleave', () => {
+            iniciarCarruselAutomatico3D();
+        });
+    }
+    
+    console.log('✅ Carrusel 3D inicializado');
+}
 
 // Función para generar el HTML del carrusel
 function generarHTMLCarrusel(imagenes) {
@@ -2543,39 +2575,7 @@ function generarHTMLCarrusel(imagenes) {
     console.log(`🖼️ Carrusel generado con ${imagenesActivas.length} imágenes`);
 }
 
-            async function inicializarCarrusel3D() {
-    console.log('🖼️ Inicializando carrusel 3D con gestos táctiles...');
-    
-    // 1. Obtener imágenes de la base de datos
-    const imagenes = await obtenerImagenesCarrusel();
-    
-    // 2. Generar el HTML dinámicamente
-    generarHTMLCarrusel3D(imagenes);
-    
-    // 3. Configurar navegación
-    configurarNavegacionCarrusel3D();
-    
-    // 4. Configurar gestos táctiles
-    configurarGestosTactilesCarrusel3D();
-    
-    // 5. Iniciar movimiento automático
-    iniciarCarruselAutomatico3D();
-    
-    // 6. Configurar eventos de pausa
-    const carrusel = document.querySelector('.carrusel-3d');
-    if (carrusel) {
-        carrusel.addEventListener('mouseenter', () => {
-            clearInterval(intervalo3D);
-        });
-        
-        carrusel.addEventListener('mouseleave', () => {
-            iniciarCarruselAutomatico3D();
-        });
-    }
-    
-    console.log('✅ Carrusel 3D inicializado');
-}
-
+           
 // Función para generar el HTML del carrusel 3D
 // Función para generar el HTML del carrusel 3D
 function generarHTMLCarrusel3D(imagenes) {
@@ -2854,19 +2854,32 @@ function reiniciarCarruselAutomatico3D() {
     iniciarCarruselAutomatico3D();
 }
 
+// CORRIGE ESTA PARTE en la función verificarAutenticacion():
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📦 DOM cargado completamente');
     
     // Verifica que exista el contenedor del carrusel 3D
     const carruselContainer = document.getElementById('carrusel3D');
     if (carruselContainer) {
-        console.log('✅ Contenedor carrusel3D encontrado, inicializando...');
-        inicializarCarrusel3D();
+        console.log('✅ Contenedor carrusel3D encontrado');
+        
+        // Espera a que la función esté disponible
+        if (typeof inicializarCarrusel3D === 'function') {
+            console.log('✅ Función inicializarCarrusel3D disponible, inicializando...');
+            inicializarCarrusel3D();
+        } else {
+            console.log('⚠️ Función no disponible aún, intentando en 1 segundo...');
+            setTimeout(() => {
+                if (typeof inicializarCarrusel3D === 'function') {
+                    inicializarCarrusel3D();
+                } else {
+                    console.error('❌ Función inicializarCarrusel3D nunca se definió');
+                    crearCarrusel3DDeEmergencia();
+                }
+            }, 1000);
+        }
     } else {
         console.error('❌ No se encontró el contenedor carrusel3D');
-        console.log('Elementos encontrados en DOM:');
-        console.log('- carrusel3D:', document.getElementById('carrusel3D'));
-        console.log('- carrusel-imagenes:', document.getElementById('carrusel-imagenes'));
     }
 });
 
