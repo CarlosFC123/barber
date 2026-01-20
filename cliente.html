@@ -1638,6 +1638,12 @@ h2 {
         transform: scale(1.2);
     }
 
+.sunday-disabled {
+    background-color: #f8f9fa;
+    color: #dc3545 !important;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
     /* Botones de navegación */
     /* .carrusel-3d-nav {
         position: absolute;
@@ -7076,7 +7082,7 @@ function limpiarGridHorasCompletamente() {
                 
                 grid.innerHTML = '';
 
-                const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb' , 'Dom'];
                 days.forEach(day => {
                     const dayLabel = document.createElement('div');
                     dayLabel.className = 'day-label';
@@ -7104,8 +7110,10 @@ function limpiarGridHorasCompletamente() {
                     const dayOfWeekNum = currentDate.getDay();
                     
                     const cell = document.createElement('div');
+
+                    const isDomingo = dayOfWeekNum === 0;
                     
-                    if (currentDate >= today && calendarioHabilitado) {
+                    if (currentDate >= today && calendarioHabilitado && !isDomingo) {
                         cell.className = 'day-cell available';
                         cell.textContent = date;
 
@@ -7128,6 +7136,9 @@ function limpiarGridHorasCompletamente() {
                     } else {
                         cell.className = 'day-cell disabled';
                         cell.textContent = date;
+                        if (isDomingo) {
+                            cell.classList.add('sunday-disabled');
+                        }
                     }
                     
                     grid.appendChild(cell);
