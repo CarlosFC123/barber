@@ -2309,6 +2309,19 @@ h2 {
     to { opacity: 1; }
 }
 
+.whatsapp-link {
+    display: inline-block;
+    background:  linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%);
+    border-color: #d4af37;
+    color: rgb(0, 0, 0);
+    padding: 8px 16px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: bold;
+    margin-left: 10px;
+    transition: background-color 0.3s;
+}
+
 /* =========================================== */
 /* ESTILOS PARA CITAS ACEPTADAS */
 /* =========================================== */
@@ -2589,9 +2602,21 @@ h2 {
                     <div id="horasContainer" class="horas-container" style="display: none;">
                         <label>Selecciona Hora</label>
                         <div class="advertencia-horas" style="background-color: #616161; border: 1px solid #ffeaa7; padding: 8px 12px; border-radius: 4px; margin: 8px 0; font-size: 14px;">
-                            ⚠️ <strong>Aviso:</strong>Favor de no seleccionar varias horas consecutivas para evitar choques entre usuarios. Si ve un problema, actualice la pagina. Gracias por su comprensión.
-                        </div>
+                            ⚠️ <strong>Aviso:</strong> Favor de no seleccionar varias horas consecutivas para evitar choques entre usuarios. Sea paciente.
+                            
+                         </div>
                         <div class="horas-grid" id="horasGrid"></div>
+                        <div class="advertencia-horas" style="background-color: #616161; border: 1px solid #ffeaa7; padding: 12px; border-radius: 4px; margin-top: 20px; font-size: 14px;">
+                            <div style="margin-top: 8px;">
+                                Si ve un problema, actualice la página o contacte a soporte por cualquier duda:
+                                <a href="https://wa.me/529971512023" class="whatsapp-link" target="_blank" style="margin-left: 2px; margin-top: 4px; display: inline-block;">
+                                    Contactar Soporte
+                                </a>
+                            </div>
+                            <div style="margin-top: 1px; font-size: 13px;">
+                                Gracias por su comprensión.
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
