@@ -7111,7 +7111,7 @@ function limpiarGridHorasCompletamente() {
                     
                     const cell = document.createElement('div');
 
-                    const isDomingo = dayOfWeekNum === 0;
+                    const isDomingo = dayOfWeekNum === 6;
                     
                     if (currentDate >= today && calendarioHabilitado && !isDomingo) {
                         cell.className = 'day-cell available';
