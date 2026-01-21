@@ -3427,7 +3427,7 @@ function startApplication(supabase) {
                     // Actualizar mensaje de bienvenida en el header
                     const welcomeMessage = document.getElementById('welcomeMessage');
                     if (welcomeMessage) {
-                        welcomeMessage.textContent = `¡Bienvenido, ${clienteData.nombre}!`;
+                        welcomeMessage.textContent = `¡Bienvenido, ${clienteData.nombre} ${clienteData.apellido}!`;
                     }
                     
                     document.getElementById('dropdownName').textContent = nombreCompleto;
