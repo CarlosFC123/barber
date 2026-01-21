@@ -9,7 +9,7 @@
     <script>
         // Inicializar Supabase
         const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZIjoiYW5vbiIsImlhdCI6MTc2MzE1OTEyMywiZXhwIjoyMDc4NzM1MTIzfQ.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
         
         async function processAuth() {
@@ -34,13 +34,46 @@
                 if (data.session) {
                     console.log('✅ Sesión establecida:', data.session.user.email);
                     
-                    // 3. Guardar en localStorage como respaldo
-                    localStorage.setItem('supabase_session', JSON.stringify(data.session));
+                    // 3. Guardar sesión explícitamente
+                    try {
+                        // Preparar datos del usuario
+                        const userData = {
+                            id: data.session.user.id,
+                            email: data.session.user.email,
+                            nombre: data.session.user.user_metadata?.nombre || 
+                                   data.session.user.user_metadata?.full_name?.split(' ')[0] || 
+                                   data.session.user.user_metadata?.given_name ||
+                                   'Usuario',
+                            apellido: data.session.user.user_metadata?.apellido || 
+                                     data.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+                                     data.session.user.user_metadata?.family_name ||
+                                     'Usuario',
+                            avatar_url: data.session.user.user_metadata?.avatar_url || 
+                                       data.session.user.user_metadata?.picture,
+                            proveedor: data.session.user.app_metadata?.provider || 'google'
+                        };
+                        
+                        // Guardar en localStorage
+                        localStorage.setItem('supabase_session', JSON.stringify(data.session));
+                        localStorage.setItem('user_data', JSON.stringify(userData));
+                        localStorage.setItem('user_role', data.session.user.user_metadata?.rol || 'cliente');
+                        
+                        console.log('💾 Datos guardados en localStorage');
+                        
+                    } catch (saveError) {
+                        console.error('Error guardando datos:', saveError);
+                    }
                     
-                    // 4. Redirigir a la página principal
+                    // 4. Redirigir a la página principal CORRECTA
                     setTimeout(() => {
-                        window.location.href = 'https://carlosfc123.github.io/barber/';
-                    }, 500);
+                        const userRole = data.session.user.user_metadata?.rol || 'cliente';
+                        if (userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador') {
+                            window.location.href = 'https://carlosfc123.github.io/barber/barbero.html';
+                        } else {
+                            window.location.href = 'https://carlosfc123.github.io/barber/cliente.html';
+                        }
+                    }, 1000);
+                    
                 } else {
                     redirectToMain();
                 }
@@ -53,17 +86,24 @@
         }
         
         function redirectToMain() {
-            window.location.href = 'https://carlosfc123.github.io/barber/';
+            // Redirigir al index.html principal
+            window.location.href = 'https://carlosfc123.github.io/barber/index.html';
         }
         
         // Ejecutar al cargar
         document.addEventListener('DOMContentLoaded', processAuth);
     </script>
     
-    <div style="text-align: center; padding: 50px; font-family: Arial;">
-        <h1>🔄 Procesando tu sesión...</h1>
+    <div style="text-align: center; padding: 50px; font-family: Arial; background: black; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+        <h1 style="color: #d4af37;">🔄 Procesando tu sesión...</h1>
         <p>Por favor espera un momento.</p>
-        <p>Si no redirige automáticamente, <a href="https://carlosfc123.github.io/barber/">haz clic aquí</a>.</p>
+        <div style="margin-top: 20px;">
+            <div id="status" style="margin: 20px 0;"></div>
+        </div>
+        <p style="margin-top: 30px; font-size: 14px; color: #888;">
+            Si no redirige automáticamente en 5 segundos, 
+            <a href="https://carlosfc123.github.io/barber/index.html" style="color: #d4af37;">haz clic aquí</a>.
+        </p>
     </div>
 </body>
 </html>
