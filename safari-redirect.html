@@ -6,93 +6,200 @@
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <script>
-        // Inicializar Supabase
-        const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZIjoiYW5vbiIsImlhdCI6MTc2MzE1OTEyMywiZXhwIjoyMDc4NzM1MTIzfQ.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
-        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+<script>
+    // Inicializar Supabase
+    const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+    
+    async function handleGoogleDirectCallback() {
+        const search = window.location.search;
         
-        async function processAuth() {
-            console.log('🔧 Procesando autenticación en safari-redirect.html');
+        // Verificar si es callback de Google directo (tiene ?code=)
+        if (search.includes('code=') && search.includes('state=')) {
+            console.log('🔗 Callback directo de Google detectado');
             
-            // 1. Verificar si hay token en la URL
-            const hash = window.location.hash;
-            const search = window.location.search;
+            // Extraer código de autorización
+            const codeMatch = search.match(/code=([^&]+)/);
+            const stateMatch = search.match(/state=([^&]+)/);
             
-            if (hash.includes('access_token') || search.includes('code=')) {
-                console.log('✅ Token encontrado en URL');
+            if (codeMatch && stateMatch) {
+                const code = decodeURIComponent(codeMatch[1]);
+                const state = decodeURIComponent(stateMatch[1]);
                 
-                // 2. Forzar a Supabase a procesarlo
+                console.log('✅ Código de autorización recibido:', code.substring(0, 20) + '...');
+                
+                try {
+                    // Intercambiar código por token usando Supabase
+                    const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
+                    
+                    if (error) {
+                        console.error('❌ Error intercambiando código:', error);
+                        return false;
+                    }
+                    
+                    if (data.session) {
+                        console.log('✅ Token obtenido de Supabase');
+                        
+                        // Guardar sesión
+                        localStorage.setItem('supabase_session', JSON.stringify(data.session));
+                        
+                        // Redirigir inmediatamente
+                        setTimeout(() => {
+                            const userRole = data.session.user.user_metadata?.rol || 'cliente';
+                            const redirectTo = userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador' 
+                                ? 'barbero.html' 
+                                : 'cliente.html';
+                            window.location.href = redirectTo;
+                        }, 500);
+                        
+                        return true; // Ya se procesó, no continuar
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Error en exchangeCodeForSession:', error);
+                }
+            }
+        }
+        return false; // No era un callback directo de Google
+    }
+    
+    async function processAuth() {
+        console.log('🔧 Procesando autenticación en safari-redirect.html');
+        
+        // Verificar si hay token en la URL (de Supabase)
+        const hash = window.location.hash;
+        const search = window.location.search;
+        
+        console.log('🔍 URL actual:', { hash: hash.substring(0, 100), search });
+        
+        if (hash.includes('access_token') || hash.includes('type=recovery') || search.includes('error=')) {
+            console.log('✅ Token de Supabase encontrado en URL');
+            
+            try {
+                // Forzar a Supabase a procesar el token
                 const { data, error } = await supabaseClient.auth.getSession();
                 
                 if (error) {
-                    console.error('Error:', error);
-                    redirectToMain();
+                    console.error('Error obteniendo sesión:', error);
+                    redirectToLogin('Error procesando sesión');
                     return;
                 }
                 
                 if (data.session) {
                     console.log('✅ Sesión establecida:', data.session.user.email);
                     
-                    // 3. Guardar sesión explícitamente
+                    // Guardar datos del usuario
+                    const userData = {
+                        id: data.session.user.id,
+                        email: data.session.user.email,
+                        nombre: data.session.user.user_metadata?.nombre || 
+                               data.session.user.user_metadata?.full_name?.split(' ')[0] || 
+                               data.session.user.user_metadata?.given_name ||
+                               'Usuario',
+                        apellido: data.session.user.user_metadata?.apellido || 
+                                 data.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+                                 data.session.user.user_metadata?.family_name ||
+                                 'Usuario',
+                        avatar_url: data.session.user.user_metadata?.avatar_url || 
+                                   data.session.user.user_metadata?.picture,
+                        proveedor: data.session.user.app_metadata?.provider || 'google'
+                    };
+                    
+                    // Guardar en localStorage
                     try {
-                        // Preparar datos del usuario
-                        const userData = {
-                            id: data.session.user.id,
-                            email: data.session.user.email,
-                            nombre: data.session.user.user_metadata?.nombre || 
-                                   data.session.user.user_metadata?.full_name?.split(' ')[0] || 
-                                   data.session.user.user_metadata?.given_name ||
-                                   'Usuario',
-                            apellido: data.session.user.user_metadata?.apellido || 
-                                     data.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
-                                     data.session.user.user_metadata?.family_name ||
-                                     'Usuario',
-                            avatar_url: data.session.user.user_metadata?.avatar_url || 
-                                       data.session.user.user_metadata?.picture,
-                            proveedor: data.session.user.app_metadata?.provider || 'google'
-                        };
-                        
-                        // Guardar en localStorage
                         localStorage.setItem('supabase_session', JSON.stringify(data.session));
                         localStorage.setItem('user_data', JSON.stringify(userData));
                         localStorage.setItem('user_role', data.session.user.user_metadata?.rol || 'cliente');
-                        
                         console.log('💾 Datos guardados en localStorage');
-                        
-                    } catch (saveError) {
-                        console.error('Error guardando datos:', saveError);
+                    } catch (storageError) {
+                        console.warn('⚠️ Error guardando en localStorage:', storageError);
                     }
                     
-                    // 4. Redirigir a la página principal CORRECTA
+                    // Limpiar URL
+                    if (window.history.replaceState) {
+                        const cleanUrl = window.location.origin + window.location.pathname;
+                        window.history.replaceState(null, '', cleanUrl);
+                        console.log('🧹 URL limpiada');
+                    }
+                    
+                    // Redirigir según rol
                     setTimeout(() => {
                         const userRole = data.session.user.user_metadata?.rol || 'cliente';
                         if (userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador') {
-                            window.location.href = 'https://carlosfc123.github.io/barber/barbero.html';
+                            window.location.href = 'barbero.html';
                         } else {
-                            window.location.href = 'https://carlosfc123.github.io/barber/cliente.html';
+                            window.location.href = 'cliente.html';
                         }
                     }, 1000);
                     
                 } else {
-                    redirectToMain();
+                    console.log('⚠️ No se pudo establecer sesión');
+                    redirectToLogin('No se pudo iniciar sesión');
                 }
                 
+            } catch (error) {
+                console.error('❌ Error en processAuth:', error);
+                redirectToLogin('Error técnico');
+            }
+            
+        } else {
+            // Si no hay token, verificar si ya estamos autenticados
+            console.log('ℹ️ No hay token en URL - Verificando sesión existente');
+            
+            const { data } = await supabaseClient.auth.getSession();
+            if (data.session) {
+                console.log('✅ Sesión existente encontrada, redirigiendo...');
+                const userRole = data.session.user.user_metadata?.rol || 'cliente';
+                window.location.href = userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador' 
+                    ? 'barbero.html' 
+                    : 'cliente.html';
             } else {
-                // Si no hay token, redirigir al login
-                console.log('ℹ️ No hay token - Redirigiendo al login');
-                redirectToMain();
+                console.log('❌ No hay sesión - Redirigiendo al login');
+                redirectToLogin();
             }
         }
+    }
+    
+    function redirectToLogin(errorMessage = '') {
+        const redirectUrl = errorMessage 
+            ? `login.html?error=${encodeURIComponent(errorMessage)}`
+            : 'login.html';
         
-        function redirectToMain() {
-            // Redirigir al index.html principal
-            window.location.href = 'https://carlosfc123.github.io/barber/index.html';
+        console.log('🔀 Redirigiendo a:', redirectUrl);
+        
+        setTimeout(() => {
+            window.location.href = redirectUrl;
+        }, 2000);
+    }
+    
+    // Función principal que ejecuta todo en orden
+    async function main() {
+        console.log('🚀 safari-redirect.html iniciando...');
+        
+        try {
+            // Paso 1: Verificar si es callback directo de Google
+            const isGoogleDirectCallback = await handleGoogleDirectCallback();
+            
+            if (!isGoogleDirectCallback) {
+                // Paso 2: Si no es Google directo, procesar autenticación normal
+                await processAuth();
+            }
+            
+        } catch (error) {
+            console.error('❌ Error en main:', error);
+            redirectToLogin('Error inesperado');
         }
-        
-        // Ejecutar al cargar
-        document.addEventListener('DOMContentLoaded', processAuth);
-    </script>
+    }
+    
+    // Ejecutar cuando el DOM esté listo
+    document.addEventListener('DOMContentLoaded', main);
+    
+    // También ejecutar si el DOM ya está cargado
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(main, 100);
+    }
+</script>
     
     <div style="text-align: center; padding: 50px; font-family: Arial; background: black; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
         <h1 style="color: #d4af37;">🔄 Procesando tu sesión...</h1>

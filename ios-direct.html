@@ -4,52 +4,213 @@
     <title>Login Directo iOS</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { background: black; color: white; text-align: center; padding: 40px 20px; }
+        body { 
+            background: #000000; 
+            color: white; 
+            text-align: center; 
+            padding: 40px 20px; 
+            font-family: Arial;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid #d4af37;
+        }
         button { 
-            background: #4285F4; 
+            background: linear-gradient(135deg, #4285F4, #34A853); 
             color: white; 
             border: none; 
-            padding: 20px 40px; 
-            font-size: 20px; 
+            padding: 18px; 
+            font-size: 18px; 
             border-radius: 10px; 
-            margin: 30px auto; 
+            margin: 20px auto; 
             display: block; 
             cursor: pointer;
             width: 100%;
-            max-width: 400px;
+            font-weight: bold;
+            transition: transform 0.3s;
         }
-        .steps { text-align: left; max-width: 400px; margin: 30px auto; }
-        .step { margin: 15px 0; padding: 15px; background: #1a1a1a; border-radius: 8px; }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .steps { 
+            text-align: left; 
+            margin: 25px 0; 
+            padding: 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+        }
+        .step { 
+            margin: 12px 0; 
+            padding: 12px; 
+            background: #2a2a2a; 
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .step-number {
+            background: #d4af37;
+            color: black;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .error {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid #dc3545;
+            color: #ff6b6b;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: left;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
-    <h1>🔑 Login Directo para iOS</h1>
-    <p>Este método funciona en Safari/iPhone/iPad</p>
-    
-    <div class="steps">
-        <div class="step">1. Toca el botón azul</div>
-        <div class="step">2. Inicia sesión en Google</div>
-        <div class="step">3. Serás redirigido automáticamente</div>
+    <div class="container">
+        <h1 style="color: #d4af37; margin-bottom: 10px;">🍎 Login para iOS</h1>
+        <p style="color: #ccc; margin-bottom: 25px;">Método optimizado para iPhone/iPad/Safari</p>
+        
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div>Toca el botón azul de Google</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div>Inicia sesión en tu cuenta</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div>Serás redirigido automáticamente</div>
+            </div>
+        </div>
+        
+        <!-- Botón CORREGIDO -->
+        <button id="googleBtn">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span>Continuar con Google</span>
+            </div>
+        </button>
+        
+        <div id="errorContainer" class="error" style="display: none;"></div>
+        
+        <p style="margin-top: 25px; color: #888; font-size: 14px;">
+            Si tienes problemas, usa: 
+            <a href="login.html" style="color: #d4af37; text-decoration: underline;">login normal</a>
+        </p>
     </div>
-    
-    <button onclick="window.location.href='https://accounts.google.com/o/oauth2/v2/auth?client_id=844357451398-882jnus6cj3gbf0pjkkdvgpkd83i1a2s.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Fcarlosfc123.github.io%2Fbarber%2Fsafari-redirect.html&response_type=code&scope=email%20profile&access_type=offline&prompt=consent'">
-        Iniciar con Google
-    </button>
-    
-    <p style="margin-top: 30px; color: #888; font-size: 14px;">
-        Si no funciona, usa: <a href="login.html" style="color: #d4af37;">login normal</a>
-    </p>
     
     <script>
         // Detectar iOS
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        if (!isIOS) {
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        
+        if (!isIOS && !isSafari) {
             document.body.innerHTML = `
-                <h1>⚠️ No estás en iOS</h1>
-                <p>Esta página es solo para dispositivos Apple.</p>
-                <a href="login.html" style="color: #d4af37; font-size: 18px;">← Volver al login normal</a>
+                <div class="container">
+                    <h1 style="color: #d4af37;">⚠️ No estás en iOS</h1>
+                    <p>Esta página es solo para dispositivos Apple (iPhone, iPad, Safari).</p>
+                    <a href="login.html" style="display: inline-block; background: #d4af37; color: black; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 20px; font-weight: bold;">
+                        ← Volver al login normal
+                    </a>
+                </div>
             `;
         }
+        
+        // Configuración CORREGIDA
+        const GOOGLE_CLIENT_ID = '844357451398-882jnus6cj3gbf0pjkkdvgpkd83i1a2s.apps.googleusercontent.com';
+        
+        // IMPORTANTE: Redirect URI debe estar EXACTAMENTE como en Google Cloud Console
+        const REDIRECT_URI = 'https://carlosfc123.github.io/barber/safari-redirect.html';
+        
+        // URL de autorización CORREGIDA
+        const GOOGLE_AUTH_URL = 
+            'https://accounts.google.com/o/oauth2/v2/auth?' +
+            'client_id=' + GOOGLE_CLIENT_ID + '&' +
+            'redirect_uri=' + encodeURIComponent(REDIRECT_URI) + '&' +
+            'response_type=code&' +
+            'scope=email%20profile%20openid&' +  // Agregar openid
+            'access_type=offline&' +
+            'prompt=consent&' +
+            'state=' + Math.random().toString(36).substring(7);
+        
+        console.log('🔗 URL Google OAuth:', GOOGLE_AUTH_URL);
+        
+        // Manejar clic en botón
+        document.getElementById('googleBtn').addEventListener('click', function() {
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.style.display = 'none';
+            
+            console.log('🍎 Intentando login directo con Google...');
+            
+            // Método 1: Intentar abrir en nueva pestaña
+            const newWindow = window.open(GOOGLE_AUTH_URL, '_blank');
+            
+            if (!newWindow) {
+                // Método 2: Si Safari bloquea, mostrar instrucciones
+                errorContainer.innerHTML = `
+                    <strong>⚠️ Safari bloqueó la ventana emergente</strong><br><br>
+                    <strong>Solución:</strong><br>
+                    1. <strong>Mantén presionado</strong> el botón azul<br>
+                    2. Selecciona <strong>"Abrir"</strong><br>
+                    3. O ve a <strong>Ajustes > Safari</strong><br>
+                    4. Desactiva <strong>"Bloquear ventanas emergentes"</strong>
+                `;
+                errorContainer.style.display = 'block';
+                
+                // Método 3: Ofrecer alternativa
+                setTimeout(() => {
+                    if (confirm('¿Quieres intentar con el método alternativo?')) {
+                        // Usar location.href directamente
+                        window.location.href = GOOGLE_AUTH_URL;
+                    }
+                }, 1500);
+            } else {
+                console.log('✅ Ventana abierta exitosamente');
+                
+                // Mostrar mensaje
+                errorContainer.innerHTML = `
+                    <strong>✅ Se abrió Google en nueva pestaña</strong><br><br>
+                    Por favor inicia sesión en Google. Luego serás redirigido automáticamente.
+                `;
+                errorContainer.style.display = 'block';
+            }
+        });
+        
+        // Verificar si ya estamos autenticados
+        window.addEventListener('load', function() {
+            const hash = window.location.hash;
+            const search = window.location.search;
+            
+            if (hash.includes('access_token') || search.includes('code=')) {
+                console.log('🍎 ¡Token detectado! Redirigiendo...');
+                
+                // Redirigir a safari-redirect.html para procesar
+                setTimeout(() => {
+                    window.location.href = 'safari-redirect.html';
+                }, 500);
+            }
+        });
     </script>
 </body>
 </html>
