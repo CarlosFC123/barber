@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Redirección Safari</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <script>
+        // Inicializar Supabase
+        const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        
+        async function processAuth() {
+            console.log('🔧 Procesando autenticación en safari-redirect.html');
+            
+            // 1. Verificar si hay token en la URL
+            const hash = window.location.hash;
+            const search = window.location.search;
+            
+            if (hash.includes('access_token') || search.includes('code=')) {
+                console.log('✅ Token encontrado en URL');
+                
+                // 2. Forzar a Supabase a procesarlo
+                const { data, error } = await supabaseClient.auth.getSession();
+                
+                if (error) {
+                    console.error('Error:', error);
+                    redirectToMain();
+                    return;
+                }
+                
+                if (data.session) {
+                    console.log('✅ Sesión establecida:', data.session.user.email);
+                    
+                    // 3. Guardar en localStorage como respaldo
+                    localStorage.setItem('supabase_session', JSON.stringify(data.session));
+                    
+                    // 4. Redirigir a la página principal
+                    setTimeout(() => {
+                        window.location.href = 'https://carlosfc123.github.io/barber/';
+                    }, 500);
+                } else {
+                    redirectToMain();
+                }
+                
+            } else {
+                // Si no hay token, redirigir al login
+                console.log('ℹ️ No hay token - Redirigiendo al login');
+                redirectToMain();
+            }
+        }
+        
+        function redirectToMain() {
+            window.location.href = 'https://carlosfc123.github.io/barber/';
+        }
+        
+        // Ejecutar al cargar
+        document.addEventListener('DOMContentLoaded', processAuth);
+    </script>
+    
+    <div style="text-align: center; padding: 50px; font-family: Arial;">
+        <h1>🔄 Procesando tu sesión...</h1>
+        <p>Por favor espera un momento.</p>
+        <p>Si no redirige automáticamente, <a href="https://carlosfc123.github.io/barber/">haz clic aquí</a>.</p>
+    </div>
+</body>
+</html>

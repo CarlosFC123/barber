@@ -291,24 +291,55 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
-        });
-
-        let supabaseClient;
-
-        function initializeApp() {
-            const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
-            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Página cargada - Iniciando verificación...');
+        
+        // Inicializar la app primero
+        initializeApp();
+        
+        // Luego verificar autenticación
+        setTimeout(checkAuthAndProcessUser, 500);
+        
+        // En Safari, verificar más frecuentemente
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        
+        if (isIOS || isSafari) {
+            console.log('📱 Safari/iOS detectado - Configurando verificación especial');
             
-            supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-            startApplication();
+            // Verificar cada segundo por 10 segundos (para capturar retorno de OAuth)
+            let checkCount = 0;
+            const safariCheckInterval = setInterval(() => {
+                checkCount++;
+                checkAuthAndProcessUser();
+                
+                if (checkCount >= 10) {
+                    clearInterval(safariCheckInterval);
+                    console.log('✅ Finalizada verificación intensiva Safari');
+                }
+            }, 1000);
+            
+            // También forzar refresco de sesión
+            setTimeout(forceSessionRefresh, 1500);
         }
+    });
 
-        // Función para activar el selector nativo
-        function activateNativePicker() {
-            const emailInput = document.getElementById('userEmail');
-            
+    let supabaseClient;
+
+    function initializeApp() {
+        const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
+        
+        supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        startApplication();
+        cleanSafariState();
+    }
+
+    // Función para activar el selector nativo
+    function activateNativePicker() {
+        const emailInput = document.getElementById('userEmail');
+        
+        if (emailInput) {
             emailInput.focus();
             emailInput.select();
             
@@ -319,9 +350,11 @@
                 navigator.virtualKeyboard.show();
             }
         }
+    }
 
-        function showAlert(message, type = 'error') {
-            const alertDiv = document.getElementById('alert');
+    function showAlert(message, type = 'error') {
+        const alertDiv = document.getElementById('alert');
+        if (alertDiv) {
             alertDiv.textContent = message;
             alertDiv.className = `alert alert-${type}`;
             alertDiv.style.display = 'block';
@@ -330,83 +363,117 @@
                 alertDiv.style.display = 'none';
             }, 5000);
         }
+    }
 
-        function startApplication() {
-            const googleBtn = document.getElementById('googleBtn');
-            const emailToggleBtn = document.getElementById('emailToggleBtn');
-            const emailForm = document.getElementById('emailForm');
-            const magicLinkForm = document.getElementById('magicLinkForm');
-            const userEmailInput = document.getElementById('userEmail');
-            const loadingDiv = document.getElementById('loading');
+    function startApplication() {
+        const googleBtn = document.getElementById('googleBtn');
+        const emailToggleBtn = document.getElementById('emailToggleBtn');
+        const emailForm = document.getElementById('emailForm');
+        const magicLinkForm = document.getElementById('magicLinkForm');
+        const userEmailInput = document.getElementById('userEmail');
+        const loadingDiv = document.getElementById('loading');
 
-            // Mostrar/ocultar formulario de email
+        if (!googleBtn || !loadingDiv) return;
+
+        // Mostrar/ocultar formulario de email
+        if (emailToggleBtn && emailForm) {
             emailToggleBtn.addEventListener('click', function() {
                 if (emailForm.style.display === 'none' || !emailForm.style.display) {
                     emailForm.style.display = 'block';
                     emailToggleBtn.style.display = 'none';
-                    userEmailInput.focus();
-                    activateNativePicker();
-                }
-            });
-
-            // Inicio de sesión con Google
-            googleBtn.addEventListener('click', async function() {
-                try {
-                    loadingDiv.style.display = 'block';
-                    loadingDiv.textContent = '⏳ Redirigiendo a Google...';
-                    googleBtn.disabled = true;
-
-                    // TIMEOUT DE SEGURIDAD: Si después de 10 segundos no hay redirección, limpiar estado
-                    const safetyTimeout = setTimeout(() => {
-                        console.log('⚠️ Timeout de seguridad: Limpiando estado de carga');
-                        loadingDiv.style.display = 'none';
-                        googleBtn.disabled = false;
-                    }, 10000); // 10 segundos
-
-                    const { data, error } = await supabaseClient.auth.signInWithOAuth({
-                        provider: 'google',
-                        options: {
-                            redirectTo: 'https://carlosfc123.github.io/barber/',
-                            queryParams: {
-                                access_type: 'offline',
-                                prompt: 'consent'
-                            }
-                        }
-                    });
-
-                    // Limpiar timeout si la función retornó (usuario canceló)
-                    clearTimeout(safetyTimeout);
-
-                    if (error) throw error;
-
-                } catch (error) {
-                    console.error('Error con Google OAuth:', error);
-                    
-                    // LIMPIAR ESTADO EN CASO DE ERROR
-                    loadingDiv.style.display = 'none';
-                    googleBtn.disabled = false;
-                    
-                    if (error.message.includes('provider is not enabled')) {
-                        showAlert('❌ Google OAuth no está configurado. Contacta al administrador.');
-                    } else {
-                        showAlert('❌ Error al iniciar sesión con Google: ' + error.message);
+                    if (userEmailInput) {
+                        userEmailInput.focus();
+                        activateNativePicker();
                     }
                 }
             });
+        }
 
-            // Manejar envío del formulario de magic link
+        // Inicio de sesión con Google - VERSIÓN CORREGIDA
+        googleBtn.addEventListener('click', async function() {
+            try {
+                loadingDiv.style.display = 'block';
+                googleBtn.disabled = true;
+                
+                // Detectar Safari/iOS
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                
+                // URL de redirección según dispositivo
+                let redirectUrl = 'https://carlosfc123.github.io/barber/';
+                
+                if (isIOS || isSafari) {
+                    // PARA SAFARI: Usar página intermedia
+                    redirectUrl = 'https://carlosfc123.github.io/barber/safari-redirect.html';
+                    console.log('📱 Safari detectado - Usando redirección especial');
+                }
+                
+                loadingDiv.innerHTML = `
+                    <div style="text-align: center; padding: 20px;">
+                        <p style="color: #d4af37; margin-bottom: 10px;">🔄 Preparando login...</p>
+                        <p style="font-size: 14px; color: #ccc;">
+                            ${(isIOS || isSafari) ? 
+                                'Usando método optimizado para Safari/iOS' : 
+                                'Redirigiendo a Google...'}
+                        </p>
+                    </div>
+                `;
+                
+                // TIMEOUT DE SEGURIDAD
+                const safetyTimeout = setTimeout(() => {
+                    console.log('⚠️ Timeout de seguridad: Limpiando estado de carga');
+                    loadingDiv.style.display = 'none';
+                    googleBtn.disabled = false;
+                }, 10000);
+                
+                // Configurar OAuth
+                const { data, error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: redirectUrl,
+                        queryParams: {
+                            access_type: 'offline',
+                            prompt: 'consent'
+                        }
+                    }
+                });
+                
+                clearTimeout(safetyTimeout);
+                
+                if (error) throw error;
+                
+            } catch (error) {
+                console.error('Error con Google OAuth:', error);
+                
+                // LIMPIAR ESTADO EN CASO DE ERROR
+                const loadingDiv = document.getElementById('loading');
+                const googleBtn = document.getElementById('googleBtn');
+                
+                if (loadingDiv) loadingDiv.style.display = 'none';
+                if (googleBtn) googleBtn.disabled = false;
+                
+                if (error.message.includes('provider is not enabled')) {
+                    showAlert('❌ Google OAuth no está configurado. Contacta al administrador.', 'error');
+                } else {
+                    showAlert('❌ Error al iniciar sesión con Google: ' + error.message, 'error');
+                }
+            }
+        });
+
+        // Manejar envío del formulario de magic link
+        if (magicLinkForm) {
             magicLinkForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
-                const email = userEmailInput.value.trim().toLowerCase();
-
+                const email = userEmailInput ? userEmailInput.value.trim().toLowerCase() : '';
+                
                 if (!email) {
-                    showAlert('Por favor ingresa tu correo electrónico');
+                    showAlert('Por favor ingresa tu correo electrónico', 'error');
                     return;
                 }
 
                 try {
-                    loadingDiv.style.display = 'block';
+                    if (loadingDiv) loadingDiv.style.display = 'block';
 
                     // Extraer nombre y apellido del email
                     const nombre = email.split('@')[0].split('.')[0];
@@ -428,135 +495,252 @@
                     if (error) throw error;
 
                     showAlert('✅ ¡Revisa tu correo! Te hemos enviado un enlace de confirmación.', 'success');
-                    magicLinkForm.reset();
+                    if (magicLinkForm) magicLinkForm.reset();
 
                 } catch (error) {
                     console.error('Error en Magic Link:', error);
-                    showAlert('❌ Error: ' + error.message);
+                    showAlert('❌ Error: ' + error.message, 'error');
                 } finally {
-                    loadingDiv.style.display = 'none';
+                    if (loadingDiv) loadingDiv.style.display = 'none';
                 }
             });
-
-            // Verificar si ya está autenticado y procesar usuario
-            checkAuthAndProcessUser();
         }
+    }
 
-        // Función para guardar usuario en la tabla clientes
-        async function saveUserToClients(userData, role = 'cliente') {
-            try {
-                const { data: existingUser } = await supabaseClient
+    // Función para guardar usuario en la tabla clientes
+    async function saveUserToClients(userData, role = 'cliente') {
+        try {
+            const { data: existingUser, error: queryError } = await supabaseClient
+                .from('clientes')
+                .select('id, rol')
+                .eq('email', userData.email)
+                .single();
+
+            if (queryError && queryError.code !== 'PGRST116') { // PGRST116 = no rows returned
+                console.error('Error consultando cliente:', queryError);
+                return role;
+            }
+
+            if (!existingUser) {
+                const { error: insertError } = await supabaseClient
                     .from('clientes')
-                    .select('id, rol')
-                    .eq('email', userData.email)
-                    .single();
+                    .insert([{
+                        id: userData.id,
+                        nombre: userData.nombre,
+                        apellido: userData.apellido,
+                        email: userData.email,
+                        rol: role,
+                        proveedor: userData.proveedor || 'google',
+                        avatar_url: userData.avatar_url || null,
+                        email_confirmado: true,
+                        creado_en: new Date().toISOString(),
+                        ultimo_login: new Date().toISOString()
+                    }]);
 
-                if (!existingUser) {
-                    const { error: insertError } = await supabaseClient
-                        .from('clientes')
-                        .insert([{
-                            id: userData.id,
-                            nombre: userData.nombre,
-                            apellido: userData.apellido,
-                            email: userData.email,
-                            rol: role, // Usar el rol proporcionado
-                            proveedor: userData.proveedor || 'google',
-                            avatar_url: userData.avatar_url,
-                            email_confirmado: true,
-                            creado_en: new Date().toISOString(),
-                            ultimo_login: new Date().toISOString()
-                        }]);
-
-                    if (insertError && insertError.code !== '23505') {
-                        console.error('Error insertando cliente:', insertError);
-                        return false;
-                    } else {
-                        console.log('✅ Usuario guardado en clientes:', userData.email, 'con rol:', role);
-                        return role;
-                    }
+                if (insertError) {
+                    console.error('Error insertando cliente:', insertError);
+                    return role;
                 } else {
-                    // Usuario existe, obtener su rol actual
-                    const userRole = existingUser.rol || role;
-                    
-                    // Actualizar último login
-                    const { error: updateError } = await supabaseClient
-                        .from('clientes')
-                        .update({
-                            ultimo_login: new Date().toISOString(),
-                            avatar_url: userData.avatar_url
-                        })
-                        .eq('email', userData.email);
-
-                    if (updateError) {
-                        console.error('Error actualizando último login:', updateError);
-                    }
-                    
-                    console.log('✅ Usuario actualizado en clientes:', userData.email, 'con rol:', userRole);
-                    return userRole;
+                    console.log('✅ Usuario guardado en clientes:', userData.email, 'con rol:', role);
+                    return role;
                 }
-            } catch (error) {
-                console.error('Error guardando usuario:', error);
-                return role; // Retornar rol por defecto en caso de error
-            }
-        }
-
-        async function checkAuthAndProcessUser() {
-            try {
-                const { data: { session }, error } = await supabaseClient.auth.getSession();
+            } else {
+                // Usuario existe, obtener su rol actual
+                const userRole = existingUser.rol || role;
                 
-                if (error) throw error;
-                
-                if (session && session.user) {
-                    console.log('✅ Usuario autenticado:', session.user.email);
-                    
-                    // Preparar datos del usuario
-                    const userData = {
-                        id: session.user.id,
-                        nombre: extractFirstName(session.user),
-                        apellido: extractLastName(session.user),
-                        email: session.user.email,
-                        proveedor: session.user.app_metadata?.provider || 'google',
-                        avatar_url: extractAvatarUrl(session.user)
-                    };
+                // Actualizar último login
+                const { error: updateError } = await supabaseClient
+                    .from('clientes')
+                    .update({
+                        ultimo_login: new Date().toISOString(),
+                        avatar_url: userData.avatar_url || existingUser.avatar_url
+                    })
+                    .eq('email', userData.email);
 
-                    // Verificar si hay rol en los metadatos del usuario
-                    const userRoleFromMetadata = session.user.user_metadata?.rol || 'cliente';
-                    
-                    // Guardar usuario en la base de datos y obtener su rol
-                    const userRole = await saveUserToClients(userData, userRoleFromMetadata);
-                    
-                    // Redirigir según el rol
-                    redirectByRole(userRole);
+                if (updateError) {
+                    console.error('Error actualizando último login:', updateError);
                 }
-            } catch (error) {
-                console.error('Error en checkAuth:', error);
+                
+                console.log('✅ Usuario actualizado en clientes:', userData.email, 'con rol:', userRole);
+                return userRole;
             }
+        } catch (error) {
+            console.error('Error guardando usuario:', error);
+            return role;
         }
+    }
 
-        // Funciones auxiliares
-        function extractFirstName(user) {
-            return user.user_metadata?.nombre || 
-                   user.user_metadata?.full_name?.split(' ')[0] || 
-                   user.user_metadata?.given_name ||
-                   'Usuario';
-        }
-
-        function extractLastName(user) {
-            return user.user_metadata?.apellido || 
-                   user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
-                   user.user_metadata?.family_name ||
-                   'Usuario';
-        }
-
-        function extractAvatarUrl(user) {
-            return user.user_metadata?.avatar_url || 
-                   user.user_metadata?.picture;
-        }
-
-        function redirectByRole(role) {
-            console.log(`🎯 Redirigiendo usuario con rol: ${role}`);
+    // Función principal de verificación de autenticación
+    async function checkAuthAndProcessUser() {
+        try {
+            console.log('🔍 Verificando autenticación...');
             
-            // Definir qué roles van a cada página
+            if (!supabaseClient) {
+                console.log('⚠️ Supabase no inicializado aún');
+                return;
+            }
+            
+            // ===== PASO CRÍTICO: Manejar retorno de OAuth (Safari fix) =====
+            const hash = window.location.hash;
+            const search = window.location.search;
+            
+            // Si hay token en la URL (viene de Google)
+            if (hash.includes('access_token') || search.includes('code=')) {
+                console.log('🎯 Token detectado en URL - Procesando para Safari...');
+                
+                // MOSTRAR FEEDBACK VISUAL INMEDIATO
+                showAlert('🔄 Procesando tu sesión...', 'success');
+                
+                // Forzar a Supabase a procesar el token de la URL
+                const { data, error } = await supabaseClient.auth.getSession();
+                
+                if (error) {
+                    console.error('Error procesando token:', error);
+                    showAlert('❌ Error procesando sesión. Intenta de nuevo.', 'error');
+                    return;
+                }
+                
+                console.log('✅ Token procesado correctamente');
+                
+                // LIMPIAR LA URL (importante para Safari)
+                if (window.history.replaceState) {
+                    const cleanUrl = window.location.origin + window.location.pathname;
+                    window.history.replaceState(null, '', cleanUrl);
+                    console.log('🧹 URL limpiada');
+                }
+                
+                // ESPERAR UN MOMENTO para que se establezca la sesión
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            // ===== VERIFICAR SESIÓN ACTUAL =====
+            const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+            
+            if (sessionError) {
+                console.error('Error obteniendo sesión:', sessionError);
+                return;
+            }
+            
+            if (session && session.user) {
+                console.log('✅ Usuario autenticado:', session.user.email);
+                
+                // Preparar datos del usuario
+                const userData = {
+                    id: session.user.id,
+                    nombre: extractFirstName(session.user),
+                    apellido: extractLastName(session.user),
+                    email: session.user.email,
+                    proveedor: session.user.app_metadata?.provider || 'google',
+                    avatar_url: extractAvatarUrl(session.user)
+                };
+
+                // Verificar rol
+                const userRoleFromMetadata = session.user.user_metadata?.rol || 'cliente';
+                
+                // Guardar usuario
+                const userRole = await saveUserToClients(userData, userRoleFromMetadata);
+                
+                // Redirigir según el rol
+                redirectByRole(userRole);
+                
+            } else {
+                console.log('ℹ️ Usuario no autenticado');
+                
+                // En Safari, verificar si hay cookies bloqueadas
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                
+                if ((isIOS || isSafari) && !localStorage.getItem('safari_warning_shown')) {
+                    // Mostrar advertencia solo una vez
+                    setTimeout(() => {
+                        showAlert('💡 En Safari: Asegúrate de aceptar cookies y no usar navegación privada', 'success');
+                        localStorage.setItem('safari_warning_shown', 'true');
+                    }, 2000);
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error en checkAuth:', error);
+        }
+    }
+
+    // ===== FUNCIÓN ESPECIAL PARA FORZAR SESIÓN EN SAFARI =====
+    async function forceSessionRefresh() {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        
+        if (!isIOS && !isSafari) return;
+        
+        console.log('🔄 Forzando refresco de sesión para Safari...');
+        
+        try {
+            // Intentar múltiples veces obtener sesión
+            for (let i = 0; i < 3; i++) {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) {
+                    console.log(`✅ Sesión obtenida en intento ${i + 1}`);
+                    // Procesar la sesión encontrada
+                    await processSession(session);
+                    return session;
+                }
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            // Si no hay sesión, intentar con referrer
+            if (document.referrer.includes('accounts.google.com')) {
+                console.log('🔗 Viene de Google - forzando recarga');
+                window.location.reload();
+            }
+            
+        } catch (error) {
+            console.error('Error forzando sesión:', error);
+        }
+    }
+    
+    // Función auxiliar para procesar sesión
+    async function processSession(session) {
+        if (!session || !session.user) return;
+        
+        const userData = {
+            id: session.user.id,
+            nombre: extractFirstName(session.user),
+            apellido: extractLastName(session.user),
+            email: session.user.email,
+            proveedor: session.user.app_metadata?.provider || 'google',
+            avatar_url: extractAvatarUrl(session.user)
+        };
+        
+        const userRoleFromMetadata = session.user.user_metadata?.rol || 'cliente';
+        const userRole = await saveUserToClients(userData, userRoleFromMetadata);
+        redirectByRole(userRole);
+    }
+
+    // Funciones auxiliares
+    function extractFirstName(user) {
+        return user.user_metadata?.nombre || 
+               user.user_metadata?.full_name?.split(' ')[0] || 
+               user.user_metadata?.given_name ||
+               'Usuario';
+    }
+
+    function extractLastName(user) {
+        return user.user_metadata?.apellido || 
+               user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+               user.user_metadata?.family_name ||
+               'Usuario';
+    }
+
+    function extractAvatarUrl(user) {
+        return user.user_metadata?.avatar_url || 
+               user.user_metadata?.picture ||
+               null;
+    }
+
+    function redirectByRole(role) {
+        console.log(`🎯 Redirigiendo usuario con rol: ${role}`);
+        
+        // Pequeño delay para asegurar que todo se guardó
+        setTimeout(() => {
             if (role === 'admin' || role === 'barbero' || role === 'administrador') {
                 console.log('🔄 Redirigiendo a barbero.html');
                 window.location.href = 'barbero.html';
@@ -564,89 +748,53 @@
                 console.log('🔄 Redirigiendo a cliente.html');
                 window.location.href = 'cliente.html';
             }
-        }
-
-        function clearLoadingState() {
-            const loadingDiv = document.getElementById('loading');
-            const googleBtn = document.getElementById('googleBtn');
-            
-            loadingDiv.style.display = 'none';
-            googleBtn.disabled = false;
-        }
-
-        async function safariGoogleLogin() {
-    try {
-        // URL directa al endpoint OAuth de Supabase
-        const supabaseAuthUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
-        const redirectUrl = encodeURIComponent('https://carlosfc123.github.io/barber/');
-        
-        const authUrl = `${supabaseAuthUrl}/auth/v1/authorize?` +
-            `provider=google` +
-            `&redirect_to=${redirectUrl}` +
-            `&response_type=code` +
-            `&scope=email+profile` +
-            `&access_type=offline` +
-            `&prompt=consent`;
-        
-        console.log('🔗 Redirigiendo a:', authUrl);
-        
-        // Redirección directa (funciona mejor en Safari)
-        window.location.href = authUrl;
-        
-    } catch (error) {
-        console.error('Error en método Safari:', error);
-        showAlert('❌ Error en Safari. Por favor, intenta con el método de email.', 'error');
+        }, 500);
     }
-}
 
+    function clearLoadingState() {
+        const loadingDiv = document.getElementById('loading');
+        const googleBtn = document.getElementById('googleBtn');
+        
+        if (loadingDiv) loadingDiv.style.display = 'none';
+        if (googleBtn) googleBtn.disabled = false;
+    }
 
-        // Limpiar estado si el usuario hace clic fuera del botón
-        // Inicio de sesión con Google - Universal
-// Método que SIEMPRE funciona
-googleBtn.addEventListener('click', function() {
-    loadingDiv.style.display = 'block';
-    loadingDiv.textContent = '🔄 Conectando con Google...';
-    googleBtn.disabled = true;
-    
-    // Generar un estado único para seguridad
-    const state = Math.random().toString(36).substring(7);
-    localStorage.setItem('oauth_state', state);
-    
-    // URL FINAL que debería funcionar
-    const finalAuthUrl = 
-        'https://nllllvztipbrhryzxamm.supabase.co/auth/v1/authorize?' +
-        'provider=google&' +
-        'redirect_to=https%3A%2F%2Fcarlosfc123.github.io%2Fbarber%2F&' + 
-        'response_type=code&' +
-        'scope=email%20profile%20openid&' +
-        'access_type=offline&' +
-        'prompt=consent&' +
-        'state=' + state;
-    
-    console.log('🚀 URL final de autenticación:', finalAuthUrl);
-    
-    // Intentar diferentes métodos de redirección
-    setTimeout(() => {
-        // Método 1: Redirección normal
-        window.location.href = finalAuthUrl;
-    }, 100);
-    
-    // Método 2: Si no funcionó en 2 segundos, intentar abrir en nueva pestaña
-    setTimeout(() => {
-        if (!window.location.href.includes('accounts.google.com')) {
-            console.log('⚠️ Intentando método alternativo...');
-            window.open(finalAuthUrl, '_blank');
+    function cleanSafariState() {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        
+        if (!isIOS && !isSafari) return;
+        
+        console.log('🧹 Limpiando estado de Safari...');
+        
+        // Limpiar localStorage específico de Supabase
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.includes('supabase') || key.includes('sb-')) {
+                keysToRemove.push(key);
+            }
         }
+        
+        keysToRemove.forEach(key => {
+            localStorage.removeItem(key);
+            console.log(`🗑️ Eliminado: ${key}`);
+        });
+        
+        // Establecer bandera de primer inicio
+        if (!localStorage.getItem('safari_first_visit')) {
+            localStorage.setItem('safari_first_visit', 'true');
+            console.log('📝 Primera visita en Safari registrada');
+        }
+    }
+
+    // Verificación automática cada 2 segundos para limpiar estado
+    setInterval(() => {
+        clearLoadingState();
     }, 2000);
-});
 
-        // Verificación automática cada 2 segundos para limpiar estado
-        setInterval(() => {
-            clearLoadingState();
-        }, 2000); // 2 segundos
-
-        // Verificar autenticación cada 2 segundos
-        setInterval(checkAuthAndProcessUser, 2000);
-    </script>
+    // Verificar autenticación cada 2 segundos
+    setInterval(checkAuthAndProcessUser, 2000);
+</script>
 </body>
 </html>
