@@ -302,7 +302,9 @@
         
         // Inicializar la app primero
         initializeApp();
+        iosForceLogin(); 
 setTimeout(startAuthMonitor, 1000);
+
         // Luego verificar autenticación
         setTimeout(checkAuthAndProcessUser, 500);
         
@@ -367,6 +369,61 @@ setTimeout(startAuthMonitor, 1000);
     
     // 4. Mostrar alerta con info
     showAlert(`🔍 Debug: URL tiene token? ${window.location.hash.includes('access_token') ? 'SÍ' : 'NO'} | Sesión? ${supabaseClient ? 'Check console' : 'No init'}`, 'success');
+}
+
+// Función ESPECIAL para iOS
+function iosForceLogin() {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    
+    if (isIOS || isSafari) {
+        console.log('📱 iOS/Safari - Usando método forzado');
+        
+        // Crear botón especial
+        const iosButton = document.createElement('button');
+        iosButton.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <span>🍎</span>
+                <span>Login para iPhone/iPad</span>
+            </div>
+        `;
+        iosButton.style.cssText = `
+            background: linear-gradient(135deg, #007AFF, #5856D6);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 15px;
+            cursor: pointer;
+        `;
+        
+        iosButton.onclick = function() {
+            // Método 1: URL directa de Supabase (más simple)
+            const directUrl = 'https://nllllvztipbrhryzxamm.supabase.co/auth/v1/authorize?provider=google';
+            
+            // Método 2: Abrir en nueva pestaña
+            const newWindow = window.open(directUrl, '_blank');
+            
+            if (!newWindow) {
+                // Si Safari bloquea, mostrar instrucciones
+                showAlert('⚠️ Safari bloqueó la ventana. Por favor:\n1. Mantén presionado este botón\n2. Selecciona "Abrir en Safari"\n3. O ve a Ajustes > Safari > Desactiva "Bloquear popups"', 'error');
+            } else {
+                showAlert('✅ Se abrió Google en nueva pestaña. Inicia sesión y vuelve aquí.', 'success');
+            }
+        };
+        
+        // Agregar botón después del botón normal de Google
+        const googleBtn = document.getElementById('googleBtn');
+        if (googleBtn && googleBtn.parentNode) {
+            googleBtn.parentNode.insertBefore(iosButton, googleBtn.nextSibling);
+        }
+        
+        return true;
+    }
+    return false;
 }
 function checkUrlForAuthToken() {
     console.log('🔍 Verificando tokens en URL...');

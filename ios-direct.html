@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Directo iOS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { background: black; color: white; text-align: center; padding: 40px 20px; }
+        button { 
+            background: #4285F4; 
+            color: white; 
+            border: none; 
+            padding: 20px 40px; 
+            font-size: 20px; 
+            border-radius: 10px; 
+            margin: 30px auto; 
+            display: block; 
+            cursor: pointer;
+            width: 100%;
+            max-width: 400px;
+        }
+        .steps { text-align: left; max-width: 400px; margin: 30px auto; }
+        .step { margin: 15px 0; padding: 15px; background: #1a1a1a; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>🔑 Login Directo para iOS</h1>
+    <p>Este método funciona en Safari/iPhone/iPad</p>
+    
+    <div class="steps">
+        <div class="step">1. Toca el botón azul</div>
+        <div class="step">2. Inicia sesión en Google</div>
+        <div class="step">3. Serás redirigido automáticamente</div>
+    </div>
+    
+    <button onclick="window.location.href='https://accounts.google.com/o/oauth2/v2/auth?client_id=844357451398-882jnus6cj3gbf0pjkkdvgpkd83i1a2s.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Fcarlosfc123.github.io%2Fbarber%2Fsafari-redirect.html&response_type=code&scope=email%20profile&access_type=offline&prompt=consent'">
+        Iniciar con Google
+    </button>
+    
+    <p style="margin-top: 30px; color: #888; font-size: 14px;">
+        Si no funciona, usa: <a href="login.html" style="color: #d4af37;">login normal</a>
+    </p>
+    
+    <script>
+        // Detectar iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (!isIOS) {
+            document.body.innerHTML = `
+                <h1>⚠️ No estás en iOS</h1>
+                <p>Esta página es solo para dispositivos Apple.</p>
+                <a href="login.html" style="color: #d4af37; font-size: 18px;">← Volver al login normal</a>
+            `;
+        }
+    </script>
+</body>
+</html>
