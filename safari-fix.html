@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Safari Fix - Waldo Barber</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        
+        body { 
+            background: #000000; 
+            color: white; 
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: #1a1a1a;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            border: 2px solid #d4af37;
+        }
+        
+        h1 {
+            color: #d4af37;
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+        
+        p {
+            color: #ccc;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+        
+        .btn-login { 
+            background: #4285F4; 
+            color: white; 
+            border: none; 
+            padding: 15px 30px; 
+            font-size: 18px; 
+            border-radius: 10px; 
+            margin: 20px auto; 
+            display: block; 
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-login:hover {
+            background: #3367D6;
+            transform: translateY(-2px);
+        }
+        
+        .btn-back {
+            background: #333;
+            color: #d4af37;
+            border: 1px solid #d4af37;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .status-success {
+            background: #1a5c3a;
+            color: #90ee90;
+            display: block;
+        }
+        
+        .status-error {
+            background: #5c1a1a;
+            color: #ff6b6b;
+            display: block;
+        }
+        
+        .instructions {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-size: 14px;
+            text-align: left;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Versión Compatible con Safari/iOS</h1>
+        
+        <div id="status" class="status"></div>
+        
+        <p>Este método está optimizado para dispositivos Apple (iPhone, iPad, Safari).</p>
+        
+        <div class="instructions">
+            <strong>Instrucciones:</strong>
+            <ol>
+                <li>Toca el botón azul para iniciar con Google</li>
+                <li>Inicia sesión en tu cuenta de Google</li>
+                <li>Serás redirigido automáticamente</li>
+                <li>Si no redirige, vuelve manualmente a la app</li>
+            </ol>
+        </div>
+        
+        <button class="btn-login" onclick="loginWithGoogle()">
+            <span style="margin-right: 10px;">🔑</span>
+            Iniciar Sesión con Google
+        </button>
+        
+        <button class="btn-back" onclick="goBack()">
+            ↩️ Volver a la página principal
+        </button>
+        
+        <div style="margin-top: 20px; font-size: 12px; color: #888;">
+            Waldo Barber Shop © 2024
+        </div>
+    </div>
+    
+    <script>
+        // Mostrar estado actual
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status status-${type}`;
+            statusDiv.style.display = 'block';
+        }
+        
+        // Función principal de login
+        function loginWithGoogle() {
+            showStatus('🔄 Redirigiendo a Google...', 'info');
+            
+            // URL de autenticación COMPLETA con redirect_to
+            const redirectUrl = encodeURIComponent('https://carlosfc123.github.io/barber/');
+            const authUrl = `https://nllllvztipbrhryzxamm.supabase.co/auth/v1/authorize?provider=google&redirect_to=${redirectUrl}`;
+            
+            console.log('🔗 URL de login:', authUrl);
+            
+            // Redirigir después de un breve delay para que se vea el mensaje
+            setTimeout(() => {
+                window.location.href = authUrl;
+            }, 500);
+        }
+        
+        // Función para volver atrás
+        function goBack() {
+            window.history.back();
+            // Si no hay historial, ir a la página principal
+            setTimeout(() => {
+                window.location.href = 'https://carlosfc123.github.io/barber/';
+            }, 100);
+        }
+        
+        // ===== DETECCIÓN AUTOMÁTICA SI YA VIENE AUTENTICADO =====
+        
+        // Verificar si ya tiene token (viene de Google)
+        function checkIfAlreadyAuthenticated() {
+            const hash = window.location.hash;
+            const search = window.location.search;
+            
+            // Si hay token de acceso o código de autorización
+            if (hash.includes('access_token') || hash.includes('refresh_token') || 
+                search.includes('code=') || search.includes('token=')) {
+                
+                console.log('✅ Token detectado en URL');
+                showStatus('✅ ¡Login exitoso! Redirigiendo...', 'success');
+                
+                // Redirigir a la página principal para que procese el token
+                setTimeout(() => {
+                    window.location.href = 'https://carlosfc123.github.io/barber/';
+                }, 1500);
+                
+                return true;
+            }
+            
+            // Verificar si hay error
+            if (hash.includes('error=') || search.includes('error=')) {
+                const errorMatch = hash.match(/error=([^&]+)/) || search.match(/error=([^&]+)/);
+                if (errorMatch) {
+                    showStatus(`❌ Error: ${decodeURIComponent(errorMatch[1])}`, 'error');
+                }
+                return true;
+            }
+            
+            return false;
+        }
+        
+        // ===== DETECCIÓN DE DISPOSITIVO =====
+        
+        function detectDevice() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            
+            if (!isIOS && !isSafari) {
+                showStatus('⚠️ No estás en Safari/iOS. Puedes usar la versión normal.', 'info');
+            }
+            
+            console.log('📱 Dispositivo:', {
+                userAgent: navigator.userAgent,
+                isIOS: isIOS,
+                isSafari: isSafari,
+                platform: navigator.platform
+            });
+        }
+        
+        // ===== INICIALIZACIÓN =====
+        
+        // Al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔧 safari-fix.html cargado');
+            
+            // Detectar dispositivo
+            detectDevice();
+            
+            // Verificar si ya está autenticado (viene de Google)
+            if (checkIfAlreadyAuthenticated()) {
+                return; // No hacer nada más, ya se está redirigiendo
+            }
+            
+            // Mostrar instrucciones según dispositivo
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            if (isIOS) {
+                showStatus('📱 Modo iOS activado. Toca el botón azul para comenzar.', 'info');
+            }
+            
+            // Intentar login automático después de 3 segundos (opcional)
+            // Descomenta si quieres que sea automático:
+            // setTimeout(loginWithGoogle, 3000);
+        });
+        
+        // ===== MANEJO DE ERRORES =====
+        
+        // Capturar errores no controlados
+        window.addEventListener('error', function(event) {
+            console.error('❌ Error no controlado:', event.error);
+            showStatus('❌ Error técnico. Por favor, intenta de nuevo.', 'error');
+        });
+        
+        // Si la página se cierra o navega
+        window.addEventListener('beforeunload', function() {
+            console.log('🔧 Saliendo de safari-fix.html');
+        });
+    </script>
+</body>
+</html>
