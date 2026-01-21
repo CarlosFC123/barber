@@ -2444,7 +2444,7 @@ async function cargarDatosUsuarioDropdown() {
         // Actualizar mensaje de bienvenida en el header
         const welcomeMessage = document.getElementById('welcomeMessage');
         if (welcomeMessage) {
-            welcomeMessage.textContent = `¡Bienvenido, ${clienteData.nombre}!`;
+            welcomeMessage.textContent = `¡Bienvenido, ${clienteData.nombre} ${clienteData.apellido}!`;
         }
         
         // Actualizar dropdown

@@ -9045,7 +9045,7 @@ function startApplication(supabase) {
                     const citasAgrupadas = {};
                     
                     citas.forEach(cita => {
-                        const infoCliente = esAdmin ? `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>` : '';
+                        const infoCliente = esAdmin ? `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre} ${cita.clientes?.apellido || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>` : '';
                         
                         if (cita.es_bloque && cita.hora_principal) {
                             const claveBloque = `${cita.fecha}_${cita.hora_principal}`;
@@ -9676,7 +9676,7 @@ function startApplication(supabase) {
                 const citasAgrupadas = {};
                 
                 citas.forEach(cita => {
-                    const infoCliente = `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>`;
+                    const infoCliente = `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre} ${cita.clientes?.apellido || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>`;
                     
                     if (cita.es_bloque && cita.hora_principal) {
                         const claveBloque = `${cita.fecha}_${cita.hora_principal}`;
