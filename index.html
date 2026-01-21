@@ -567,8 +567,32 @@
             googleBtn.disabled = false;
         }
 
+        function clearIOSAuthCookies() {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    
+    if (isIOS || isSafari) {
+        console.log('🧹 Limpiando cookies para iOS/Safari');
+        
+        // Eliminar cookies específicas de Supabase/auth
+        document.cookie.split(";").forEach(function(c) {
+            document.cookie = c.replace(/^ +/, "")
+                .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/;domain=" + window.location.hostname);
+        });
+        
+        // Limpiar localStorage y sessionStorage
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        return true;
+    }
+    return false;
+}
+
+
         // Limpiar estado si el usuario hace clic fuera del botón
         document.addEventListener('click', function(event) {
+            clearIOSAuthCookies();
             if (!event.target.closest('#googleBtn') && !event.target.closest('.loading')) {
                 clearLoadingState();
             }
