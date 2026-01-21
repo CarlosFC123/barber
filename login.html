@@ -547,38 +547,25 @@ async function processOAuthReturn() {
                 }
             });
         }
-// REEMPLAZA completamente el event listener del botón de Google con esto:
-// REEMPLAZA el event listener del botón de Google con esto:
 googleBtn.addEventListener('click', async function() {
     try {
         loadingDiv.style.display = 'block';
         googleBtn.disabled = true;
         
-        // DETECTAR iOS/SAFARI
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
         
-        // URL de redirección EXACTA - IMPORTANTE: sin concatenación
+        // URL de redirección diferente para iOS
         let redirectUrl;
         
         if (isIOS || isSafari) {
-            // Para iOS: URL ABSOLUTA y CORRECTA
+            // IMPORTANTE: Usar safari-redirect.html para iOS
             redirectUrl = 'https://carlosfc123.github.io/barber/safari-redirect.html';
+            console.log('📱 iOS detectado, redirigiendo a:', redirectUrl);
         } else {
-            // Para Android/otros
             redirectUrl = 'https://carlosfc123.github.io/barber/login.html';
         }
         
-        loadingDiv.innerHTML = `
-            <div style="text-align: center; padding: 20px;">
-                <p style="color: #d4af37; margin-bottom: 10px;">🔄 Iniciando sesión...</p>
-                <p style="font-size: 12px; color: #ccc; margin-top: 10px;">
-                    Redirigiendo a: ${redirectUrl}
-                </p>
-            </div>
-        `;
-        
-        // CONFIGURACIÓN CORRECTA para Supabase
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
@@ -586,43 +573,20 @@ googleBtn.addEventListener('click', async function() {
                 queryParams: {
                     access_type: 'offline',
                     prompt: 'consent'
-                },
-                // Forzar URL exacta
-                skipBrowserRedirect: false
+                }
             }
         });
         
         if (error) throw error;
         
-        // Para iOS, si tenemos URL, verificar que sea correcta
+        // Para iOS, abrir la URL directamente
         if ((isIOS || isSafari) && data?.url) {
-            
-            // Verificar que la URL no esté mal formada
-            if (data.url.includes('safari-redirect.htmlhttps://')) {
-                console.error('❌ ERROR: URL mal formada detectada');
-                
-                // Corregir manualmente la URL
-                const correctedUrl = data.url.replace(
-                    'safari-redirect.htmlhttps://',
-                    'safari-redirect.html#'
-                );
-                
-                
-                // Abrir URL corregida
-                setTimeout(() => {
-                    window.location.href = correctedUrl;
-                }, 500);
-                
-            } else {
-                // URL está bien, abrir normalmente
-                setTimeout(() => {
-                    window.location.href = data.url;
-                }, 500);
-            }
+            console.log('🌐 Abriendo URL de OAuth para iOS:', data.url.substring(0, 100));
+            window.location.href = data.url;
         }
         
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error en Google login:', error);
         loadingDiv.style.display = 'none';
         googleBtn.disabled = false;
         showAlert('❌ Error: ' + error.message, 'error');

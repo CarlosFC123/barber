@@ -7,232 +7,275 @@
 </head>
 <body>
 <script>
-    
-    // === CORRECCIÓN DE URL MAL FORMADA ===
-(function fixMalformedUrl() {
-    const currentUrl = window.location.href;
-    
-    // Detectar si la URL está mal formada (concatenada)
-    if (currentUrl.includes('safari-redirect.htmlhttps://')) {
-        console.error('⚠️ URL mal formada detectada:', currentUrl.substring(0, 100) + '...');
-        
-        // Corregir la URL
-        const fixedUrl = currentUrl.replace(
-            'safari-redirect.htmlhttps://',
-            'safari-redirect.html#'
-        );
-        
-       
-        // Redirigir a la URL corregida
-        if (window.history.replaceState) {
-            window.history.replaceState(null, '', fixedUrl);
-        } else {
-            window.location.href = fixedUrl;
-        }
-        
-        // Recargar para procesar la URL corregida
-        setTimeout(() => {
-            window.location.reload();
-        }, 100);
-        
-        return true;
-    }
-    
-    return false;
-})();
     // Inicializar Supabase
     const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-    
-    async function handleGoogleDirectCallback() {
+
+    // FUNCIÓN CRÍTICA: Guardar usuario en tabla clientes
+    async function saveUserToClients(userData, role = 'cliente') {
+        console.log('💾 Intentando guardar en tabla clientes:', userData.email);
+        
+        try {
+            // Verificar si el usuario ya existe
+            const { data: existingUser, error: queryError } = await supabaseClient
+                .from('clientes')
+                .select('id, rol')
+                .eq('email', userData.email)
+                .single();
+
+            // Si no existe, crear
+            if (queryError && queryError.code === 'PGRST116') {
+                console.log('👤 Usuario no existe, creando...');
+                const { error: insertError } = await supabaseClient
+                    .from('clientes')
+                    .insert([{
+                        id: userData.id,
+                        nombre: userData.nombre,
+                        apellido: userData.apellido,
+                        telefono: null,
+                        email: userData.email,
+                        rol: role,
+                        creado_en: new Date().toISOString(),
+                        contraseña: null,
+                        proveedor: userData.proveedor || 'google',
+                        avatar_url: userData.avatar_url || null,
+                        email_confirmado: true,
+                        ultimo_login: new Date().toISOString()
+                    }]);
+
+                if (insertError) {
+                    console.error('❌ Error insertando cliente:', insertError);
+                    return false;
+                }
+                console.log('✅ Usuario creado en tabla clientes');
+                return true;
+            } else if (existingUser) {
+                // Si existe, actualizar
+                console.log('👤 Usuario ya existe, actualizando...');
+                const { error: updateError } = await supabaseClient
+                    .from('clientes')
+                    .update({
+                        ultimo_login: new Date().toISOString(),
+                        avatar_url: userData.avatar_url || existingUser.avatar_url,
+                        nombre: userData.nombre,
+                        apellido: userData.apellido
+                    })
+                    .eq('email', userData.email);
+
+                if (updateError) {
+                    console.error('❌ Error actualizando cliente:', updateError);
+                    return false;
+                }
+                console.log('✅ Usuario actualizado en tabla clientes');
+                return true;
+            }
+            
+        } catch (error) {
+            console.error('❌ Error en saveUserToClients:', error);
+            return false;
+        }
+        return false;
+    }
+
+    // Función principal
+    async function processAuth() {
+        console.log('🔧 Iniciando procesamiento de autenticación iOS');
+        
+        const hash = window.location.hash;
         const search = window.location.search;
         
-        // Verificar si es callback de Google directo (tiene ?code=)
-        if (search.includes('code=') && search.includes('state=')) {
-            
-            // Extraer código de autorización
-            const codeMatch = search.match(/code=([^&]+)/);
-            const stateMatch = search.match(/state=([^&]+)/);
-            
-            if (codeMatch && stateMatch) {
-                const code = decodeURIComponent(codeMatch[1]);
-                const state = decodeURIComponent(stateMatch[1]);
-                
-                
-                try {
-                    // Intercambiar código por token usando Supabase
+        console.log('📍 URL actual:', {
+            hash: hash.substring(0, 100),
+            search: search,
+            href: window.location.href.substring(0, 150)
+        });
+
+        try {
+            // 1. Primero intentar procesar como callback de OAuth
+            if (search.includes('code=')) {
+                console.log('🔑 Procesando código OAuth...');
+                const codeMatch = search.match(/code=([^&]+)/);
+                if (codeMatch) {
+                    const code = decodeURIComponent(codeMatch[1]);
                     const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
                     
                     if (error) {
                         console.error('❌ Error intercambiando código:', error);
-                        return false;
+                    } else if (data.session) {
+                        await handleUserSession(data.session.user);
+                        return;
                     }
-                    
-                    if (data.session) {
-                       
-                        // Guardar sesión
-                        localStorage.setItem('supabase_session', JSON.stringify(data.session));
-                        
-                        // Redirigir inmediatamente
-                        setTimeout(() => {
-                            const userRole = data.session.user.user_metadata?.rol || 'cliente';
-                            const redirectTo = userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador' 
-                                ? 'barbero.html' 
-                                : 'cliente.html';
-                            window.location.href = redirectTo;
-                        }, 500);
-                        
-                        return true; // Ya se procesó, no continuar
-                    }
-                    
-                } catch (error) {
-                    console.error('❌ Error en exchangeCodeForSession:', error);
                 }
             }
-        }
-        return false; // No era un callback directo de Google
-    }
-    
-   async function processAuth() {
-    console.log('🔧 Procesando autenticación para iOS');
-    
-    // Verificar si hay token
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const access_token = params.get('access_token');
-    
-    if (!access_token) {
-        console.log('❌ No hay token en URL');
-        redirectToLogin('No se encontró token de acceso');
-        return;
-    }
-    
-    try {
-        // 1. Establecer sesión
-        const { data, error } = await supabaseClient.auth.setSession({
-            access_token: access_token,
-            refresh_token: params.get('refresh_token') || ''
-        });
-        
-        if (error) {
-            console.error('Error estableciendo sesión:', error);
-            redirectToLogin('Error estableciendo sesión');
-            return;
-        }
-        
-        if (data.session) {
-            console.log('✅ Sesión establecida para:', data.session.user.email);
             
-            // 2. GUARDAR USUARIO EN TABLA CLIENTES (CRÍTICO)
-            const user = data.session.user;
-            const userData = {
-                id: user.id,
-                email: user.email,
-                nombre: user.user_metadata?.nombre || 
-                       user.user_metadata?.full_name?.split(' ')[0] || 
-                       user.user_metadata?.given_name ||
-                       'Usuario',
-                apellido: user.user_metadata?.apellido || 
-                         user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
-                         user.user_metadata?.family_name ||
-                         'Usuario',
-                proveedor: user.app_metadata?.provider || 'google',
-                avatar_url: user.user_metadata?.avatar_url || 
-                           user.user_metadata?.picture || null
-            };
-            
-            // 3. Insertar/actualizar en tabla clientes
-            const { error: upsertError } = await supabaseClient
-                .from('clientes')
-                .upsert({
-                    id: userData.id,
-                    nombre: userData.nombre,
-                    apellido: userData.apellido,
-                    email: userData.email,
-                    rol: user.user_metadata?.rol || 'cliente',
-                    proveedor: userData.proveedor,
-                    avatar_url: userData.avatar_url,
-                    email_confirmado: true,
-                    creado_en: new Date().toISOString(),
-                    ultimo_login: new Date().toISOString()
-                }, {
-                    onConflict: 'email',
-                    ignoreDuplicates: false
-                });
-            
-            if (upsertError) {
-                console.error('❌ Error guardando en tabla clientes:', upsertError);
-            } else {
-                console.log('✅ Usuario guardado en tabla clientes:', userData.email);
+            // 2. Procesar tokens directamente del hash
+            if (hash.includes('access_token=')) {
+                console.log('🔑 Procesando token del hash...');
+                const hashParams = new URLSearchParams(hash.substring(1));
+                const access_token = hashParams.get('access_token');
+                const refresh_token = hashParams.get('refresh_token');
+                
+                if (access_token) {
+                    const { data, error } = await supabaseClient.auth.setSession({
+                        access_token: access_token,
+                        refresh_token: refresh_token || ''
+                    });
+                    
+                    if (error) {
+                        console.error('❌ Error estableciendo sesión:', error);
+                    } else if (data.session) {
+                        await handleUserSession(data.session.user);
+                        return;
+                    }
+                }
             }
             
-            // 4. Redirigir
-            setTimeout(() => {
-                const userRole = user.user_metadata?.rol || 'cliente';
-                window.location.href = userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador' 
-                    ? 'barbero.html' 
-                    : 'cliente.html';
-            }, 1000);
-            
-        } else {
-            redirectToLogin('No se pudo crear sesión');
-        }
-        
-    } catch (error) {
-        console.error('❌ Error fatal:', error);
-        redirectToLogin('Error inesperado: ' + error.message);
-    }
-}
-    
-    function redirectToLogin(errorMessage = '') {
-        const redirectUrl = errorMessage 
-            ? `login.html?error=${encodeURIComponent(errorMessage)}`
-            : 'login.html';
-        
-        
-        setTimeout(() => {
-            window.location.href = redirectUrl;
-        }, 2000);
-    }
-    
-    // Función principal que ejecuta todo en orden
-    async function main() {
-        
-        try {
-            // Paso 1: Verificar si es callback directo de Google
-            const isGoogleDirectCallback = await handleGoogleDirectCallback();
-            
-            if (!isGoogleDirectCallback) {
-                // Paso 2: Si no es Google directo, procesar autenticación normal
-                await processAuth();
+            // 3. Si ya hay sesión activa
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                console.log('👤 Sesión ya activa');
+                await handleUserSession(session.user);
+                return;
             }
+            
+            console.log('❌ No se pudo autenticar');
+            redirectToLogin('No se pudo autenticar');
             
         } catch (error) {
-            console.error('❌ Error en main:', error);
-            redirectToLogin('Error inesperado');
+            console.error('❌ Error fatal en processAuth:', error);
+            redirectToLogin('Error: ' + error.message);
         }
     }
+
+    // Manejar sesión de usuario y guardar en tabla
+    async function handleUserSession(user) {
+        console.log('👤 Procesando usuario:', user.email);
+        
+        // Extraer datos del usuario
+        const userData = {
+            id: user.id,
+            email: user.email,
+            nombre: user.user_metadata?.nombre || 
+                   user.user_metadata?.full_name?.split(' ')[0] || 
+                   user.user_metadata?.given_name ||
+                   user.email.split('@')[0],
+            apellido: user.user_metadata?.apellido || 
+                     user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+                     user.user_metadata?.family_name ||
+                     'Usuario',
+            proveedor: user.app_metadata?.provider || 'google',
+            avatar_url: user.user_metadata?.avatar_url || 
+                       user.user_metadata?.picture || null
+        };
+
+        // Guardar en localStorage para debugging
+        localStorage.setItem('ios_user_data', JSON.stringify(userData));
+        
+        // GUARDAR EN TABLA CLIENTES (ESTO ES LO CRÍTICO)
+        console.log('💾 Guardando en tabla clientes...');
+        const saved = await saveUserToClients(userData, user.user_metadata?.rol || 'cliente');
+        
+        if (saved) {
+            console.log('✅ Usuario guardado exitosamente en tabla clientes');
+            
+            // Verificar que realmente se guardó
+            await verifyUserInTable(userData.email);
+        } else {
+            console.error('❌ Falló al guardar en tabla clientes');
+        }
+        
+        // Limpiar URL
+        if (window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname);
+        }
+        
+        // Redirigir
+        setTimeout(() => {
+            const userRole = user.user_metadata?.rol || 'cliente';
+            const redirectTo = (userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador') 
+                ? 'barbero.html' 
+                : 'cliente.html';
+            
+            console.log('🔄 Redirigiendo a:', redirectTo);
+            window.location.href = redirectTo;
+        }, 1000);
+    }
+
+    // Verificar que el usuario está en la tabla
+    async function verifyUserInTable(email) {
+        try {
+            console.log('🔍 Verificando usuario en tabla clientes...');
+            const { data, error } = await supabaseClient
+                .from('clientes')
+                .select('id, nombre, apellido, email')
+                .eq('email', email)
+                .single();
+            
+            if (error) {
+                console.error('❌ Error verificando usuario:', error);
+            } else if (data) {
+                console.log('✅ Usuario encontrado en tabla:', data);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('❌ Error en verifyUserInTable:', error);
+            return false;
+        }
+    }
+
+    function redirectToLogin(errorMessage = '') {
+        console.log('🔄 Redirigiendo a login...');
+        const encodedError = errorMessage ? encodeURIComponent(errorMessage) : '';
+        setTimeout(() => {
+            window.location.href = encodedError 
+                ? `login.html?error=${encodedError}` 
+                : 'login.html';
+        }, 2000);
+    }
+
+    // Iniciar cuando el DOM esté listo
+    document.addEventListener('DOMContentLoaded', processAuth);
     
-    // Ejecutar cuando el DOM esté listo
-    document.addEventListener('DOMContentLoaded', main);
-    
-    // También ejecutar si el DOM ya está cargado
+    // Si el DOM ya está cargado
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(main, 100);
+        setTimeout(processAuth, 100);
     }
 </script>
-    
-    <div style="text-align: center; padding: 50px; font-family: Arial; background: black; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-        <h1 style="color: #d4af37;">🔄 Procesando tu sesión...</h1>
-        <p>Por favor espera un momento.</p>
-        <div style="margin-top: 20px;">
-            <div id="status" style="margin: 20px 0;"></div>
-        </div>
-        <p style="margin-top: 30px; font-size: 14px; color: #888;">
-            Si no redirige automáticamente en 5 segundos, 
-            <a href="https://carlosfc123.github.io/barber/index.html" style="color: #d4af37;">haz clic aquí</a>.
-        </p>
+
+<div style="text-align: center; padding: 50px; font-family: Arial; background: black; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+    <h1 style="color: #d4af37;">🔄 Procesando tu sesión...</h1>
+    <p id="status">Verificando autenticación...</p>
+    <div style="margin-top: 20px; padding: 20px; background: #222; border-radius: 10px; max-width: 500px;">
+        <p><strong>Dispositivo:</strong> <span id="deviceInfo">iOS/Safari</span></p>
+        <p><strong>Estado:</strong> <span id="authStatus">Procesando...</span></p>
     </div>
+    <p style="margin-top: 30px; font-size: 14px; color: #888;">
+        Esto puede tomar unos segundos...
+    </p>
+</div>
+
+<script>
+    // Mostrar información del dispositivo
+    document.getElementById('deviceInfo').textContent = navigator.userAgent.substring(0, 50) + '...';
+    
+    // Actualizar estado
+    function updateStatus(message) {
+        document.getElementById('authStatus').textContent = message;
+    }
+    
+    // Sobrescribir console.log para mostrar en pantalla
+    const originalLog = console.log;
+    console.log = function(...args) {
+        originalLog.apply(console, args);
+        updateStatus(args.join(' ').substring(0, 100));
+    };
+    
+    console.error = function(...args) {
+        originalLog.apply(console, args);
+        updateStatus('❌ ' + args.join(' ').substring(0, 100));
+    };
+</script>
 </body>
 </html>
