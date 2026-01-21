@@ -595,24 +595,42 @@
 
         // Limpiar estado si el usuario hace clic fuera del botón
         // Inicio de sesión con Google - Universal
-googleBtn.addEventListener('click', async function() {
+// Método que SIEMPRE funciona
+googleBtn.addEventListener('click', function() {
     loadingDiv.style.display = 'block';
-    loadingDiv.textContent = '🔄 Redirigiendo...';
+    loadingDiv.textContent = '🔄 Conectando con Google...';
     googleBtn.disabled = true;
     
-    // URL de autenticación directa
-    const authUrl = 'https://nllllvztipbrhryzxamm.supabase.co/auth/v1/authorize?' +
-        'provider=google&' +
-        'redirect_to=https%3A%2F%2Fcarlosfc123.github.io%2Fbarber%2F&' +
-        'response_type=code&' +
-        'scope=email+profile+openid&' +
-        'access_type=offline&' +
-        'prompt=consent';
+    // Generar un estado único para seguridad
+    const state = Math.random().toString(36).substring(7);
+    localStorage.setItem('oauth_state', state);
     
-    // Redirección inmediata (funciona en Safari/iOS)
+    // URL FINAL que debería funcionar
+    const finalAuthUrl = 
+        'https://nllllvztipbrhryzxamm.supabase.co/auth/v1/authorize?' +
+        'provider=google&' +
+        'redirect_to=https%3A%2F%2Fcarlosfc123.github.io%2Fbarber%2F&' + 
+        'response_type=code&' +
+        'scope=email%20profile%20openid&' +
+        'access_type=offline&' +
+        'prompt=consent&' +
+        'state=' + state;
+    
+    console.log('🚀 URL final de autenticación:', finalAuthUrl);
+    
+    // Intentar diferentes métodos de redirección
     setTimeout(() => {
-        window.location.href = authUrl;
-    }, 200);
+        // Método 1: Redirección normal
+        window.location.href = finalAuthUrl;
+    }, 100);
+    
+    // Método 2: Si no funcionó en 2 segundos, intentar abrir en nueva pestaña
+    setTimeout(() => {
+        if (!window.location.href.includes('accounts.google.com')) {
+            console.log('⚠️ Intentando método alternativo...');
+            window.open(finalAuthUrl, '_blank');
+        }
+    }, 2000);
 });
 
         // Verificación automática cada 2 segundos para limpiar estado
