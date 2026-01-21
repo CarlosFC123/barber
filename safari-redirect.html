@@ -94,47 +94,25 @@
         return false; // No era un callback directo de Google
     }
     
-    async function processAuth() {
-   
-    // PRIMERO: Verificar y corregir URL si es necesario
-    const hash = window.location.hash;
-    const search = window.location.search;
+   async function processAuth() {
+    console.log('🔧 Procesando autenticación para iOS');
     
-    console.log('', {
-        href: window.location.href.substring(0, 150),
-        hash: hash.substring(0, 100),
-        search: search
-    });
+    // Verificar si hay token
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const access_token = params.get('access_token');
     
-    // Verificar si hay token en hash O en URL completa
-    let accessToken = null;
-    
-    if (hash.includes('access_token=')) {
-        // Token está en el hash (CORRECTO)
-        const tokenMatch = hash.match(/access_token=([^&]+)/);
-        if (tokenMatch) {
-            accessToken = decodeURIComponent(tokenMatch[1]);
-            
-        }
-    } else if (window.location.href.includes('access_token=')) {
-        // Token está en la URL completa (URL mal formada)
-        const tokenMatch = window.location.href.match(/access_token=([^&]+)/);
-        if (tokenMatch) {
-            accessToken = decodeURIComponent(tokenMatch[1]);
-        }
-    }
-    
-    if (!accessToken) {
+    if (!access_token) {
+        console.log('❌ No hay token en URL');
         redirectToLogin('No se encontró token de acceso');
         return;
     }
     
-    
     try {
-        // Intentar establecer sesión manualmente
+        // 1. Establecer sesión
         const { data, error } = await supabaseClient.auth.setSession({
-            access_token: accessToken,
-            refresh_token: window.location.href.match(/refresh_token=([^&]+)/)?.[1] || ''
+            access_token: access_token,
+            refresh_token: params.get('refresh_token') || ''
         });
         
         if (error) {
@@ -144,34 +122,54 @@
         }
         
         if (data.session) {
+            console.log('✅ Sesión establecida para:', data.session.user.email);
             
-            // Guardar datos
+            // 2. GUARDAR USUARIO EN TABLA CLIENTES (CRÍTICO)
+            const user = data.session.user;
             const userData = {
-                id: data.session.user.id,
-                email: data.session.user.email,
-                nombre: data.session.user.user_metadata?.nombre || 
-                       data.session.user.user_metadata?.full_name?.split(' ')[0] || 
-                       data.session.user.user_metadata?.given_name ||
+                id: user.id,
+                email: user.email,
+                nombre: user.user_metadata?.nombre || 
+                       user.user_metadata?.full_name?.split(' ')[0] || 
+                       user.user_metadata?.given_name ||
                        'Usuario',
-                apellido: data.session.user.user_metadata?.apellido || 
-                         data.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
-                         data.session.user.user_metadata?.family_name ||
-                         'Usuario'
+                apellido: user.user_metadata?.apellido || 
+                         user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+                         user.user_metadata?.family_name ||
+                         'Usuario',
+                proveedor: user.app_metadata?.provider || 'google',
+                avatar_url: user.user_metadata?.avatar_url || 
+                           user.user_metadata?.picture || null
             };
             
-            // Guardar en localStorage
-            localStorage.setItem('supabase_session', JSON.stringify(data.session));
-            localStorage.setItem('user_data', JSON.stringify(userData));
-            localStorage.setItem('user_role', data.session.user.user_metadata?.rol || 'cliente');
+            // 3. Insertar/actualizar en tabla clientes
+            const { error: upsertError } = await supabaseClient
+                .from('clientes')
+                .upsert({
+                    id: userData.id,
+                    nombre: userData.nombre,
+                    apellido: userData.apellido,
+                    email: userData.email,
+                    rol: user.user_metadata?.rol || 'cliente',
+                    proveedor: userData.proveedor,
+                    avatar_url: userData.avatar_url,
+                    email_confirmado: true,
+                    creado_en: new Date().toISOString(),
+                    ultimo_login: new Date().toISOString()
+                }, {
+                    onConflict: 'email',
+                    ignoreDuplicates: false
+                });
             
-            // Limpiar URL
-            if (window.history.replaceState) {
-                window.history.replaceState(null, '', window.location.pathname);
+            if (upsertError) {
+                console.error('❌ Error guardando en tabla clientes:', upsertError);
+            } else {
+                console.log('✅ Usuario guardado en tabla clientes:', userData.email);
             }
             
-            // Redirigir
+            // 4. Redirigir
             setTimeout(() => {
-                const userRole = data.session.user.user_metadata?.rol || 'cliente';
+                const userRole = user.user_metadata?.rol || 'cliente';
                 window.location.href = userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador' 
                     ? 'barbero.html' 
                     : 'cliente.html';

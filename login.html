@@ -790,17 +790,38 @@ googleBtn.addEventListener('click', async function() {
     // Función principal de verificación de autenticación
     async function checkAuthAndProcessUser() {
     try {
-        
-        // PRIMERO: Verificar si hay token en la URL (retorno de OAuth)
-        if (checkUrlForAuthToken()) {
-            return; // Ya se está procesando el token
+        // 1. Primero verificar token en URL (especial para iOS)
+        if (window.location.hash.includes('access_token=')) {
+            console.log('🔍 Token detectado en URL (iOS)');
+            
+            // Procesar el token manualmente para iOS
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const access_token = params.get('access_token');
+            const refresh_token = params.get('refresh_token');
+            
+            if (access_token) {
+                console.log('🔐 Procesando token manual para iOS');
+                
+                // Establecer sesión manualmente
+                const { data, error } = await supabaseClient.auth.setSession({
+                    access_token: access_token,
+                    refresh_token: refresh_token || ''
+                });
+                
+                if (error) {
+                    console.error('Error estableciendo sesión:', error);
+                    return;
+                }
+                
+                if (data.session) {
+                    await processUserData(data.session.user);
+                    return;
+                }
+            }
         }
         
-        if (!supabaseClient) {
-            return;
-        }
-        
-        // SEGUNDO: Verificar sesión existente
+        // 2. Verificar sesión normal
         const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
         
         if (sessionError) {
@@ -809,31 +830,56 @@ googleBtn.addEventListener('click', async function() {
         }
         
         if (session && session.user) {
-            
-            // Preparar datos del usuario
-            const userData = {
-                id: session.user.id,
-                nombre: extractFirstName(session.user),
-                apellido: extractLastName(session.user),
-                email: session.user.email,
-                proveedor: session.user.app_metadata?.provider || 'google',
-                avatar_url: extractAvatarUrl(session.user)
-            };
-
-            // Verificar rol
-            const userRoleFromMetadata = session.user.user_metadata?.rol || 'cliente';
-            
-            // Guardar usuario
-            const userRole = await saveUserToClients(userData, userRoleFromMetadata);
-            
-            // Redirigir según el rol
-            redirectByRole(userRole);
-            
-        } else {
+            await processUserData(session.user);
         }
         
     } catch (error) {
-        console.error('Error en checkAuth:', error);
+        console.error('Error en checkAuthAndProcessUser:', error);
+    }
+}
+
+// Función separada para procesar usuario
+async function processUserData(user) {
+    console.log('👤 Procesando usuario:', user.email);
+    
+    const userData = {
+        id: user.id,
+        nombre: extractFirstName(user),
+        apellido: extractLastName(user),
+        email: user.email,
+        proveedor: user.app_metadata?.provider || 'google',
+        avatar_url: extractAvatarUrl(user)
+    };
+
+    const userRoleFromMetadata = user.user_metadata?.rol || 'cliente';
+    
+    // FORZAR guardado del usuario (especial para iOS)
+    const userRole = await saveUserToClients(userData, userRoleFromMetadata);
+    
+    // Verificar si realmente se guardó
+    await verifyUserInTable(user.email);
+    
+    redirectByRole(userRole);
+}
+
+async function verifyUserInTable(email) {
+    try {
+        const { data, error } = await supabaseClient
+            .from('clientes')
+            .select('id')
+            .eq('email', email)
+            .single();
+        
+        if (error && error.code === 'PGRST116') {
+            console.error('⚠️ Usuario NO encontrado en tabla clientes:', email);
+            return false;
+        }
+        
+        console.log('✅ Usuario verificado en tabla clientes:', data?.id);
+        return true;
+    } catch (error) {
+        console.error('Error verificando usuario:', error);
+        return false;
     }
 }
 
@@ -944,7 +990,7 @@ googleBtn.addEventListener('click', async function() {
         
         keysToRemove.forEach(key => {
             localStorage.removeItem(key);
-        });
+        }); 
         
         // Establecer bandera de primer inicio
         if (!localStorage.getItem('safari_first_visit')) {
