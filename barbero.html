@@ -9676,7 +9676,10 @@ function startApplication(supabase) {
                 const citasAgrupadas = {};
                 
                 citas.forEach(cita => {
-                    const infoCliente = `<p><strong>👤 Cliente:</strong> ${cita.clientes?.nombre} ${cita.clientes?.apellido || 'No disponible'} (${cita.clientes?.email || 'Sin email'})</p>`;
+                    const nombreCompleto = cita.clientes?.nombre && cita.clientes?.apellido 
+            ? `${cita.clientes.nombre} ${cita.clientes.apellido}`
+            : cita.clientes?.nombre || 'No disponible';
+                    const infoCliente = `<p><strong>👤 Cliente:</strong> ${nombreCompleto} (${cita.clientes?.email || 'Sin email'})</p>`;
                     
                     if (cita.es_bloque && cita.hora_principal) {
                         const claveBloque = `${cita.fecha}_${cita.hora_principal}`;
