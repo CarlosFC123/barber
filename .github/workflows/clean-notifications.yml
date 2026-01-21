@@ -10,15 +10,6 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - name: Test connection first
-        run: |
-          # Probar la conexión primero
-          echo "Testing Supabase connection..."
-          curl -X GET "https://nllllvztipbrhryzxamm.supabase.co/rest/v1/" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            --silent --output /dev/null --write-out "%{http_code}\n"
-          
       - name: Clean old notifications
         run: |
           echo "Calling clean-notifications function..."
