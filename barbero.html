@@ -2781,7 +2781,7 @@ async function cargarImagenesCarrusel() {
         await new Promise(resolve => setTimeout(resolve, 100));
         
         if (imagenesValidas.length === 0) {
-            console.log('📭 No se pudieron cargar imágenes válidas');
+            
             mostrarCarruselVacio();
             return;
         }
@@ -3127,7 +3127,7 @@ function startApplication(supabase) {
             }
 
             if (document.querySelector('.carrusel-simple')) {
-                console.log('🎯 Inicializando carrusel forzadamente...');
+                
                 setTimeout(() => {
                     inicializarCarruselSimple();
                 }, 1000);
@@ -3135,7 +3135,7 @@ function startApplication(supabase) {
 
             setTimeout(() => {
                 if (document.querySelector('.carrusel-simple')) {
-                    console.log('🎯 Inicializando carrusel...');
+                    
                     inicializarCarruselSimple();
                 }
             }, 2000);
@@ -3671,13 +3671,11 @@ function startApplication(supabase) {
                             
                             // Si estamos en Mis Citas, recargar la lista
                             if (estaEnMisCitas) {
-                                console.log('📋 Recargando lista de citas...');
                                 await cargarMisCitas();
                             }
                             
                             // Si estamos en Agendar y tenemos fecha seleccionada, actualizar horas
                             if (estaEnAgendar && selectedDate) {
-                                console.log('📅 Actualizando horas disponibles...');
                                 await generateHoras(selectedDate);
                             }
                             
@@ -4136,7 +4134,6 @@ function startApplication(supabase) {
                                 
                                 // Forzar actualización como "reservando" si no es mi reserva
                                 if (!horaBtn.classList.contains('mi-reserva-activa')) {
-                                    console.log(`   - Forzando ${horaStr} como reservando (bloque 80min)`);
                                     forzarActualizacionReservando(fecha, horaStr);
                                 }
                             }
@@ -4159,7 +4156,6 @@ function startApplication(supabase) {
                     if (fecha === fechaActual && reservaInfo.usuarioId !== miUsuarioId) {
                         // Verificar si la reserva ya expiró
                         if (reservaInfo.expira_en <= ahora) {
-                            console.log(`🗑️ Reserva expirada para ${hora}, ignorando`);
                             continue;
                         }
                         
@@ -4177,7 +4173,6 @@ function startApplication(supabase) {
                                 forzarActualizacionReservando(fecha, hora);
                             }, 100);
                         } else {
-                            console.log(`✅ ${hora} ya está configurado correctamente`);
                         }
                     }
                 }
@@ -4324,7 +4319,6 @@ function startApplication(supabase) {
                                 
                                 if (horaBtn) {
                                     const horaStr = horaBtn.dataset.hora;
-                                    console.log(`   - Marcando ${horaStr} como parte del bloque`);
                                     
                                     // Forzar actualización como "reservando"
                                     if (!horaBtn.classList.contains('mi-reserva-activa')) {
@@ -6497,7 +6491,6 @@ function startApplication(supabase) {
                     if (fecha === fechaActual && reservaInfo.usuarioId !== miUsuarioId) {
                         // Verificar si la reserva ya expiró
                         if (reservaInfo.expira_en <= ahora) {
-                            console.log(`🗑️ Reserva expirada para ${hora}, ignorando`);
                             continue;
                         }
                     }
@@ -7269,7 +7262,6 @@ function startApplication(supabase) {
                                 }
                             });
                         } catch (broadcastError) {
-                            console.log('⚠️ No se pudo enviar broadcast, usando REST', broadcastError);
                         }
                     }
                 } catch (error) {
@@ -10836,7 +10828,6 @@ function startApplication(supabase) {
                                     const otraHoraIndex = obtenerIndexHora(citaFecha.hora);
                                     
                                     if (Math.abs(otraHoraIndex - horaActualIndex) === 1) {
-                                        console.log(`🤝 Encontrada cita relacionada: ${citaFecha.hora} (ID: ${citaFecha.id})`);
                                         todasLasCitasDelBloque.push(citaFecha);
                                     }
                                 });
@@ -11255,8 +11246,6 @@ function startApplication(supabase) {
                 try {
                     // Obtener hora LOCAL actual
                     const ahoraLocal = new Date();
-                    console.log('🕐 Verificando citas pasadas...');
-                    console.log('   - Hora LOCAL:', ahoraLocal.toLocaleString('es-MX'));
                     
                     // Buscar todas las citas activas del usuario
                     const { data: citasActivas, error } = await supabase
@@ -11279,15 +11268,10 @@ function startApplication(supabase) {
                             // Convertir fecha/hora de la cita a objeto Date (ya está en hora local)
                             const fechaCita = getYucatanDateTime(cita.fecha, cita.hora);
                             
-                            console.log(`   - Cita ${cita.id}: ${cita.fecha} ${cita.hora}`);
-                            console.log(`     Hora cita (local): ${fechaCita.toLocaleString('es-MX')}`);
-                            console.log(`     Hora actual (local): ${ahoraLocal.toLocaleString('es-MX')}`);
-                            console.log(`     Pasó? ${ahoraLocal > fechaCita}`);
                             
                             // Verificar si la hora de la cita YA PASÓ (comparación LOCAL)
                             if (ahoraLocal > fechaCita) {
-                                console.log(`✅ Cita ${cita.id} pasó: ${cita.fecha} ${cita.hora}`);
-                                
+                               
                                 // Buscar todas las citas del bloque si es parte de un bloque
                                 let todasCitasBloque = [cita];
                                 citasYaProcesadas.add(cita.id);
@@ -11319,7 +11303,6 @@ function startApplication(supabase) {
                                 
                                 // Marcar todas las citas del bloque como completadas
                                 const idsAMarcar = todasCitasBloque.map(c => c.id);
-                                console.log(`📦 Marcando ${idsAMarcar.length} citas del bloque como completadas: ${idsAMarcar.join(', ')}`);
                                 
                                 // IMPORTANTE: Solo actualizamos el estado
                                 // El trigger se encargará de establecer expira_en automáticamente
@@ -11332,12 +11315,10 @@ function startApplication(supabase) {
                                     
                                 if (updateError) throw updateError;
                                 
-                                console.log(`✅ ${idsAMarcar.length} citas marcadas como completadas`);
                             }
                         }
                         
                         if (citasYaProcesadas.size > 0) {
-                            console.log('✅ Citas marcadas como completadas - Trigger establecerá expira_en automáticamente');
                             
                             // Recargar citas y actualizar UI
                             await cargarMisCitas();

@@ -298,7 +298,6 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Página cargada - Iniciando verificación...');
         
         // Inicializar la app primero
         initializeApp();
@@ -313,7 +312,6 @@ setTimeout(startAuthMonitor, 1000);
         const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
         
         if (isIOS || isSafari) {
-            console.log('📱 Safari/iOS detectado - Configurando verificación especial');
             
             // Verificar cada segundo por 10 segundos (para capturar retorno de OAuth)
             let checkCount = 0;
@@ -323,7 +321,6 @@ setTimeout(startAuthMonitor, 1000);
                 
                 if (checkCount >= 10) {
                     clearInterval(safariCheckInterval);
-                    console.log('✅ Finalizada verificación intensiva Safari');
                 }
             }, 1000);
             
@@ -333,19 +330,13 @@ setTimeout(startAuthMonitor, 1000);
     });
 
     async function debugAuthStatus() {
-    console.log('=== DEBUG AUTH STATUS ===');
+
     
-    // 1. Verificar URL
-    console.log('URL actual:', window.location.href);
-    console.log('Hash:', window.location.hash);
-    console.log('Search:', window.location.search);
-    
-    // 2. Verificar localStorage
-    console.log('LocalStorage items:', localStorage.length);
+
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key.includes('supabase') || key.includes('auth')) {
-            console.log(`🔑 ${key}:`, localStorage.getItem(key));
+            
         }
     }
     
@@ -353,18 +344,15 @@ setTimeout(startAuthMonitor, 1000);
     if (supabaseClient) {
         try {
             const { data, error } = await supabaseClient.auth.getSession();
-            console.log('Supabase session:', data?.session ? '✅ EXISTE' : '❌ NO EXISTE');
-            console.log('Error:', error);
+           
             
             if (data?.session?.user) {
-                console.log('Usuario:', data.session.user.email);
-                console.log('Rol:', data.session.user.user_metadata?.rol);
+               
             }
         } catch (e) {
             console.error('Error checking session:', e);
         }
     } else {
-        console.log('❌ Supabase no inicializado');
     }
     
     // 4. Mostrar alerta con info
@@ -377,7 +365,6 @@ function iosForceLogin() {
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     
     if (isIOS || isSafari) {
-        console.log('📱 iOS/Safari - Usando método forzado');
         
         // Crear botón especial
         // const iosButton = document.createElement('button');
@@ -426,14 +413,12 @@ function iosForceLogin() {
     return false;
 }
 function checkUrlForAuthToken() {
-    console.log('🔍 Verificando tokens en URL...');
     
     const hash = window.location.hash;
     const search = window.location.search;
     
     // Verificar si hay token de Google OAuth en la URL
     if (hash.includes('access_token=') || hash.includes('code=') || search.includes('code=')) {
-        console.log('✅ Token OAuth detectado en URL');
         
         // Mostrar mensaje
         showAlert('🔄 Procesando tu sesión...', 'success');
@@ -448,7 +433,6 @@ function checkUrlForAuthToken() {
 }
 async function processOAuthReturn() {
     try {
-        console.log('🔄 Procesando retorno de OAuth...');
         
         if (!supabaseClient) {
             console.error('❌ Supabase no está inicializado');
@@ -465,13 +449,11 @@ async function processOAuthReturn() {
         }
         
         if (data.session) {
-            console.log('✅ Sesión establecida:', data.session.user.email);
             
             // 2. Limpiar la URL
             if (window.history.replaceState) {
                 const cleanUrl = window.location.origin + window.location.pathname;
                 window.history.replaceState(null, '', cleanUrl);
-                console.log('🧹 URL limpiada');
             }
             
             // 3. Guardar usuario
@@ -493,7 +475,6 @@ async function processOAuthReturn() {
             }, 500);
             
         } else {
-            console.log('⚠️ No se pudo establecer sesión');
             showAlert('❌ No se pudo iniciar sesión. Intenta de nuevo.', 'error');
         }
         
@@ -583,11 +564,9 @@ googleBtn.addEventListener('click', async function() {
         if (isIOS || isSafari) {
             // Para iOS: URL ABSOLUTA y CORRECTA
             redirectUrl = 'https://carlosfc123.github.io/barber/safari-redirect.html';
-            console.log('📱 iOS/Safari - Redirigiendo a:', redirectUrl);
         } else {
             // Para Android/otros
             redirectUrl = 'https://carlosfc123.github.io/barber/login.html';
-            console.log('🤖 Android - Redirigiendo a:', redirectUrl);
         }
         
         loadingDiv.innerHTML = `
@@ -617,7 +596,6 @@ googleBtn.addEventListener('click', async function() {
         
         // Para iOS, si tenemos URL, verificar que sea correcta
         if ((isIOS || isSafari) && data?.url) {
-            console.log('🍎 URL generada por Supabase:', data.url);
             
             // Verificar que la URL no esté mal formada
             if (data.url.includes('safari-redirect.htmlhttps://')) {
@@ -629,7 +607,6 @@ googleBtn.addEventListener('click', async function() {
                     'safari-redirect.html#'
                 );
                 
-                console.log('🔧 URL corregida:', correctedUrl);
                 
                 // Abrir URL corregida
                 setTimeout(() => {
@@ -699,8 +676,7 @@ googleBtn.addEventListener('click', async function() {
     }
 
     function startAuthMonitor() {
-    console.log('🔍 Iniciando monitor de autenticación...');
-    
+
     // Verificar cada 500ms por 30 segundos
     let checkCount = 0;
     const maxChecks = 60; // 30 segundos (60 * 500ms)
@@ -713,7 +689,6 @@ googleBtn.addEventListener('click', async function() {
         const search = window.location.search;
         
         if (hash.includes('access_token=') || hash.includes('code=') || search.includes('code=')) {
-            console.log(`✅ Token detectado en check #${checkCount}`);
             clearInterval(authMonitor);
             
             // Procesar el token
@@ -725,7 +700,6 @@ googleBtn.addEventListener('click', async function() {
         if (supabaseClient) {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
-                console.log(`✅ Sesión encontrada en check #${checkCount}`);
                 clearInterval(authMonitor);
                 
                 // Procesar sesión
@@ -747,7 +721,6 @@ googleBtn.addEventListener('click', async function() {
         
         // Detener después de 30 segundos
         if (checkCount >= maxChecks) {
-            console.log('⏱️ Monitor de autenticación finalizado');
             clearInterval(authMonitor);
         }
         
@@ -787,7 +760,6 @@ googleBtn.addEventListener('click', async function() {
                     console.error('Error insertando cliente:', insertError);
                     return role;
                 } else {
-                    console.log('✅ Usuario guardado en clientes:', userData.email, 'con rol:', role);
                     return role;
                 }
             } else {
@@ -807,7 +779,6 @@ googleBtn.addEventListener('click', async function() {
                     console.error('Error actualizando último login:', updateError);
                 }
                 
-                console.log('✅ Usuario actualizado en clientes:', userData.email, 'con rol:', userRole);
                 return userRole;
             }
         } catch (error) {
@@ -819,7 +790,6 @@ googleBtn.addEventListener('click', async function() {
     // Función principal de verificación de autenticación
     async function checkAuthAndProcessUser() {
     try {
-        console.log('🔍 Verificando autenticación...');
         
         // PRIMERO: Verificar si hay token en la URL (retorno de OAuth)
         if (checkUrlForAuthToken()) {
@@ -827,7 +797,6 @@ googleBtn.addEventListener('click', async function() {
         }
         
         if (!supabaseClient) {
-            console.log('⚠️ Supabase no inicializado aún');
             return;
         }
         
@@ -840,7 +809,6 @@ googleBtn.addEventListener('click', async function() {
         }
         
         if (session && session.user) {
-            console.log('✅ Usuario ya autenticado:', session.user.email);
             
             // Preparar datos del usuario
             const userData = {
@@ -862,7 +830,6 @@ googleBtn.addEventListener('click', async function() {
             redirectByRole(userRole);
             
         } else {
-            console.log('ℹ️ Usuario no autenticado - Mostrando página de login');
         }
         
     } catch (error) {
@@ -877,14 +844,12 @@ googleBtn.addEventListener('click', async function() {
         
         if (!isIOS && !isSafari) return;
         
-        console.log('🔄 Forzando refresco de sesión para Safari...');
         
         try {
             // Intentar múltiples veces obtener sesión
             for (let i = 0; i < 3; i++) {
                 const { data: { session } } = await supabaseClient.auth.getSession();
                 if (session) {
-                    console.log(`✅ Sesión obtenida en intento ${i + 1}`);
                     // Procesar la sesión encontrada
                     await processSession(session);
                     return session;
@@ -894,7 +859,6 @@ googleBtn.addEventListener('click', async function() {
             
             // Si no hay sesión, intentar con referrer
             if (document.referrer.includes('accounts.google.com')) {
-                console.log('🔗 Viene de Google - forzando recarga');
                 window.location.reload();
             }
             
@@ -943,15 +907,12 @@ googleBtn.addEventListener('click', async function() {
     }
 
     function redirectByRole(role) {
-        console.log(`🎯 Redirigiendo usuario con rol: ${role}`);
         
         // Pequeño delay para asegurar que todo se guardó
         setTimeout(() => {
             if (role === 'admin' || role === 'barbero' || role === 'administrador') {
-                console.log('🔄 Redirigiendo a barbero.html');
                 window.location.href = 'barbero.html';
             } else {
-                console.log('🔄 Redirigiendo a cliente.html');
                 window.location.href = 'cliente.html';
             }
         }, 500);
@@ -971,7 +932,6 @@ googleBtn.addEventListener('click', async function() {
         
         if (!isIOS && !isSafari) return;
         
-        console.log('🧹 Limpiando estado de Safari...');
         
         // Limpiar localStorage específico de Supabase
         const keysToRemove = [];
@@ -984,13 +944,11 @@ googleBtn.addEventListener('click', async function() {
         
         keysToRemove.forEach(key => {
             localStorage.removeItem(key);
-            console.log(`🗑️ Eliminado: ${key}`);
         });
         
         // Establecer bandera de primer inicio
         if (!localStorage.getItem('safari_first_visit')) {
             localStorage.setItem('safari_first_visit', 'true');
-            console.log('📝 Primera visita en Safari registrada');
         }
     }
 

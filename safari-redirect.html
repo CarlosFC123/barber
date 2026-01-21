@@ -22,8 +22,7 @@
             'safari-redirect.html#'
         );
         
-        console.log('🔧 URL corregida:', fixedUrl.substring(0, 100) + '...');
-        
+       
         // Redirigir a la URL corregida
         if (window.history.replaceState) {
             window.history.replaceState(null, '', fixedUrl);
@@ -51,7 +50,6 @@
         
         // Verificar si es callback de Google directo (tiene ?code=)
         if (search.includes('code=') && search.includes('state=')) {
-            console.log('🔗 Callback directo de Google detectado');
             
             // Extraer código de autorización
             const codeMatch = search.match(/code=([^&]+)/);
@@ -61,7 +59,6 @@
                 const code = decodeURIComponent(codeMatch[1]);
                 const state = decodeURIComponent(stateMatch[1]);
                 
-                console.log('✅ Código de autorización recibido:', code.substring(0, 20) + '...');
                 
                 try {
                     // Intercambiar código por token usando Supabase
@@ -73,8 +70,7 @@
                     }
                     
                     if (data.session) {
-                        console.log('✅ Token obtenido de Supabase');
-                        
+                       
                         // Guardar sesión
                         localStorage.setItem('supabase_session', JSON.stringify(data.session));
                         
@@ -99,13 +95,12 @@
     }
     
     async function processAuth() {
-    console.log('🔧 Procesando autenticación...');
-    
+   
     // PRIMERO: Verificar y corregir URL si es necesario
     const hash = window.location.hash;
     const search = window.location.search;
     
-    console.log('🔍 URL actual:', {
+    console.log('', {
         href: window.location.href.substring(0, 150),
         hash: hash.substring(0, 100),
         search: search
@@ -119,24 +114,21 @@
         const tokenMatch = hash.match(/access_token=([^&]+)/);
         if (tokenMatch) {
             accessToken = decodeURIComponent(tokenMatch[1]);
-            console.log('✅ Token encontrado en hash');
+            
         }
     } else if (window.location.href.includes('access_token=')) {
         // Token está en la URL completa (URL mal formada)
         const tokenMatch = window.location.href.match(/access_token=([^&]+)/);
         if (tokenMatch) {
             accessToken = decodeURIComponent(tokenMatch[1]);
-            console.log('⚠️ Token encontrado en URL completa (URL mal formada)');
         }
     }
     
     if (!accessToken) {
-        console.log('❌ No se encontró token');
         redirectToLogin('No se encontró token de acceso');
         return;
     }
     
-    console.log('✅ Token encontrado (primeros 20 chars):', accessToken.substring(0, 20) + '...');
     
     try {
         // Intentar establecer sesión manualmente
@@ -152,7 +144,6 @@
         }
         
         if (data.session) {
-            console.log('✅ Sesión establecida manualmente:', data.session.user.email);
             
             // Guardar datos
             const userData = {
@@ -201,7 +192,6 @@
             ? `login.html?error=${encodeURIComponent(errorMessage)}`
             : 'login.html';
         
-        console.log('🔀 Redirigiendo a:', redirectUrl);
         
         setTimeout(() => {
             window.location.href = redirectUrl;
@@ -210,7 +200,6 @@
     
     // Función principal que ejecuta todo en orden
     async function main() {
-        console.log('🚀 safari-redirect.html iniciando...');
         
         try {
             // Paso 1: Verificar si es callback directo de Google
