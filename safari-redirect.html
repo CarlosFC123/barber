@@ -7,6 +7,40 @@
 </head>
 <body>
 <script>
+    
+    // === CORRECCIÓN DE URL MAL FORMADA ===
+(function fixMalformedUrl() {
+    const currentUrl = window.location.href;
+    
+    // Detectar si la URL está mal formada (concatenada)
+    if (currentUrl.includes('safari-redirect.htmlhttps://')) {
+        console.error('⚠️ URL mal formada detectada:', currentUrl.substring(0, 100) + '...');
+        
+        // Corregir la URL
+        const fixedUrl = currentUrl.replace(
+            'safari-redirect.htmlhttps://',
+            'safari-redirect.html#'
+        );
+        
+        console.log('🔧 URL corregida:', fixedUrl.substring(0, 100) + '...');
+        
+        // Redirigir a la URL corregida
+        if (window.history.replaceState) {
+            window.history.replaceState(null, '', fixedUrl);
+        } else {
+            window.location.href = fixedUrl;
+        }
+        
+        // Recargar para procesar la URL corregida
+        setTimeout(() => {
+            window.location.reload();
+        }, 100);
+        
+        return true;
+    }
+    
+    return false;
+})();
     // Inicializar Supabase
     const supabaseUrl = 'https://nllllvztipbrhryzxamm.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGxsdnp0aXBicmhyeXp4YW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxNTkxMjMsImV4cCI6MjA3ODczNTEyM30.mg8mx2ACsG1VDqjt8jw_DyzU6v1aT8rRdpS0ByBGRq4';
@@ -65,101 +99,102 @@
     }
     
     async function processAuth() {
-        console.log('🔧 Procesando autenticación en safari-redirect.html');
+    console.log('🔧 Procesando autenticación...');
+    
+    // PRIMERO: Verificar y corregir URL si es necesario
+    const hash = window.location.hash;
+    const search = window.location.search;
+    
+    console.log('🔍 URL actual:', {
+        href: window.location.href.substring(0, 150),
+        hash: hash.substring(0, 100),
+        search: search
+    });
+    
+    // Verificar si hay token en hash O en URL completa
+    let accessToken = null;
+    
+    if (hash.includes('access_token=')) {
+        // Token está en el hash (CORRECTO)
+        const tokenMatch = hash.match(/access_token=([^&]+)/);
+        if (tokenMatch) {
+            accessToken = decodeURIComponent(tokenMatch[1]);
+            console.log('✅ Token encontrado en hash');
+        }
+    } else if (window.location.href.includes('access_token=')) {
+        // Token está en la URL completa (URL mal formada)
+        const tokenMatch = window.location.href.match(/access_token=([^&]+)/);
+        if (tokenMatch) {
+            accessToken = decodeURIComponent(tokenMatch[1]);
+            console.log('⚠️ Token encontrado en URL completa (URL mal formada)');
+        }
+    }
+    
+    if (!accessToken) {
+        console.log('❌ No se encontró token');
+        redirectToLogin('No se encontró token de acceso');
+        return;
+    }
+    
+    console.log('✅ Token encontrado (primeros 20 chars):', accessToken.substring(0, 20) + '...');
+    
+    try {
+        // Intentar establecer sesión manualmente
+        const { data, error } = await supabaseClient.auth.setSession({
+            access_token: accessToken,
+            refresh_token: window.location.href.match(/refresh_token=([^&]+)/)?.[1] || ''
+        });
         
-        // Verificar si hay token en la URL (de Supabase)
-        const hash = window.location.hash;
-        const search = window.location.search;
+        if (error) {
+            console.error('Error estableciendo sesión:', error);
+            redirectToLogin('Error estableciendo sesión');
+            return;
+        }
         
-        console.log('🔍 URL actual:', { hash: hash.substring(0, 100), search });
-        
-        if (hash.includes('access_token') || hash.includes('type=recovery') || search.includes('error=')) {
-            console.log('✅ Token de Supabase encontrado en URL');
+        if (data.session) {
+            console.log('✅ Sesión establecida manualmente:', data.session.user.email);
             
-            try {
-                // Forzar a Supabase a procesar el token
-                const { data, error } = await supabaseClient.auth.getSession();
-                
-                if (error) {
-                    console.error('Error obteniendo sesión:', error);
-                    redirectToLogin('Error procesando sesión');
-                    return;
-                }
-                
-                if (data.session) {
-                    console.log('✅ Sesión establecida:', data.session.user.email);
-                    
-                    // Guardar datos del usuario
-                    const userData = {
-                        id: data.session.user.id,
-                        email: data.session.user.email,
-                        nombre: data.session.user.user_metadata?.nombre || 
-                               data.session.user.user_metadata?.full_name?.split(' ')[0] || 
-                               data.session.user.user_metadata?.given_name ||
-                               'Usuario',
-                        apellido: data.session.user.user_metadata?.apellido || 
-                                 data.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
-                                 data.session.user.user_metadata?.family_name ||
-                                 'Usuario',
-                        avatar_url: data.session.user.user_metadata?.avatar_url || 
-                                   data.session.user.user_metadata?.picture,
-                        proveedor: data.session.user.app_metadata?.provider || 'google'
-                    };
-                    
-                    // Guardar en localStorage
-                    try {
-                        localStorage.setItem('supabase_session', JSON.stringify(data.session));
-                        localStorage.setItem('user_data', JSON.stringify(userData));
-                        localStorage.setItem('user_role', data.session.user.user_metadata?.rol || 'cliente');
-                        console.log('💾 Datos guardados en localStorage');
-                    } catch (storageError) {
-                        console.warn('⚠️ Error guardando en localStorage:', storageError);
-                    }
-                    
-                    // Limpiar URL
-                    if (window.history.replaceState) {
-                        const cleanUrl = window.location.origin + window.location.pathname;
-                        window.history.replaceState(null, '', cleanUrl);
-                        console.log('🧹 URL limpiada');
-                    }
-                    
-                    // Redirigir según rol
-                    setTimeout(() => {
-                        const userRole = data.session.user.user_metadata?.rol || 'cliente';
-                        if (userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador') {
-                            window.location.href = 'barbero.html';
-                        } else {
-                            window.location.href = 'cliente.html';
-                        }
-                    }, 1000);
-                    
-                } else {
-                    console.log('⚠️ No se pudo establecer sesión');
-                    redirectToLogin('No se pudo iniciar sesión');
-                }
-                
-            } catch (error) {
-                console.error('❌ Error en processAuth:', error);
-                redirectToLogin('Error técnico');
+            // Guardar datos
+            const userData = {
+                id: data.session.user.id,
+                email: data.session.user.email,
+                nombre: data.session.user.user_metadata?.nombre || 
+                       data.session.user.user_metadata?.full_name?.split(' ')[0] || 
+                       data.session.user.user_metadata?.given_name ||
+                       'Usuario',
+                apellido: data.session.user.user_metadata?.apellido || 
+                         data.session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+                         data.session.user.user_metadata?.family_name ||
+                         'Usuario'
+            };
+            
+            // Guardar en localStorage
+            localStorage.setItem('supabase_session', JSON.stringify(data.session));
+            localStorage.setItem('user_data', JSON.stringify(userData));
+            localStorage.setItem('user_role', data.session.user.user_metadata?.rol || 'cliente');
+            
+            // Limpiar URL
+            if (window.history.replaceState) {
+                window.history.replaceState(null, '', window.location.pathname);
             }
             
-        } else {
-            // Si no hay token, verificar si ya estamos autenticados
-            console.log('ℹ️ No hay token en URL - Verificando sesión existente');
-            
-            const { data } = await supabaseClient.auth.getSession();
-            if (data.session) {
-                console.log('✅ Sesión existente encontrada, redirigiendo...');
+            // Redirigir
+            setTimeout(() => {
                 const userRole = data.session.user.user_metadata?.rol || 'cliente';
                 window.location.href = userRole === 'admin' || userRole === 'barbero' || userRole === 'administrador' 
                     ? 'barbero.html' 
                     : 'cliente.html';
-            } else {
-                console.log('❌ No hay sesión - Redirigiendo al login');
-                redirectToLogin();
-            }
+            }, 1000);
+            
+        } else {
+            redirectToLogin('No se pudo crear sesión');
         }
+        
+    } catch (error) {
+        console.error('❌ Error fatal:', error);
+        redirectToLogin('Error inesperado: ' + error.message);
     }
+}
     
     function redirectToLogin(errorMessage = '') {
         const redirectUrl = errorMessage 
