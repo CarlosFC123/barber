@@ -4850,11 +4850,13 @@ function limpiarSeleccionesVisuales() {
             // ============ GENERACIÓN DE HORAS MEJORADA ============
 
 async function generateHoras(selectedDateObj, duracionServicio = null) {
+    
     // Obtener duración del servicio seleccionado
     if (!duracionServicio) {
         const duracionInput = document.getElementById('servicioDuracion');
         duracionServicio = duracionInput ? parseInt(duracionInput.value) : 40;
     }
+    
     
     const horasGrid = document.getElementById('horasGrid');
     if (!horasGrid) {
@@ -4882,15 +4884,6 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
         // Limpiar grid
         horasGrid.innerHTML = '';
         
-        // Contadores para verificar disponibilidad
-        let horasDisponibles = 0;
-        let horasOcupadas = 0;
-        let horasPasadas = 0;
-        let horasNoDisponibles = 0; // Para servicios largos sin bloques disponibles
-        
-        // Arreglo para almacenar botones creados
-        const botonesHoras = [];
-        
         // Crear botones para cada hora
         horas.forEach(horaData => {
             const horaStr = `${String(horaData.hora).padStart(2, '0')}:${String(horaData.minutos).padStart(2, '0')}`;
@@ -4905,100 +4898,38 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
             // Determinar estado
             const estado = determinarEstadoHoraBasico(fechaFormateada, horaStr);
             
-            // Verificar si la hora ya pasó (solo si es hoy)
-            const horaPasada = esHoy && (
-                horaData.hora < horaActual || 
-                (horaData.hora === horaActual && horaData.minutos <= minutosActual)
-            );
-            
             // Configurar botón según estado
             switch(estado) {
                 case 'ocupada':
                     configurarBotonOcupada(btn, horaStr);
-                    horasOcupadas++;
                     break;
-                    
                 case 'reservando':
                     configurarBotonReservando(btn, horaStr, fechaFormateada);
-                    horasOcupadas++;
                     break;
-                    
                 case 'mi-reserva-activa':
                     // Es mi reserva
                     btn.disabled = true;
                     btn.classList.add('mi-reserva-activa');
                     btn.innerHTML = `${horaStr}<br><small style="font-size: 10px; color: #90EE90;">⭐ Tu reserva</small>`;
-                    horasOcupadas++;
                     break;
-                    
                 default:
-                    // Verificar si la hora ya pasó
-                    if (horaPasada) {
-                        configurarBotonPasado(btn, horaStr);
-                        horasPasadas++;
-                    } 
                     // Para horas disponibles, verificar si pueden iniciar bloque
-                    else if (duracionServicio > 40) {
+                    if (duracionServicio > 40) {
                         const slotsNecesarios = Math.ceil(duracionServicio / 40);
                         const puedeIniciarBloque = verificarBloqueDisponible(horaData.index, fechaFormateada, duracionServicio);
                         
                         if (!puedeIniciarBloque) {
                             configurarBotonNoDisponible(btn, horaStr, duracionServicio);
-                            horasNoDisponibles++;
                         } else {
                             configurarBotonDisponible(btn, horaStr, fechaFormateada, duracionServicio);
-                            horasDisponibles++;
                         }
                     } else {
                         configurarBotonDisponible(btn, horaStr, fechaFormateada, duracionServicio);
-                        horasDisponibles++;
                     }
             }
             
-            botonesHoras.push(btn);
-        });
-        
-        // VERIFICAR SI TODAS LAS HORAS ESTÁN OCUPADAS/NO DISPONIBLES
-        const totalHoras = horas.length;
-        const horasNoDisponiblesTotales = horasOcupadas + horasPasadas + horasNoDisponibles;
-        
-        if (horasDisponibles === 0 && horasNoDisponiblesTotales > 0) {
-            // Mostrar mensaje elegante en lugar de las horas
-            horasGrid.innerHTML = '';
-            
-            // Crear contenedor del mensaje
-            const noHorasDiv = document.createElement('div');
-            noHorasDiv.className = 'no-horas-disponibles';
-            noHorasDiv.innerHTML = `
-                <div class="no-horas-disponibles-icon">⏰</div>
-                <h3>Todas las horas están ocupadas</h3>
-                <p>No hay horarios disponibles para esta fecha. Por favor, selecciona otra fecha.</p>
-                <p style="font-size: 14px; color: #ccc; margin-top: 10px;">
-                    Duración del servicio: ${duracionServicio} minutos
-                </p>
-            `;
-            
-            // Cambiar temporalmente el diseño del grid para este mensaje
-            horasGrid.style.gridTemplateColumns = '1fr';
-            horasGrid.appendChild(noHorasDiv);
-            
-            // Actualizar estado de agendamiento
-            actualizarEstadoAgendamiento(0);
-            
-            // No necesitamos continuar con el resto de la lógica
-            return;
-        }
-        
-        // Si hay horas disponibles, agregar todos los botones al grid
-        botonesHoras.forEach(btn => {
             horasGrid.appendChild(btn);
         });
-        
-        // Restaurar layout normal del grid
-        horasGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(80px, 1fr))';
-        
-        // Actualizar estado de agendamiento
-        actualizarEstadoAgendamiento(horasDisponibles);
                 
         // 3. Ejecutar debug para verificar
         debugHorasGeneradas(fechaFormateada);
