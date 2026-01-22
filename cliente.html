@@ -4873,7 +4873,9 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
         const esHoy = selectedDateObj.toDateString() === now.toDateString();
         const horaActual = now.getHours();
         const minutosActual = now.getMinutes();
-        
+        let horasDisponibles = 0;
+        let horasOcupadas = 0;
+        let horasPasadas = 0;
         // 1. Asegurar que tenemos datos actualizados
         await precargarCitasParaFechaEspecifica(fechaFormateada);
         await obtenerSolicitudesPendientes(true);
