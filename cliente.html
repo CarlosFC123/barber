@@ -2162,18 +2162,18 @@ h2 {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
+            initializeApp();
     
     // Inicializar carrusel después de que la app esté lista
-    setTimeout(() => {
-        if (typeof inicializarCarrusel3D === 'function') {
-            
-            inicializarCarrusel3D();
-        } else {
-            console.warn('⚠️ Función inicializarCarrusel3D no disponible aún');
-        }
-    }, 1000);
-});
+            setTimeout(() => {
+                if (typeof inicializarCarrusel3D === 'function') {
+                    
+                    inicializarCarrusel3D();
+                } else {
+                    console.warn('⚠️ Función inicializarCarrusel3D no disponible aún');
+                }
+            }, 1000);
+        });
 
         async function initializeApp() {
             try {
@@ -4930,10 +4930,35 @@ async function generateHoras(selectedDateObj, duracionServicio = null) {
             
             horasGrid.appendChild(btn);
         });
-                
+        const totalHoras = horas.length;
+                    const horasOcupadasTotales = horasOcupadas + horasPasadas;
+                    
+                    if (horasOcupadasTotales === totalHoras && horasDisponibles === 0) {
+                        // Mostrar mensaje elegante en lugar de las horas
+                        horasGrid.innerHTML = '';
+                        
+                        // Crear contenedor del mensaje
+                        const noHorasDiv = document.createElement('div');
+                        noHorasDiv.className = 'no-horas-disponibles';
+                        noHorasDiv.innerHTML = `
+                            <div class="no-horas-disponibles-icon">⏰</div>
+                            <h3>Todas las horas están ocupadas</h3>
+                            <p>No hay horarios disponibles para esta fecha. Por favor, selecciona otra fecha.</p>
+                            <p style="font-size: 14px; color: #ccc; margin-top: 10px;">
+                                Duración del servicio: ${duracionServicio} minutos
+                            </p>
+                        `;
+                        
+                        // Cambiar temporalmente el diseño del grid para este mensaje
+                        horasGrid.style.gridTemplateColumns = '1fr';
+                        horasGrid.appendChild(noHorasDiv);
+                        actualizarEstadoAgendamiento(0);
+                        return;
+                    }    
         // 3. Ejecutar debug para verificar
         debugHorasGeneradas(fechaFormateada);
-        
+        actualizarEstadoAgendamiento(horasDisponibles);
+                    
         // 4. Forzar actualización de estados después de un momento
         setTimeout(() => {
             forzarActualizacionEstadosFecha(fechaFormateada);
