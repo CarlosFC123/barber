@@ -280,18 +280,6 @@
             <div class="info-text">
                 Elige tu método preferido para iniciar sesión
             </div>
-
-            <!-- Agrega esto en .form-container, después del botón de email
-<div style="margin-top: 20px; text-align: center;">
-    <a href="safari-fix.html" style="color: #d4af37; text-decoration: underline; font-size: 14px;">
-        Problemas con Safari/iOS? Usa este enlace alternativo
-    </a>
-</div>
-
-<div style="margin-top: 20px; text-align: center;">
-    <button onclick="debugAuthStatus()" style="background: #666; color: white; border: none; padding: 8px 16px; border-radius: 5px; font-size: 12px; cursor: pointer;">
-        🐛 Debug Auth
-    </button> -->
 </div>
         </div>
     </div>
@@ -365,27 +353,6 @@ function iosForceLogin() {
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     
     if (isIOS || isSafari) {
-        
-        // Crear botón especial
-        // const iosButton = document.createElement('button');
-        // iosButton.innerHTML = `
-        //     <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-        //         <span>🍎</span>
-        //         <span>Login para iPhone/iPad</span>
-        //     </div>
-        // `;
-        // iosButton.style.cssText = `
-        //     background: linear-gradient(135deg, #007AFF, #5856D6);
-        //     color: white;
-        //     border: none;
-        //     padding: 15px;
-        //     border-radius: 10px;
-        //     font-size: 16px;
-        //     font-weight: bold;
-        //     width: 100%;
-        //     margin-top: 15px;
-        //     cursor: pointer;
-        // `;
         
         iosButton.onclick = function() {
             // Método 1: URL directa de Supabase (más simple)

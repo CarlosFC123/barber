@@ -4552,8 +4552,6 @@ function startApplication(supabase) {
                     // Determinar la hora principal de este bloque
                     let horaPrincipal = reserva.horaPrincipal;
                     
-                    // Si no tiene horaPrincipal especificada pero es parte de un bloque,
-                    // buscar la hora principal entre las reservas del mismo usuario
                     if (!horaPrincipal && reserva.duracionServicio > 40) {
                         // Buscar otras reservas del mismo usuario en la misma fecha
                         for (const [otraClave, otraReserva] of solicitudesPendientes.entries()) {
@@ -5361,8 +5359,7 @@ function startApplication(supabase) {
                     cacheEstadosHoras.delete(`${fecha}_${hora}`);
                     cacheEstadosHoras.delete(`${fecha}_${hora}:00`);
                     
-                    // 5. NO limpiar reservaActiva aquí - se limpiará en cancelarReservaAnterior
-                    // Solo verificar si es la misma reserva y limpiar timeoutId
+                    
                     if (reservaActiva && reservaActiva.fecha === fecha && reservaActiva.hora === hora) {
                         if (reservaActiva.timeoutId) {
                             clearTimeout(reservaActiva.timeoutId);
@@ -9477,7 +9474,6 @@ function startApplication(supabase) {
             hour: '2-digit',
             minute: '2-digit'
         });
-        // fechaAgendamientoHTML = `<p><strong>📝 Agendado el:</strong> ${fechaFormateada}</p>`;
     }
     
     // Formatear fecha de la cita
@@ -12379,7 +12375,7 @@ function startApplication(supabase) {
                 }, 120000); // 15 segundos
             }
 
-// Función para detener el polling de citas
+
             function detenerPollingCitas() {
                 if (window.citasPollingInterval) {
                     clearInterval(window.citasPollingInterval);
