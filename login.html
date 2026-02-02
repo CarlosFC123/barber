@@ -290,6 +290,7 @@
         // Inicializar la app primero
         initializeApp();
         iosForceLogin(); 
+        iosRoleRefresh();
 setTimeout(startAuthMonitor, 1000);
 
         // Luego verificar autenticación
@@ -374,6 +375,48 @@ function iosForceLogin() {
         if (googleBtn && googleBtn.parentNode) {
             googleBtn.parentNode.insertBefore(iosButton, googleBtn.nextSibling);
         }
+        
+        return true;
+    }
+    return false;
+}
+
+function iosRoleRefresh() {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    
+    if (isIOS || isSafari) {
+        console.log('📱 iOS/Safari detectado, forzando verificación de rol');
+        
+        // Limpiar caché local
+        localStorage.removeItem('supabase.auth.token');
+        localStorage.removeItem('supabase.auth.refresh-token');
+        
+        // Forzar verificación cada 2 segundos por 10 segundos
+        let checkCount = 0;
+        const iosRoleInterval = setInterval(async () => {
+            checkCount++;
+            
+            if (supabaseClient) {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session && session.user) {
+                    // Verificar rol directamente desde BD
+                    const actualRole = await getCurrentRoleFromDatabase(session.user.email);
+                    console.log('📱 iOS - Rol actual:', actualRole);
+                    
+                    if (actualRole === 'admin' || actualRole === 'administrador' || actualRole === 'barbero') {
+                        // Si es admin, actualizar metadatos y redirigir
+                        await updateUserMetadata(session.user.id, actualRole);
+                        redirectByRole(actualRole);
+                        clearInterval(iosRoleInterval);
+                    }
+                }
+            }
+            
+            if (checkCount >= 5) {
+                clearInterval(iosRoleInterval);
+            }
+        }, 2000);
         
         return true;
     }
@@ -658,82 +701,107 @@ googleBtn.addEventListener('click', async function() {
     }, 500); // Verificar cada 500ms
 }
     // Función para guardar usuario en la tabla clientes
-    async function saveUserToClients(userData, role = 'cliente') {
-        try {
-            const { data: existingUser, error: queryError } = await supabaseClient
-                .from('clientes')
-                .select('id, rol')
-                .eq('email', userData.email)
-                .single();
+   async function saveUserToClients(userData, role = 'cliente') {
+    try {
+        console.log('💾 Guardando/actualizando usuario:', userData.email, 'rol:', role);
+        
+        // Verificar si el usuario ya existe
+        const { data: existingUser, error: queryError } = await supabaseClient
+            .from('clientes')
+            .select('id, rol')
+            .eq('email', userData.email)
+            .maybeSingle();
 
-            if (queryError && queryError.code !== 'PGRST116') { // PGRST116 = no rows returned
-                console.error('Error consultando cliente:', queryError);
+        if (queryError && queryError.code !== 'PGRST116') {
+            console.error('Error consultando cliente:', queryError);
+            
+            // Intentar insertar de todos modos
+            const { error: insertError } = await supabaseClient
+                .from('clientes')
+                .upsert([{
+                    id: userData.id,
+                    nombre: userData.nombre,
+                    apellido: userData.apellido,
+                    email: userData.email,
+                    rol: role,
+                    proveedor: userData.proveedor || 'google',
+                    avatar_url: userData.avatar_url || null,
+                    email_confirmado: true,
+                    ultimo_login: new Date().toISOString()
+                }], {
+                    onConflict: 'email'
+                });
+
+            if (insertError) {
+                console.error('Error en upsert:', insertError);
                 return role;
             }
-
-            if (!existingUser) {
-                const { error: insertError } = await supabaseClient
-                    .from('clientes')
-                    .insert([{
-                        id: userData.id,
-                        nombre: userData.nombre,
-                        apellido: userData.apellido,
-                        email: userData.email,
-                        rol: role,
-                        proveedor: userData.proveedor || 'google',
-                        avatar_url: userData.avatar_url || null,
-                        email_confirmado: true,
-                        creado_en: new Date().toISOString(),
-                        ultimo_login: new Date().toISOString()
-                    }]);
-
-                if (insertError) {
-                    console.error('Error insertando cliente:', insertError);
-                    return role;
-                } else {
-                    return role;
-                }
-            } else {
-                // Usuario existe, obtener su rol actual
-                const userRole = existingUser.rol || role;
-                
-                // Actualizar último login
-                const { error: updateError } = await supabaseClient
-                    .from('clientes')
-                    .update({
-                        ultimo_login: new Date().toISOString(),
-                        avatar_url: userData.avatar_url || existingUser.avatar_url
-                    })
-                    .eq('email', userData.email);
-
-                if (updateError) {
-                    console.error('Error actualizando último login:', updateError);
-                }
-                
-                return userRole;
-            }
-        } catch (error) {
-            console.error('Error guardando usuario:', error);
-            return role;
         }
-    }
 
-    // Función principal de verificación de autenticación
-    async function checkAuthAndProcessUser() {
-    try {
-        // 1. Primero verificar token en URL (especial para iOS)
-        if (window.location.hash.includes('access_token=')) {
-            console.log('🔍 Token detectado en URL (iOS)');
+        if (!existingUser) {
+            // Insertar nuevo usuario
+            const { error: insertError } = await supabaseClient
+                .from('clientes')
+                .insert([{
+                    id: userData.id,
+                    nombre: userData.nombre,
+                    apellido: userData.apellido,
+                    email: userData.email,
+                    rol: role,
+                    proveedor: userData.proveedor || 'google',
+                    avatar_url: userData.avatar_url || null,
+                    email_confirmado: true,
+                    creado_en: new Date().toISOString(),
+                    ultimo_login: new Date().toISOString()
+                }]);
+
+            if (insertError) {
+                console.error('Error insertando cliente:', insertError);
+                return role;
+            }
+        } else {
+            // Actualizar usuario existente con el rol ACTUALIZADO
+            const currentRole = existingUser.rol || role;
+            const finalRole = currentRole === 'admin' ? 'admin' : role;
             
-            // Procesar el token manualmente para iOS
+            const { error: updateError } = await supabaseClient
+                .from('clientes')
+                .update({
+                    rol: finalRole, // Mantener admin si ya lo era, o usar el nuevo rol
+                    ultimo_login: new Date().toISOString(),
+                    avatar_url: userData.avatar_url || existingUser.avatar_url,
+                    nombre: userData.nombre,
+                    apellido: userData.apellido
+                })
+                .eq('email', userData.email);
+
+            if (updateError) {
+                console.error('Error actualizando cliente:', updateError);
+                return finalRole;
+            }
+            
+            return finalRole;
+        }
+        
+        return role;
+    } catch (error) {
+        console.error('Error guardando usuario:', error);
+        return role;
+    }
+}
+    // Función principal de verificación de autenticación
+async function checkAuthAndProcessUser() {
+    try {
+        // Verificar si hay token en URL
+        if (window.location.hash.includes('access_token=')) {
+            console.log('🔍 Token detectado en URL');
+            
             const hash = window.location.hash.substring(1);
             const params = new URLSearchParams(hash);
             const access_token = params.get('access_token');
             const refresh_token = params.get('refresh_token');
             
             if (access_token) {
-                console.log('🔐 Procesando token manual para iOS');
-                
                 // Establecer sesión manualmente
                 const { data, error } = await supabaseClient.auth.setSession({
                     access_token: access_token,
@@ -746,13 +814,13 @@ googleBtn.addEventListener('click', async function() {
                 }
                 
                 if (data.session) {
-                    await processUserData(data.session.user);
+                    await processUserWithUpdatedRole(data.session.user);
                     return;
                 }
             }
         }
         
-        // 2. Verificar sesión normal
+        // Verificar sesión normal
         const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
         
         if (sessionError) {
@@ -761,13 +829,121 @@ googleBtn.addEventListener('click', async function() {
         }
         
         if (session && session.user) {
-            await processUserData(session.user);
+            await processUserWithUpdatedRole(session.user);
         }
         
     } catch (error) {
         console.error('Error en checkAuthAndProcessUser:', error);
     }
 }
+
+async function processUserWithUpdatedRole(user) {
+    console.log('👤 Procesando usuario con rol actualizado:', user.email);
+    
+    // OBTENER ROL ACTUALIZADO DESDE LA TABLA CLIENTES
+    const userRole = await getCurrentRoleFromDatabase(user.email);
+    
+    const userData = {
+        id: user.id,
+        nombre: extractFirstName(user),
+        apellido: extractLastName(user),
+        email: user.email,
+        proveedor: user.app_metadata?.provider || 'google',
+        avatar_url: extractAvatarUrl(user),
+        rol: userRole // Usar el rol obtenido de la base de datos
+    };
+
+    // Actualizar metadatos del usuario con el rol correcto
+    await updateUserMetadata(user.id, userRole);
+    
+    // Guardar en tabla clientes (ya con el rol correcto)
+    await saveUserToClients(userData, userRole);
+    
+    // Redirigir basado en el rol actualizado
+    redirectByRole(userRole);
+}
+
+async function updateUserMetadata(userId, newRole) {
+    try {
+        console.log('🔄 Actualizando metadatos del usuario:', userId, 'rol:', newRole);
+        
+        const { data, error } = await supabaseClient.auth.updateUser({
+            data: { rol: newRole }
+        });
+        
+        if (error) {
+            console.error('Error actualizando metadatos:', error);
+            
+            // Si falla, intentar método alternativo
+            await forceRefreshToken();
+        } else {
+            console.log('✅ Metadatos actualizados correctamente');
+        }
+    } catch (error) {
+        console.error('Error en updateUserMetadata:', error);
+    }
+}
+
+async function forceRefreshToken() {
+    try {
+        console.log('🔄 Forzando refresco de token...');
+        const { data, error } = await supabaseClient.auth.refreshSession();
+        
+        if (error) {
+            console.error('Error refrescando sesión:', error);
+            return false;
+        }
+        
+        if (data.session) {
+            console.log('✅ Sesión refrescada correctamente');
+            return true;
+        }
+    } catch (error) {
+        console.error('Error en forceRefreshToken:', error);
+    }
+    return false;
+}
+
+async function getCurrentRoleFromDatabase(email) {
+    try {
+        console.log('🔍 Obteniendo rol actualizado para:', email);
+        
+        const { data, error } = await supabaseClient
+            .from('clientes')
+            .select('rol')
+            .eq('email', email)
+            .maybeSingle(); // Usar maybeSingle en lugar de single para evitar error si no existe
+        
+        if (error) {
+            console.error('Error obteniendo rol:', error);
+            // Intentar una segunda vez
+            const { data: retryData } = await supabaseClient
+                .from('clientes')
+                .select('rol')
+                .eq('email', email)
+                .maybeSingle();
+            
+            if (retryData) {
+                console.log('✅ Rol obtenido en reintento:', retryData.rol);
+                return retryData.rol || 'cliente';
+            }
+            return 'cliente';
+        }
+        
+        if (data) {
+            console.log('✅ Rol obtenido de BD:', data.rol);
+            return data.rol || 'cliente';
+        } else {
+            console.log('⚠️ Usuario no encontrado en BD, usando rol por defecto');
+            return 'cliente';
+        }
+        
+    } catch (error) {
+        console.error('Error en getCurrentRoleFromDatabase:', error);
+        return 'cliente';
+    }
+}
+
 
 // Función separada para procesar usuario
 async function processUserData(user) {
